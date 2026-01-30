@@ -1,6 +1,6 @@
 # ascetic-ddd-python
 
-Toolkit and [seedwork](https://martinfowler.com/bliki/Seedwork.html) for a python DDD project.
+Toolkit and [seedwork](https://martinfowler.com/bliki/Seedwork.html) for a Python DDD project.
 
 Данный проект представляет собой компиляцию файлов из различных моих Open Source библиотек,
 а также подсмотренных мною решений в Open Source Reference Applications,
