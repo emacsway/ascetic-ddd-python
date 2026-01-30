@@ -259,5 +259,71 @@ class InboxSetupTestCase(IsolatedAsyncioTestCase):
         self.assertIn("CREATE TABLE", cursor.executed_sql[1])
 
 
+class InboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
+    """Test cases for Inbox async iterator."""
+
+    async def test_aiter_yields_session_and_message(self):
+        """Async iterator yields (session, message) tuples."""
+        row = (
+            "tenant1",
+            "Order",
+            {"id": "order-123"},
+            1,
+            "OrderCreated",
+            1,
+            {"amount": 100},
+            None,
+            1,
+            None,
+        )
+        # First call returns row, second returns None (to stop iteration)
+        cursor = MockCursor(rows=[row, None])
+        connection = MockConnection(cursor)
+        session = MockSession(connection)
+        pool = MockSessionPool(session)
+
+        inbox = TestInbox(pool)
+        results = []
+
+        # Use anext to get one item without infinite loop
+        iterator = inbox.__aiter__()
+        session_result, message_result = await iterator.__anext__()
+
+        self.assertIsNotNone(session_result)
+        self.assertEqual(message_result.tenant_id, "tenant1")
+        self.assertEqual(message_result.event_type, "OrderCreated")
+
+    async def test_aiter_marks_message_as_processed(self):
+        """Async iterator marks message as processed after yield."""
+        row = (
+            "tenant1",
+            "Order",
+            {"id": "order-123"},
+            1,
+            "OrderCreated",
+            1,
+            {"amount": 100},
+            None,
+            1,
+            None,
+        )
+        cursor = MockCursor(rows=[row])
+        connection = MockConnection(cursor)
+        session = MockSession(connection)
+        pool = MockSessionPool(session)
+
+        inbox = TestInbox(pool)
+
+        iterator = inbox.__aiter__()
+        await iterator.__anext__()
+        # Close the generator to ensure code after yield executes
+        await iterator.aclose()
+
+        # Check that UPDATE was executed to mark as processed
+        update_sqls = [sql for sql in cursor.executed_sql if "UPDATE" in sql]
+        self.assertEqual(len(update_sqls), 1)
+        self.assertIn("processed_position", update_sqls[0])
+
+
 if __name__ == '__main__':
     unittest.main()

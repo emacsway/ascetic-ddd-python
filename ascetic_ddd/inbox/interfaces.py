@@ -1,7 +1,7 @@
 """Interfaces for the Inbox pattern."""
 
 from abc import ABCMeta, abstractmethod
-from typing import TypeAlias, Callable, Awaitable, Optional
+from typing import AsyncIterator, TypeAlias, Callable, Awaitable, Optional
 from ascetic_ddd.inbox.message import InboxMessage
 from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
 
@@ -83,4 +83,17 @@ class IInbox(metaclass=ABCMeta):
     @abstractmethod
     async def cleanup(self) -> None:
         """Cleanup resources."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def __aiter__(self) -> AsyncIterator[tuple['IPgSession', 'InboxMessage']]:
+        """Return async iterator for continuous message processing.
+
+        Usage:
+            async for session, message in inbox:
+                await handle_message(session, message)
+
+        Yields:
+            Tuple of (session, message) for each processable message.
+        """
         raise NotImplementedError
