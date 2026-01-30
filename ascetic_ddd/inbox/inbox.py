@@ -79,6 +79,62 @@ class Inbox(IInbox):
             # Just watch for a message, mark it as processed.
             pass
 
+    def __aiter__(self) -> AsyncIterator[tuple[IPgSession, InboxMessage]]:
+        """Return async iterator for continuous message processing.
+
+        Usage:
+            async for session, message in inbox:
+                # Process message within transaction
+                await handle_message(session, message)
+                # Message is automatically marked as processed after yield
+
+        The iterator runs indefinitely, polling for new messages.
+        Use Ctrl+C or break to stop.
+        """
+        return self._iterate()
+
+    async def _iterate(
+            self, poll_interval: float = 1.0
+    ) -> AsyncIterator[tuple[IPgSession, InboxMessage]]:
+        """Async generator that yields (session, message) pairs.
+
+        Args:
+            poll_interval: Seconds to wait when no messages available.
+
+        Yields:
+            Tuple of (session, message) for each processable message.
+            Message is marked as processed after the yield returns.
+        """
+        while True:
+            found = False
+            offset = 0
+
+            while True:
+                async with self._session_pool.session() as session:
+                    async with session.atomic():
+                        message = await self._fetch_unprocessed_message(session, offset)
+
+                        if message is None:
+                            # No more messages at this offset
+                            break
+
+                        if not await self._are_dependencies_satisfied(session, message):
+                            # Dependencies not met, try next message
+                            offset += 1
+                            continue
+
+                        # Yield to caller for processing, mark as processed after
+                        try:
+                            yield session, message
+                        finally:
+                            await self._mark_processed(session, message)
+                        found = True
+                        break
+
+            if not found:
+                # No processable messages, wait before polling again
+                await asyncio.sleep(poll_interval)
+
     async def _insert_message(self, session: IPgSession, message: InboxMessage) -> None:
         """Insert message into inbox table."""
         sql = """
@@ -260,59 +316,3 @@ class Inbox(IInbox):
     async def cleanup(self) -> None:
         """Cleanup resources (no-op for now)."""
         pass
-
-    def __aiter__(self) -> AsyncIterator[tuple[IPgSession, InboxMessage]]:
-        """Return async iterator for continuous message processing.
-
-        Usage:
-            async for session, message in inbox:
-                # Process message within transaction
-                await handle_message(session, message)
-                # Message is automatically marked as processed after yield
-
-        The iterator runs indefinitely, polling for new messages.
-        Use Ctrl+C or break to stop.
-        """
-        return self._iterate()
-
-    async def _iterate(
-            self, poll_interval: float = 1.0
-    ) -> AsyncIterator[tuple[IPgSession, InboxMessage]]:
-        """Async generator that yields (session, message) pairs.
-
-        Args:
-            poll_interval: Seconds to wait when no messages available.
-
-        Yields:
-            Tuple of (session, message) for each processable message.
-            Message is marked as processed after the yield returns.
-        """
-        while True:
-            found = False
-            offset = 0
-
-            while True:
-                async with self._session_pool.session() as session:
-                    async with session.atomic():
-                        message = await self._fetch_unprocessed_message(session, offset)
-
-                        if message is None:
-                            # No more messages at this offset
-                            break
-
-                        if not await self._are_dependencies_satisfied(session, message):
-                            # Dependencies not met, try next message
-                            offset += 1
-                            continue
-
-                        # Yield to caller for processing, mark as processed after
-                        try:
-                            yield session, message
-                        finally:
-                            await self._mark_processed(session, message)
-                        found = True
-                        break
-
-            if not found:
-                # No processable messages, wait before polling again
-                await asyncio.sleep(poll_interval)
