@@ -129,6 +129,33 @@ class Inbox(IInbox):
                     finally:
                         await self._mark_processed(session, message)
 
+    async def run(
+            self,
+            workers: int = 1,
+            poll_interval: float = 1.0
+    ) -> None:
+        """Run message processing with concurrent workers.
+
+        Args:
+            workers: Number of concurrent workers.
+            poll_interval: Seconds to wait when no messages available.
+        """
+        if workers == 1:
+            await self._worker(poll_interval)
+        else:
+            tasks = [
+                asyncio.create_task(self._worker(poll_interval))
+                for _ in range(workers)
+            ]
+            await asyncio.gather(*tasks)
+
+    async def _worker(self, poll_interval: float = 1.0) -> None:
+        """Single worker loop for processing messages."""
+        while True:
+            processed = await self.handle()
+            if not processed:
+                await asyncio.sleep(poll_interval)
+
     async def _insert_message(self, session: IPgSession, message: InboxMessage) -> None:
         """Insert message into inbox table."""
         sql = """
@@ -180,7 +207,7 @@ class Inbox(IInbox):
     async def _fetch_unprocessed_message(
             self, session: IPgSession, offset: int
     ) -> InboxMessage | None:
-        """Fetch first unprocessed message at given offset."""
+        """Fetch first unprocessed message at given offset with row-level lock."""
         sql = """
             SELECT
                 tenant_id, stream_type, stream_id, stream_position,
@@ -190,6 +217,7 @@ class Inbox(IInbox):
             WHERE processed_position IS NULL
             ORDER BY received_position ASC
             LIMIT 1 OFFSET %%s
+            FOR UPDATE SKIP LOCKED
         """ % self._table
 
         async with session.connection.cursor() as cursor:

@@ -85,6 +85,20 @@ The iterator:
 - Marks messages as processed after the yield returns
 - Use `Ctrl+C` or `break` to stop
 
+#### 3. Concurrent Processing (run)
+
+Run multiple workers for parallel message processing:
+
+```python
+# Single worker (default)
+await inbox.run()
+
+# Multiple concurrent workers
+await inbox.run(workers=4, poll_interval=0.5)
+```
+
+Uses `FOR UPDATE SKIP LOCKED` to prevent multiple workers from processing the same message.
+
 ### Custom Handler (Override)
 
 Override `do_handle` for custom processing logic:

@@ -320,7 +320,8 @@ class InboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
         await iterator.aclose()
 
         # Check that UPDATE was executed to mark as processed
-        update_sqls = [sql for sql in cursor.executed_sql if "UPDATE" in sql]
+        # Filter for UPDATE statements (not SELECT ... FOR UPDATE)
+        update_sqls = [sql for sql in cursor.executed_sql if sql.strip().startswith("UPDATE")]
         self.assertEqual(len(update_sqls), 1)
         self.assertIn("processed_position", update_sqls[0])
 

@@ -97,3 +97,17 @@ class IInbox(metaclass=ABCMeta):
             Tuple of (session, message) for each processable message.
         """
         raise NotImplementedError
+
+    @abstractmethod
+    async def run(
+            self,
+            workers: int = 1,
+            poll_interval: float = 1.0
+    ) -> None:
+        """Run message processing with concurrent workers.
+
+        Args:
+            workers: Number of concurrent workers.
+            poll_interval: Seconds to wait when no messages available.
+        """
+        raise NotImplementedError
