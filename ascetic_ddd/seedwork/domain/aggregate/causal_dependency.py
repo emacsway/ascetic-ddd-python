@@ -10,26 +10,36 @@ __all__ = (
 
 @dataclass(frozen=True)
 class CausalDependency:
-    aggregate_id: typing.Any
-    aggregate_type: str
-    aggregate_version: int
+    """
+    This is enough to extract aggregate with required version from repository.
+    And this is enough to check causal dependencies in Inbox.
+    """
+    tenant_id: typing.Any  # aggregate.id.tenant_id
+    stream_id: typing.Any  # aggregate.id.internal_id
+    stream_type: str  # bounded_context_name.aggregate_name
+    stream_position: int  # aggregate.version
 
     def export(self, exporter: "ICausalDependencyExporter") -> None:
-        exporter.set_aggregate_id(self.aggregate_id)
-        exporter.set_aggregate_type(self.aggregate_type)
-        exporter.set_aggregate_version(self.aggregate_version)
+        exporter.set_tenant_id(self.tenant_id)
+        exporter.set_stream_id(self.stream_id)
+        exporter.set_stream_type(self.stream_type)
+        exporter.set_stream_position(self.stream_position)
 
 
 class ICausalDependencyExporter(metaclass=ABCMeta):
 
     @abstractmethod
-    def set_aggregate_id(self, value: typing.Any) -> None:
+    def set_tenant_id(self, value: typing.Any) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def set_aggregate_type(self, value: str) -> None:
+    def set_stream_id(self, value: typing.Any) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def set_aggregate_version(self, value: int) -> None:
+    def set_stream_type(self, value: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_stream_position(self, value: int) -> None:
         raise NotImplementedError
