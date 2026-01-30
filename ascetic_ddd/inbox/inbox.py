@@ -66,7 +66,15 @@ class Inbox(IInbox):
 
     async def handle(self) -> bool:
         """Process the next unprocessed message with satisfied dependencies."""
-        return await self._handle_with_offset(0)
+        async with self._session_pool.session() as session:
+            async with session.atomic():
+                message = await self._fetch_next_processable(session)
+                if message is None:
+                    return False
+
+                await self.do_handle(session, message)
+                await self._mark_processed(session, message)
+                return True
 
     @abstractmethod
     async def do_handle(self, session: IPgSession, message: InboxMessage) -> None:
@@ -106,34 +114,20 @@ class Inbox(IInbox):
             Message is marked as processed after the yield returns.
         """
         while True:
-            found = False
-            offset = 0
+            async with self._session_pool.session() as session:
+                async with session.atomic():
+                    message = await self._fetch_next_processable(session)
 
-            while True:
-                async with self._session_pool.session() as session:
-                    async with session.atomic():
-                        message = await self._fetch_unprocessed_message(session, offset)
+                    if message is None:
+                        # No processable messages, wait before polling again
+                        await asyncio.sleep(poll_interval)
+                        continue
 
-                        if message is None:
-                            # No more messages at this offset
-                            break
-
-                        if not await self._are_dependencies_satisfied(session, message):
-                            # Dependencies not met, try next message
-                            offset += 1
-                            continue
-
-                        # Yield to caller for processing, mark as processed after
-                        try:
-                            yield session, message
-                        finally:
-                            await self._mark_processed(session, message)
-                        found = True
-                        break
-
-            if not found:
-                # No processable messages, wait before polling again
-                await asyncio.sleep(poll_interval)
+                    # Yield to caller for processing, mark as processed after
+                    try:
+                        yield session, message
+                    finally:
+                        await self._mark_processed(session, message)
 
     async def _insert_message(self, session: IPgSession, message: InboxMessage) -> None:
         """Insert message into inbox table."""
@@ -162,24 +156,26 @@ class Inbox(IInbox):
                 )
             )
 
-    async def _handle_with_offset(self, offset: int) -> bool:
-        """Process message at given offset, recursively trying next if dependencies not met."""
-        async with self._session_pool.session() as session:
-            async with session.atomic():
-                message = await self._fetch_unprocessed_message(session, offset)
-                if message is None:
-                    return False
+    async def _fetch_next_processable(
+            self, session: IPgSession, start_offset: int = 0
+    ) -> InboxMessage | None:
+        """Find next message with satisfied dependencies.
 
-                if not await self._are_dependencies_satisfied(session, message):
-                    # Try next message recursively
-                    return await self._handle_with_offset(offset + 1)
+        Args:
+            session: Database session.
+            start_offset: Offset to start searching from.
 
-                # Process the message
-                await self.do_handle(session, message)
-
-                # Mark as processed
-                await self._mark_processed(session, message)
-                return True
+        Returns:
+            Next processable message or None if no messages available.
+        """
+        offset = start_offset
+        while True:
+            message = await self._fetch_unprocessed_message(session, offset)
+            if message is None:
+                return None
+            if await self._are_dependencies_satisfied(session, message):
+                return message
+            offset += 1
 
     async def _fetch_unprocessed_message(
             self, session: IPgSession, offset: int
