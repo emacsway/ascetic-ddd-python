@@ -1,6 +1,7 @@
 """Inbox pattern implementation."""
 
 import json
+import typing
 from abc import abstractmethod
 from typing import Any
 
@@ -24,6 +25,18 @@ class Inbox(IInbox):
 
     _table: str = 'inbox'
     _sequence: str = 'inbox_received_position_seq'
+
+    class Handlers(dict):
+        def register(self, event_type: str, event_version: int):
+            def do_register(
+                handler: typing.Callable[['Inbox', IPgSession, InboxMessage], typing.Awaitable]
+            ):
+                self[(event_type, event_version)] = handler
+                return handler
+
+            return do_register
+
+    handlers = Handlers()
 
     def __init__(self, session_pool: ISessionPool, mediator: IMediator):
         """Initialize Inbox.
@@ -196,7 +209,8 @@ class Inbox(IInbox):
     @abstractmethod
     async def do_handle(self, session: IPgSession, message: InboxMessage) -> None:
         """Process a single message. Override in subclasses."""
-        raise NotImplementedError
+        # TODO: Map Event to Command and call mediator?
+        self.handlers[(message.event_type, message.event_version)](self, session, message)
 
     async def setup(self) -> None:
         """Create inbox table and sequence if they don't exist."""
