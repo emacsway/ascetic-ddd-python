@@ -1,5 +1,6 @@
 """Tests for Inbox class."""
 
+import asyncio
 import json
 import unittest
 from typing import Any
@@ -324,6 +325,85 @@ class InboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
         update_sqls = [sql for sql in cursor.executed_sql if sql.strip().startswith("UPDATE")]
         self.assertEqual(len(update_sqls), 1)
         self.assertIn("processed_position", update_sqls[0])
+
+
+class InboxRunTestCase(IsolatedAsyncioTestCase):
+    """Test cases for Inbox.run()."""
+
+    async def test_run_single_worker_processes_messages(self):
+        """run() with single worker processes messages."""
+        row = (
+            "tenant1",
+            "Order",
+            {"id": "order-123"},
+            1,
+            "OrderCreated",
+            1,
+            {"amount": 100},
+            None,
+            1,
+            None,
+        )
+        cursor = MockCursor(rows=[row])
+        connection = MockConnection(cursor)
+        session = MockSession(connection)
+        pool = MockSessionPool(session)
+
+        inbox = TestInbox(pool)
+
+        # Run with timeout to prevent infinite loop
+        with self.assertRaises(asyncio.TimeoutError):
+            await asyncio.wait_for(inbox.run(workers=1, poll_interval=0.01), timeout=0.1)
+
+        # Message should be processed
+        self.assertEqual(len(inbox.handled_messages), 1)
+
+    async def test_run_multiple_workers_spawns_tasks(self):
+        """run() with multiple workers spawns concurrent tasks."""
+        rows = [
+            (
+                "tenant1",
+                "Order",
+                {"id": "order-%d" % i},
+                i,
+                "OrderCreated",
+                1,
+                {"amount": 100},
+                None,
+                i,
+                None,
+            )
+            for i in range(4)
+        ]
+        cursor = MockCursor(rows=rows)
+        connection = MockConnection(cursor)
+        session = MockSession(connection)
+        pool = MockSessionPool(session)
+
+        inbox = TestInbox(pool)
+
+        # Run with timeout to prevent infinite loop
+        with self.assertRaises(asyncio.TimeoutError):
+            await asyncio.wait_for(inbox.run(workers=2, poll_interval=0.01), timeout=0.1)
+
+        # Multiple messages should be processed
+        self.assertGreaterEqual(len(inbox.handled_messages), 1)
+
+    async def test_run_worker_sleeps_when_no_messages(self):
+        """run() worker sleeps when no messages available."""
+        cursor = MockCursor(rows=[])
+        connection = MockConnection(cursor)
+        session = MockSession(connection)
+        pool = MockSessionPool(session)
+
+        inbox = TestInbox(pool)
+
+        # Run with short timeout
+        with self.assertRaises(asyncio.TimeoutError):
+            await asyncio.wait_for(inbox.run(workers=1, poll_interval=0.05), timeout=0.1)
+
+        # No messages processed
+        self.assertEqual(len(inbox.handled_messages), 0)
 
 
 if __name__ == '__main__':
