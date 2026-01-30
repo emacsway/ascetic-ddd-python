@@ -10,15 +10,15 @@ Usage:
 
     class MyInbox(Inbox):
         async def do_handle(self, session, message):
-            # Dispatch to mediator or handle directly
+            # Handle message directly or dispatch to external handler
             event = deserialize_event(message.event_type, message.payload)
-            await self._mediator.publish(session, event)
+            await handle_event(session, event)
 
-    inbox = MyInbox(session_pool, mediator)
+    inbox = MyInbox(session_pool)
     await inbox.setup()
 
     # Receive messages from external source (e.g., message broker)
-    await inbox.receive(InboxMessage(
+    await inbox.publish(InboxMessage(
         tenant_id="tenant1",
         stream_type="Order",
         stream_id={"id": "order-123"},

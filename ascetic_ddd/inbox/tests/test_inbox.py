@@ -85,21 +85,11 @@ class MockSessionPool:
         pass
 
 
-class MockMediator:
-    """Mock mediator."""
-
-    def __init__(self):
-        self.published_events = []
-
-    async def publish(self, session, event):
-        self.published_events.append(event)
-
-
 class TestInbox(Inbox):
     """Concrete Inbox implementation for testing."""
 
-    def __init__(self, session_pool, mediator):
-        super().__init__(session_pool, mediator)
+    def __init__(self, session_pool):
+        super().__init__(session_pool)
         self.handled_messages = []
 
     async def do_handle(self, session, message: InboxMessage) -> None:
@@ -107,17 +97,16 @@ class TestInbox(Inbox):
 
 
 class InboxReceiveTestCase(IsolatedAsyncioTestCase):
-    """Test cases for Inbox.receive()."""
+    """Test cases for Inbox.publish()."""
 
     async def test_receive_inserts_message(self):
-        """receive() inserts message into database."""
+        """publish() inserts message into database."""
         cursor = MockCursor()
         connection = MockConnection(cursor)
         session = MockSession(connection)
         pool = MockSessionPool(session)
-        mediator = MockMediator()
 
-        inbox = TestInbox(pool, mediator)
+        inbox = TestInbox(pool)
         message = InboxMessage(
             tenant_id="tenant1",
             stream_type="Order",
@@ -129,7 +118,7 @@ class InboxReceiveTestCase(IsolatedAsyncioTestCase):
             metadata={"event_id": "uuid-123"},
         )
 
-        await inbox.receive(message)
+        await inbox.publish(message)
 
         self.assertEqual(len(cursor.executed_sql), 1)
         self.assertIn("INSERT INTO", cursor.executed_sql[0])
@@ -153,9 +142,8 @@ class InboxHandleTestCase(IsolatedAsyncioTestCase):
         connection = MockConnection(cursor)
         session = MockSession(connection)
         pool = MockSessionPool(session)
-        mediator = MockMediator()
 
-        inbox = TestInbox(pool, mediator)
+        inbox = TestInbox(pool)
         result = await inbox.handle()
 
         self.assertFalse(result)
@@ -179,9 +167,8 @@ class InboxHandleTestCase(IsolatedAsyncioTestCase):
         connection = MockConnection(cursor)
         session = MockSession(connection)
         pool = MockSessionPool(session)
-        mediator = MockMediator()
 
-        inbox = TestInbox(pool, mediator)
+        inbox = TestInbox(pool)
         result = await inbox.handle()
 
         self.assertTrue(result)
@@ -209,9 +196,8 @@ class InboxDependencyCheckTestCase(IsolatedAsyncioTestCase):
         connection = MockConnection(cursor)
         session = MockSession(connection)
         pool = MockSessionPool(session)
-        mediator = MockMediator()
 
-        inbox = TestInbox(pool, mediator)
+        inbox = TestInbox(pool)
         result = await inbox._are_dependencies_satisfied(session, message)
 
         self.assertTrue(result)
@@ -222,9 +208,8 @@ class InboxDependencyCheckTestCase(IsolatedAsyncioTestCase):
         connection = MockConnection(cursor)
         session = MockSession(connection)
         pool = MockSessionPool(session)
-        mediator = MockMediator()
 
-        inbox = TestInbox(pool, mediator)
+        inbox = TestInbox(pool)
         dep = {
             "tenant_id": "tenant1",
             "stream_type": "User",
@@ -242,9 +227,8 @@ class InboxDependencyCheckTestCase(IsolatedAsyncioTestCase):
         connection = MockConnection(cursor)
         session = MockSession(connection)
         pool = MockSessionPool(session)
-        mediator = MockMediator()
 
-        inbox = TestInbox(pool, mediator)
+        inbox = TestInbox(pool)
         dep = {
             "tenant_id": "tenant1",
             "stream_type": "User",
@@ -266,9 +250,8 @@ class InboxSetupTestCase(IsolatedAsyncioTestCase):
         connection = MockConnection(cursor)
         session = MockSession(connection)
         pool = MockSessionPool(session)
-        mediator = MockMediator()
 
-        inbox = TestInbox(pool, mediator)
+        inbox = TestInbox(pool)
         await inbox.setup()
 
         self.assertEqual(len(cursor.executed_sql), 2)

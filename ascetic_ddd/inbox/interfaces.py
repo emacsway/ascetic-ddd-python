@@ -1,16 +1,17 @@
 """Interfaces for the Inbox pattern."""
 
 from abc import ABCMeta, abstractmethod
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ascetic_ddd.inbox.message import InboxMessage
-    from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
+from typing import TypeAlias, Callable, Awaitable, Optional
+from ascetic_ddd.inbox.message import InboxMessage
+from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
 
 
 __all__ = (
     'IInbox',
+    'ISubscriber',
 )
+
+ISubscriber: TypeAlias = Callable[[IPgSession, InboxMessage], Awaitable]
 
 
 class IInbox(metaclass=ABCMeta):
@@ -23,7 +24,16 @@ class IInbox(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    async def receive(self, message: 'InboxMessage') -> None:
+    def subscribe(
+            self,
+            event_type: str,
+            event_version: int,
+            handler: Optional[ISubscriber] = None
+    ) -> Callable[[ISubscriber], ISubscriber] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def publish(self, message: 'InboxMessage') -> None:
         """Receive and store an incoming message.
 
         The message is stored in the inbox table. If a message with the same

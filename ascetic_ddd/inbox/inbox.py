@@ -2,12 +2,13 @@
 
 import json
 import typing
+from typing import Callable, Awaitable
 from abc import abstractmethod
+from collections import defaultdict
 from typing import Any
 
-from ascetic_ddd.inbox.interfaces import IInbox
+from ascetic_ddd.inbox.interfaces import IInbox, ISubscriber
 from ascetic_ddd.inbox.message import InboxMessage
-from ascetic_ddd.mediator.interfaces import IMediator
 from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool
 from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
 
@@ -25,30 +26,35 @@ class Inbox(IInbox):
 
     _table: str = 'inbox'
     _sequence: str = 'inbox_received_position_seq'
+    _subscribers: dict[tuple[str, int], list[ISubscriber]]
 
-    class Handlers(dict):
-        def register(self, event_type: str, event_version: int):
-            def do_register(
-                handler: typing.Callable[['Inbox', IPgSession, InboxMessage], typing.Awaitable]
-            ):
-                self[(event_type, event_version)] = handler
-                return handler
-
-            return do_register
-
-    handlers = Handlers()
-
-    def __init__(self, session_pool: ISessionPool, mediator: IMediator):
+    def __init__(self, session_pool: ISessionPool):
         """Initialize Inbox.
 
         Args:
             session_pool: Pool for obtaining database sessions.
-            mediator: Mediator for dispatching events/commands.
         """
         self._session_pool = session_pool
-        self._mediator = mediator
+        self._subscribers = defaultdict(list)
 
-    async def receive(self, message: InboxMessage) -> None:
+    def subscribe(
+            self,
+            event_type: str,  # topic_name?
+            event_version: int,
+            handler: typing.Optional[ISubscriber] = None
+    ) -> Callable[[ISubscriber], ISubscriber] | None:
+
+        def deco(func: ISubscriber) -> ISubscriber:
+            self._subscribers[(event_type, event_version)].append(func)
+            return func
+
+        if handler is not None:
+            deco(handler)
+            return None
+        else:
+            return deco
+
+    async def publish(self, message: InboxMessage) -> None:
         """Receive and store an incoming message.
 
         Uses INSERT ... ON CONFLICT DO NOTHING for idempotency.
@@ -56,6 +62,21 @@ class Inbox(IInbox):
         async with self._session_pool.session() as session:
             async with session.atomic():
                 await self._insert_message(session, message)
+
+    async def handle(self) -> bool:
+        """Process the next unprocessed message with satisfied dependencies."""
+        return await self._handle_with_offset(0)
+
+    @abstractmethod
+    async def do_handle(self, session: IPgSession, message: InboxMessage) -> None:
+        """Process a single message. Override in subclasses."""
+        key = (message.event_type, message.event_version)
+        if key in self._subscribers:
+            for handler in self._subscribers[key]:
+                handler(session, message)
+        else:
+            # Just watch for a message, mark it as processed.
+            pass
 
     async def _insert_message(self, session: IPgSession, message: InboxMessage) -> None:
         """Insert message into inbox table."""
@@ -83,10 +104,6 @@ class Inbox(IInbox):
                     json.dumps(message.metadata) if message.metadata else None,
                 )
             )
-
-    async def handle(self) -> bool:
-        """Process the next unprocessed message with satisfied dependencies."""
-        return await self._handle_with_offset(0)
 
     async def _handle_with_offset(self, offset: int) -> bool:
         """Process message at given offset, recursively trying next if dependencies not met."""
@@ -205,19 +222,6 @@ class Inbox(IInbox):
                     message.stream_position,
                 )
             )
-
-    @abstractmethod
-    async def do_handle(self, session: IPgSession, message: InboxMessage) -> None:
-        """Process a single message. Override in subclasses.
-
-        TODO: Map InboxMessage to Command and call mediator?
-        """
-        key = (message.event_type, message.event_version)
-        if key in self.handlers:
-            self.handlers[key](self, session, message)
-        else:
-            # Just watch for a message, map it as processed.
-            pass
 
     async def setup(self) -> None:
         """Create inbox table and sequence if they don't exist."""
