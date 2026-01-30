@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from unittest import IsolatedAsyncioTestCase, mock
 
-from ..mediator import Mediator
+from ascetic_ddd.mediator.mediator import Mediator
 
 
 class IEvent:
@@ -29,14 +29,14 @@ class SampleCommand(ICommand):
 class MediatorTestCase(IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.mediator = Mediator[IEvent, ICommand, Session]()
-        self.session = Session
+        self.session = Session()
 
     async def test_publish(self):
         handler = mock.AsyncMock()
         await self.mediator.subscribe(SampleDomainEvent, handler)
         event = SampleDomainEvent(2)
-        await self.mediator.publish(event, self.session)
-        handler.assert_called_once_with(event, self.session)
+        await self.mediator.publish(self.session, event)
+        handler.assert_called_once_with(self.session, event)
 
     async def test_unsubscribe(self):
         handler = mock.AsyncMock()
@@ -45,9 +45,9 @@ class MediatorTestCase(IsolatedAsyncioTestCase):
         await self.mediator.subscribe(SampleDomainEvent, handler2)
         await self.mediator.unsubscribe(SampleDomainEvent, handler)
         event = SampleDomainEvent(2)
-        await self.mediator.publish(event, self.session)
+        await self.mediator.publish(self.session, event)
         handler.assert_not_called()
-        handler2.assert_called_once_with(event, self.session)
+        handler2.assert_called_once_with(self.session, event)
 
     async def test_disposable_event(self):
         handler = mock.AsyncMock()
@@ -56,16 +56,16 @@ class MediatorTestCase(IsolatedAsyncioTestCase):
         await self.mediator.subscribe(SampleDomainEvent, handler2)
         await disposable.dispose()
         event = SampleDomainEvent(2)
-        await self.mediator.publish(event, self.session)
+        await self.mediator.publish(self.session, event)
         handler.assert_not_called()
-        handler2.assert_called_once_with(event, self.session)
+        handler2.assert_called_once_with(self.session, event)
 
     async def test_send(self):
         handler = mock.AsyncMock(return_value=5)
         await self.mediator.register(SampleCommand, handler)
         command = SampleCommand(2)
-        result = await self.mediator.send(command)
-        handler.assert_called_once_with(command)
+        result = await self.mediator.send(self.session, command)
+        handler.assert_called_once_with(self.session, command)
         self.assertEqual(result, 5)
 
     async def test_unregister(self):
@@ -73,7 +73,7 @@ class MediatorTestCase(IsolatedAsyncioTestCase):
         await self.mediator.register(SampleCommand, handler)
         await self.mediator.unregister(SampleCommand)
         command = SampleCommand(2)
-        await self.mediator.send(command)
+        await self.mediator.send(self.session, command)
         handler.assert_not_called()
 
     async def test_disposable_command(self):
@@ -81,5 +81,5 @@ class MediatorTestCase(IsolatedAsyncioTestCase):
         disposable = await self.mediator.register(SampleCommand, handler)
         await disposable.dispose()
         command = SampleCommand(2)
-        await self.mediator.send(command)
+        await self.mediator.send(self.session, command)
         handler.assert_not_called()
