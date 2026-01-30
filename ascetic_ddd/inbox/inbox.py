@@ -208,9 +208,16 @@ class Inbox(IInbox):
 
     @abstractmethod
     async def do_handle(self, session: IPgSession, message: InboxMessage) -> None:
-        """Process a single message. Override in subclasses."""
-        # TODO: Map Event to Command and call mediator?
-        self.handlers[(message.event_type, message.event_version)](self, session, message)
+        """Process a single message. Override in subclasses.
+
+        TODO: Map InboxMessage to Command and call mediator?
+        """
+        key = (message.event_type, message.event_version)
+        if key in self.handlers:
+            self.handlers[key](self, session, message)
+        else:
+            # Just watch for a message, map it as processed.
+            pass
 
     async def setup(self) -> None:
         """Create inbox table and sequence if they don't exist."""
