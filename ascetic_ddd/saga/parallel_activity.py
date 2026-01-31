@@ -51,10 +51,6 @@ class ParallelActivity(Activity):
         """
         branches: list[RoutingSlip] = work_item.arguments["branches"]
 
-        # Set parent for each branch (for coordination when using message bus)
-        for branch in branches:
-            branch.parent = work_item
-
         # Execute all branches in parallel
         tasks = [self._execute_branch(branch) for branch in branches]
         results = await asyncio.gather(*tasks, return_exceptions=True)

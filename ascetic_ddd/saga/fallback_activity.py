@@ -51,9 +51,6 @@ class FallbackActivity(Activity):
         alternatives: list[RoutingSlip] = work_item.arguments["alternatives"]
 
         for alternative in alternatives:
-            # Set parent for coordination when using message bus
-            alternative.parent = work_item
-
             success = await self._execute_alternative(alternative)
 
             if success:
