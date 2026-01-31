@@ -63,7 +63,7 @@ async def handle_order_shipped(session, message):
     await notify_customer(session, message.payload)
 
 # Process messages (call periodically or on notification)
-while await inbox.handle():
+while await inbox.dispatch():
     pass
 ```
 

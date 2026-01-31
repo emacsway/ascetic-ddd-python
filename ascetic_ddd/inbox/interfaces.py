@@ -46,7 +46,7 @@ class IInbox(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    async def handle(self) -> bool:
+    async def dispatch(self) -> bool:
         """Process the next unprocessed message.
 
         Selects the first message with processed_position IS NULL,

@@ -134,24 +134,24 @@ class InboxReceiveTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(params[5], 1)
 
 
-class InboxHandleTestCase(IsolatedAsyncioTestCase):
-    """Test cases for Inbox.handle()."""
+class InboxDispatchTestCase(IsolatedAsyncioTestCase):
+    """Test cases for Inbox.dispatch()."""
 
-    async def test_handle_returns_false_when_no_messages(self):
-        """handle() returns False when no unprocessed messages."""
+    async def test_dispatch_returns_false_when_no_messages(self):
+        """dispatch() returns False when no unprocessed messages."""
         cursor = MockCursor(rows=[])
         connection = MockConnection(cursor)
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
         inbox = TestInbox(pool)
-        result = await inbox.handle()
+        result = await inbox.dispatch()
 
         self.assertFalse(result)
         self.assertEqual(len(inbox.handled_messages), 0)
 
-    async def test_handle_processes_message_without_dependencies(self):
-        """handle() processes message without causal dependencies."""
+    async def test_dispatch_processes_message_without_dependencies(self):
+        """dispatch() processes message without causal dependencies."""
         row = (
             "tenant1",  # tenant_id
             "Order",  # stream_type
@@ -170,7 +170,7 @@ class InboxHandleTestCase(IsolatedAsyncioTestCase):
         pool = MockSessionPool(session)
 
         inbox = TestInbox(pool)
-        result = await inbox.handle()
+        result = await inbox.dispatch()
 
         self.assertTrue(result)
         self.assertEqual(len(inbox.handled_messages), 1)

@@ -52,8 +52,8 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
                     await cursor.execute("DROP TABLE IF EXISTS %s" % self.inbox._table)
                     await cursor.execute("DROP SEQUENCE IF EXISTS %s" % self.inbox._sequence)
 
-    async def test_publish_and_handle(self):
-        """publish() stores message, handle() processes it."""
+    async def test_publish_and_dispatch(self):
+        """publish() stores message, dispatch() processes it."""
         message = InboxMessage(
             tenant_id="tenant1",
             stream_type="Order",
@@ -66,7 +66,7 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         )
 
         await self.inbox.publish(message)
-        result = await self.inbox.handle()
+        result = await self.inbox.dispatch()
 
         self.assertTrue(result)
         self.assertEqual(len(self.inbox.handled_messages), 1)
@@ -90,8 +90,8 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         await self.inbox.publish(message)
 
         # Only one message should be processed
-        await self.inbox.handle()
-        result = await self.inbox.handle()
+        await self.inbox.dispatch()
+        result = await self.inbox.dispatch()
 
         self.assertFalse(result)
         self.assertEqual(len(self.inbox.handled_messages), 1)
@@ -123,7 +123,7 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         await self.inbox.publish(dependent_message)
 
         # Should not process (dependency not met)
-        result = await self.inbox.handle()
+        result = await self.inbox.dispatch()
         self.assertFalse(result)
 
         # Now publish the dependency
@@ -139,12 +139,12 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         await self.inbox.publish(dependency_message)
 
         # Process dependency first
-        result = await self.inbox.handle()
+        result = await self.inbox.dispatch()
         self.assertTrue(result)
         self.assertEqual(self.inbox.handled_messages[0].event_type, "OrderCreated")
 
         # Now dependent message can be processed
-        result = await self.inbox.handle()
+        result = await self.inbox.dispatch()
         self.assertTrue(result)
         self.assertEqual(self.inbox.handled_messages[1].event_type, "OrderShipped")
 
@@ -163,7 +163,7 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             await self.inbox.publish(message)
 
         # Process all messages
-        while await self.inbox.handle():
+        while await self.inbox.dispatch():
             pass
 
         self.assertEqual(len(self.inbox.handled_messages), 3)
@@ -203,8 +203,8 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         ))
 
         # Process messages
-        await self.inbox.handle()
-        await self.inbox.handle()
+        await self.inbox.dispatch()
+        await self.inbox.dispatch()
 
         self.assertEqual(len(handled_events), 2)
         self.assertEqual(handled_events[0], ("created", {"id": "order-1"}))

@@ -64,7 +64,7 @@ class Inbox(IInbox):
             async with session.atomic():
                 await self._insert_message(session, message)
 
-    async def handle(self) -> bool:
+    async def dispatch(self) -> bool:
         """Process the next unprocessed message with satisfied dependencies."""
         async with self._session_pool.session() as session:
             async with session.atomic():
@@ -152,7 +152,7 @@ class Inbox(IInbox):
     async def _worker(self, poll_interval: float = 1.0) -> None:
         """Single worker loop for processing messages."""
         while True:
-            processed = await self.handle()
+            processed = await self.dispatch()
             if not processed:
                 await asyncio.sleep(poll_interval)
 
