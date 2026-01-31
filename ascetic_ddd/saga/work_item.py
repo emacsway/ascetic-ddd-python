@@ -33,7 +33,6 @@ class WorkItem(Generic[T]):
         """
         self._activity_type: type[T] = activity_type
         self._arguments: WorkItemArguments = arguments
-        self._routing_slip: 'RoutingSlip | None' = None
 
     @property
     def activity_type(self) -> type[T]:
@@ -44,13 +43,3 @@ class WorkItem(Generic[T]):
     def arguments(self) -> WorkItemArguments:
         """The arguments for the activity."""
         return self._arguments
-
-    @property
-    def routing_slip(self) -> 'RoutingSlip | None':
-        """The routing slip this work item belongs to."""
-        return self._routing_slip
-
-    @routing_slip.setter
-    def routing_slip(self, value: 'RoutingSlip') -> None:
-        """Set the routing slip for this work item."""
-        self._routing_slip = value

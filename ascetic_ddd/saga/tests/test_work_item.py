@@ -39,23 +39,6 @@ class WorkItemTestCase(unittest.TestCase):
         self.assertEqual(work_item.activity_type, StubActivity)
         self.assertEqual(work_item.arguments["vehicleType"], "SUV")
 
-    def test_routing_slip_initially_none(self):
-        """WorkItem routing_slip is None initially."""
-        args = WorkItemArguments()
-        work_item = WorkItem(StubActivity, args)
-
-        self.assertIsNone(work_item.routing_slip)
-
-    def test_routing_slip_can_be_set(self):
-        """WorkItem routing_slip can be assigned."""
-        args = WorkItemArguments()
-        work_item = WorkItem(StubActivity, args)
-        routing_slip = RoutingSlip()
-
-        work_item.routing_slip = routing_slip
-
-        self.assertIs(work_item.routing_slip, routing_slip)
-
     def test_arguments_are_accessible(self):
         """WorkItem arguments are accessible."""
         args = WorkItemArguments({"a": 1, "b": 2, "c": 3})
