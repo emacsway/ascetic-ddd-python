@@ -13,10 +13,10 @@ from ascetic_ddd.saga.work_item import WorkItem
 from ascetic_ddd.saga.work_item_arguments import WorkItemArguments
 
 
-class ReserveCarActivityTestCase(unittest.TestCase):
+class ReserveCarActivityTestCase(unittest.IsolatedAsyncioTestCase):
     """Test cases for ReserveCarActivity."""
 
-    def test_do_work_creates_reservation(self):
+    async def test_do_work_creates_reservation(self):
         """do_work() creates a reservation with ID."""
         activity = ReserveCarActivity()
         work_item = WorkItem(
@@ -24,22 +24,22 @@ class ReserveCarActivityTestCase(unittest.TestCase):
             WorkItemArguments({"vehicleType": "Compact"})
         )
 
-        result = activity.do_work(work_item)
+        result = await activity.do_work(work_item)
 
         self.assertIn("reservationId", result.result)
         self.assertIsInstance(result.result["reservationId"], int)
 
-    def test_compensate_returns_true(self):
+    async def test_compensate_returns_true(self):
         """compensate() returns True to continue backward."""
         activity = ReserveCarActivity()
         work_item = WorkItem(
             ReserveCarActivity,
             WorkItemArguments({"vehicleType": "SUV"})
         )
-        work_log = activity.do_work(work_item)
+        work_log = await activity.do_work(work_item)
         routing_slip = RoutingSlip()
 
-        result = activity.compensate(work_log, routing_slip)
+        result = await activity.compensate(work_log, routing_slip)
 
         self.assertTrue(result)
 
@@ -51,10 +51,10 @@ class ReserveCarActivityTestCase(unittest.TestCase):
         self.assertEqual(activity.compensation_queue_address, "sb://./carCancellations")
 
 
-class ReserveHotelActivityTestCase(unittest.TestCase):
+class ReserveHotelActivityTestCase(unittest.IsolatedAsyncioTestCase):
     """Test cases for ReserveHotelActivity."""
 
-    def test_do_work_creates_reservation(self):
+    async def test_do_work_creates_reservation(self):
         """do_work() creates a reservation with ID."""
         activity = ReserveHotelActivity()
         work_item = WorkItem(
@@ -62,22 +62,22 @@ class ReserveHotelActivityTestCase(unittest.TestCase):
             WorkItemArguments({"roomType": "Suite"})
         )
 
-        result = activity.do_work(work_item)
+        result = await activity.do_work(work_item)
 
         self.assertIn("reservationId", result.result)
         self.assertIsInstance(result.result["reservationId"], int)
 
-    def test_compensate_returns_true(self):
+    async def test_compensate_returns_true(self):
         """compensate() returns True to continue backward."""
         activity = ReserveHotelActivity()
         work_item = WorkItem(
             ReserveHotelActivity,
             WorkItemArguments({"roomType": "Standard"})
         )
-        work_log = activity.do_work(work_item)
+        work_log = await activity.do_work(work_item)
         routing_slip = RoutingSlip()
 
-        result = activity.compensate(work_log, routing_slip)
+        result = await activity.compensate(work_log, routing_slip)
 
         self.assertTrue(result)
 
@@ -89,10 +89,10 @@ class ReserveHotelActivityTestCase(unittest.TestCase):
         self.assertEqual(activity.compensation_queue_address, "sb://./hotelCancellations")
 
 
-class ReserveFlightActivityTestCase(unittest.TestCase):
+class ReserveFlightActivityTestCase(unittest.IsolatedAsyncioTestCase):
     """Test cases for ReserveFlightActivity."""
 
-    def test_do_work_creates_reservation(self):
+    async def test_do_work_creates_reservation(self):
         """do_work() creates a reservation with ID."""
         activity = ReserveFlightActivity()
         work_item = WorkItem(
@@ -100,22 +100,22 @@ class ReserveFlightActivityTestCase(unittest.TestCase):
             WorkItemArguments({"destination": "DUS"})
         )
 
-        result = activity.do_work(work_item)
+        result = await activity.do_work(work_item)
 
         self.assertIn("reservationId", result.result)
         self.assertIsInstance(result.result["reservationId"], int)
 
-    def test_compensate_returns_true(self):
+    async def test_compensate_returns_true(self):
         """compensate() returns True to continue backward."""
         activity = ReserveFlightActivity()
         work_item = WorkItem(
             ReserveFlightActivity,
             WorkItemArguments({"destination": "FRA"})
         )
-        work_log = activity.do_work(work_item)
+        work_log = await activity.do_work(work_item)
         routing_slip = RoutingSlip()
 
-        result = activity.compensate(work_log, routing_slip)
+        result = await activity.compensate(work_log, routing_slip)
 
         self.assertTrue(result)
 
@@ -127,10 +127,10 @@ class ReserveFlightActivityTestCase(unittest.TestCase):
         self.assertEqual(activity.compensation_queue_address, "sb://./flightCancellations")
 
 
-class FailingReserveFlightActivityTestCase(unittest.TestCase):
+class FailingReserveFlightActivityTestCase(unittest.IsolatedAsyncioTestCase):
     """Test cases for FailingReserveFlightActivity."""
 
-    def test_do_work_raises_key_error(self):
+    async def test_do_work_raises_key_error(self):
         """do_work() raises KeyError due to missing key."""
         activity = FailingReserveFlightActivity()
         work_item = WorkItem(
@@ -139,7 +139,7 @@ class FailingReserveFlightActivityTestCase(unittest.TestCase):
         )
 
         with self.assertRaises(KeyError):
-            activity.do_work(work_item)
+            await activity.do_work(work_item)
 
     def test_inherits_queue_addresses(self):
         """Inherits queue addresses from parent."""
@@ -149,10 +149,10 @@ class FailingReserveFlightActivityTestCase(unittest.TestCase):
         self.assertEqual(activity.compensation_queue_address, "sb://./flightCancellations")
 
 
-class TravelBookingSagaTestCase(unittest.TestCase):
+class TravelBookingSagaTestCase(unittest.IsolatedAsyncioTestCase):
     """Integration tests for the travel booking saga."""
 
-    def test_successful_booking(self):
+    async def test_successful_booking(self):
         """All reservations succeed."""
         slip = RoutingSlip([
             WorkItem(ReserveCarActivity, WorkItemArguments({"vehicleType": "Compact"})),
@@ -161,13 +161,13 @@ class TravelBookingSagaTestCase(unittest.TestCase):
         ])
 
         while not slip.is_completed:
-            result = slip.process_next()
+            result = await slip.process_next()
             self.assertTrue(result)
 
         self.assertTrue(slip.is_completed)
         self.assertEqual(len(slip.completed_work_logs), 3)
 
-    def test_failed_booking_triggers_compensation(self):
+    async def test_failed_booking_triggers_compensation(self):
         """Failed flight triggers compensation of car and hotel."""
         slip = RoutingSlip([
             WorkItem(ReserveCarActivity, WorkItemArguments({"vehicleType": "Compact"})),
@@ -178,7 +178,7 @@ class TravelBookingSagaTestCase(unittest.TestCase):
         # Process until failure
         completed_before_failure = 0
         while not slip.is_completed:
-            if slip.process_next():
+            if await slip.process_next():
                 completed_before_failure += 1
             else:
                 break
@@ -188,7 +188,7 @@ class TravelBookingSagaTestCase(unittest.TestCase):
         # Compensate
         compensated = 0
         while slip.is_in_progress:
-            slip.undo_last()
+            await slip.undo_last()
             compensated += 1
 
         self.assertEqual(compensated, 2)

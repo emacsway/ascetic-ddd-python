@@ -26,7 +26,7 @@ class ReserveFlightActivity(Activity):
 
     _rnd = random.Random(3)
 
-    def do_work(self, work_item: WorkItem) -> WorkLog:
+    async def do_work(self, work_item: WorkItem) -> WorkLog:
         """Reserve a flight.
 
         Args:
@@ -42,7 +42,7 @@ class ReserveFlightActivity(Activity):
         reservation_id = self._rnd.randint(0, 99999)
         return WorkLog(self, WorkResult({"reservationId": reservation_id}))
 
-    def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
+    async def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
         """Cancel the flight reservation.
 
         Args:
@@ -69,7 +69,7 @@ class ReserveFlightActivity(Activity):
 class FailingReserveFlightActivity(ReserveFlightActivity):
     """Flight activity that always fails - for demonstrating compensation."""
 
-    def do_work(self, work_item: WorkItem) -> WorkLog:
+    async def do_work(self, work_item: WorkItem) -> WorkLog:
         """Attempt to reserve a flight (always fails).
 
         This activity intentionally accesses a non-existent key
@@ -79,4 +79,4 @@ class FailingReserveFlightActivity(ReserveFlightActivity):
             KeyError: Always, to trigger compensation.
         """
         _ = work_item.arguments["fatzbatz"]  # This throws KeyError
-        return super().do_work(work_item)
+        return await super().do_work(work_item)

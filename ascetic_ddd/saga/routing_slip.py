@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 
 __all__ = (
+    'InvalidOperationError',
     'RoutingSlip',
 )
 
@@ -48,7 +49,7 @@ class RoutingSlip:
         """True if some work has been completed (can be compensated)."""
         return len(self._completed_work_logs) > 0
 
-    def process_next(self) -> bool:
+    async def process_next(self) -> bool:
         """Process the next work item in the queue.
 
         Returns:
@@ -64,7 +65,7 @@ class RoutingSlip:
         activity: 'Activity' = current_item.activity_type()
 
         try:
-            result = activity.do_work(current_item)
+            result = await activity.do_work(current_item)
             if result is not None:
                 self._completed_work_logs.append(result)
                 return True
@@ -91,7 +92,7 @@ class RoutingSlip:
         activity: 'Activity' = self._completed_work_logs[-1].activity_type()
         return activity.compensation_queue_address
 
-    def undo_last(self) -> bool:
+    async def undo_last(self) -> bool:
         """Undo the last completed work item.
 
         Returns:
@@ -108,7 +109,7 @@ class RoutingSlip:
         activity: 'Activity' = current_item.activity_type()
 
         try:
-            return activity.compensate(current_item, self)
+            return await activity.compensate(current_item, self)
         except Exception:
             raise
 

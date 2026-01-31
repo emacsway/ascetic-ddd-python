@@ -21,7 +21,7 @@ class ActivityAbstractTestCase(unittest.TestCase):
     def test_subclass_must_implement_do_work(self):
         """Subclass must implement do_work()."""
         class IncompleteActivity(Activity):
-            def compensate(self, work_log, routing_slip):
+            async def compensate(self, work_log, routing_slip):
                 return True
 
             @property
@@ -38,7 +38,7 @@ class ActivityAbstractTestCase(unittest.TestCase):
     def test_subclass_must_implement_compensate(self):
         """Subclass must implement compensate()."""
         class IncompleteActivity(Activity):
-            def do_work(self, work_item):
+            async def do_work(self, work_item):
                 return WorkLog(self, WorkResult())
 
             @property
@@ -55,10 +55,10 @@ class ActivityAbstractTestCase(unittest.TestCase):
     def test_subclass_must_implement_work_item_queue_address(self):
         """Subclass must implement work_item_queue_address."""
         class IncompleteActivity(Activity):
-            def do_work(self, work_item):
+            async def do_work(self, work_item):
                 return WorkLog(self, WorkResult())
 
-            def compensate(self, work_log, routing_slip):
+            async def compensate(self, work_log, routing_slip):
                 return True
 
             @property
@@ -71,10 +71,10 @@ class ActivityAbstractTestCase(unittest.TestCase):
     def test_subclass_must_implement_compensation_queue_address(self):
         """Subclass must implement compensation_queue_address."""
         class IncompleteActivity(Activity):
-            def do_work(self, work_item):
+            async def do_work(self, work_item):
                 return WorkLog(self, WorkResult())
 
-            def compensate(self, work_log, routing_slip):
+            async def compensate(self, work_log, routing_slip):
                 return True
 
             @property
@@ -85,16 +85,16 @@ class ActivityAbstractTestCase(unittest.TestCase):
             IncompleteActivity()
 
 
-class ConcreteActivityTestCase(unittest.TestCase):
+class ConcreteActivityTestCase(unittest.IsolatedAsyncioTestCase):
     """Test cases for concrete Activity implementation."""
 
     def test_complete_implementation_can_be_instantiated(self):
         """Complete implementation can be instantiated."""
         class CompleteActivity(Activity):
-            def do_work(self, work_item: WorkItem) -> WorkLog:
+            async def do_work(self, work_item: WorkItem) -> WorkLog:
                 return WorkLog(self, WorkResult({"done": True}))
 
-            def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
+            async def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
                 return True
 
             @property
@@ -108,17 +108,17 @@ class ConcreteActivityTestCase(unittest.TestCase):
         activity = CompleteActivity()
         self.assertIsInstance(activity, Activity)
 
-    def test_do_work_receives_work_item(self):
+    async def test_do_work_receives_work_item(self):
         """do_work() receives the work item."""
         received_item = None
 
         class TestActivity(Activity):
-            def do_work(self, work_item: WorkItem) -> WorkLog:
+            async def do_work(self, work_item: WorkItem) -> WorkLog:
                 nonlocal received_item
                 received_item = work_item
                 return WorkLog(self, WorkResult())
 
-            def compensate(self, work_log, routing_slip):
+            async def compensate(self, work_log, routing_slip):
                 return True
 
             @property
@@ -132,21 +132,21 @@ class ConcreteActivityTestCase(unittest.TestCase):
         activity = TestActivity()
         work_item = WorkItem(TestActivity, WorkItemArguments({"key": "value"}))
 
-        activity.do_work(work_item)
+        await activity.do_work(work_item)
 
         self.assertIs(received_item, work_item)
         self.assertEqual(received_item.arguments["key"], "value")
 
-    def test_compensate_receives_work_log_and_routing_slip(self):
+    async def test_compensate_receives_work_log_and_routing_slip(self):
         """compensate() receives work log and routing slip."""
         received_log = None
         received_slip = None
 
         class TestActivity(Activity):
-            def do_work(self, work_item: WorkItem) -> WorkLog:
+            async def do_work(self, work_item: WorkItem) -> WorkLog:
                 return WorkLog(self, WorkResult({"id": 123}))
 
-            def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
+            async def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
                 nonlocal received_log, received_slip
                 received_log = work_log
                 received_slip = routing_slip
@@ -162,10 +162,10 @@ class ConcreteActivityTestCase(unittest.TestCase):
 
         activity = TestActivity()
         work_item = WorkItem(TestActivity, WorkItemArguments())
-        work_log = activity.do_work(work_item)
+        work_log = await activity.do_work(work_item)
         routing_slip = RoutingSlip()
 
-        activity.compensate(work_log, routing_slip)
+        await activity.compensate(work_log, routing_slip)
 
         self.assertIs(received_log, work_log)
         self.assertIs(received_slip, routing_slip)

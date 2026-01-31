@@ -61,14 +61,14 @@ Each activity encapsulates two operations:
 from ascetic_ddd.saga import Activity, WorkItem, WorkLog, RoutingSlip
 
 class MyActivity(Activity):
-    def do_work(self, work_item: WorkItem) -> WorkLog:
+    async def do_work(self, work_item: WorkItem) -> WorkLog:
         # Perform the business operation
-        result = perform_operation(work_item.arguments)
+        result = await perform_operation(work_item.arguments)
         return WorkLog(self, WorkResult({"id": result.id}))
 
-    def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
+    async def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
         # Reverse the operation
-        cancel_operation(work_log.result["id"])
+        await cancel_operation(work_log.result["id"])
         return True  # Continue backward
 
     @property
@@ -116,7 +116,7 @@ def send(uri: str, routing_slip: RoutingSlip):
     ...
 
 host = ActivityHost(MyActivity, send)
-host.accept_message(uri, routing_slip)
+await host.accept_message(uri, routing_slip)
 ```
 
 ## Example: Travel Booking Saga
@@ -138,11 +138,11 @@ routing_slip = RoutingSlip([
 
 # Process the saga
 while not routing_slip.is_completed:
-    if not routing_slip.process_next():
+    if not await routing_slip.process_next():
         # Activity failed - compensate all completed work
         print("Failure! Starting compensation...")
         while routing_slip.is_in_progress:
-            routing_slip.undo_last()
+            await routing_slip.undo_last()
         break
 else:
     print("Saga completed successfully!")
@@ -181,14 +181,14 @@ flight_host = ActivityHost(ReserveFlightActivity, send_message)
 
 hosts = [car_host, hotel_host, flight_host]
 
-def send_message(uri: str, routing_slip: RoutingSlip):
+async def send_message(uri: str, routing_slip: RoutingSlip):
     # In production: serialize and send to message queue
     for host in hosts:
-        if host.accept_message(uri, routing_slip):
+        if await host.accept_message(uri, routing_slip):
             break
 
 # Start the saga
-send_message(routing_slip.progress_uri, routing_slip)
+await send_message(routing_slip.progress_uri, routing_slip)
 ```
 
 ## References

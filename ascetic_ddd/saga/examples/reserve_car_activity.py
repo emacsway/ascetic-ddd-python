@@ -23,7 +23,7 @@ class ReserveCarActivity(Activity):
 
     _rnd = random.Random(2)
 
-    def do_work(self, work_item: WorkItem) -> WorkLog:
+    async def do_work(self, work_item: WorkItem) -> WorkLog:
         """Reserve a car.
 
         Args:
@@ -36,7 +36,7 @@ class ReserveCarActivity(Activity):
         reservation_id = self._rnd.randint(0, 99999)
         return WorkLog(self, WorkResult({"reservationId": reservation_id}))
 
-    def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
+    async def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
         """Cancel the car reservation.
 
         Args:

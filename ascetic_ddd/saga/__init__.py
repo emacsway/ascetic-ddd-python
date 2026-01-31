@@ -27,12 +27,12 @@ Example:
         WorkItem(ReserveFlightActivity, WorkItemArguments({"destination": "DUS"})),
     ])
 
-    # Process the saga
+    # Process the saga (async)
     while not routing_slip.is_completed:
-        if not routing_slip.process_next():
+        if not await routing_slip.process_next():
             # Compensation needed
             while routing_slip.is_in_progress:
-                routing_slip.undo_last()
+                await routing_slip.undo_last()
             break
 
 See Also:

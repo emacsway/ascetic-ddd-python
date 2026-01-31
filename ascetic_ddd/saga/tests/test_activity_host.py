@@ -17,11 +17,11 @@ class Activity1(Activity):
     call_count = 0
     compensate_count = 0
 
-    def do_work(self, work_item: WorkItem) -> WorkLog:
+    async def do_work(self, work_item: WorkItem) -> WorkLog:
         Activity1.call_count += 1
         return WorkLog(self, WorkResult({"id": Activity1.call_count}))
 
-    def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
+    async def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
         Activity1.compensate_count += 1
         return True
 
@@ -40,11 +40,11 @@ class Activity2(Activity):
     call_count = 0
     compensate_count = 0
 
-    def do_work(self, work_item: WorkItem) -> WorkLog:
+    async def do_work(self, work_item: WorkItem) -> WorkLog:
         Activity2.call_count += 1
         return WorkLog(self, WorkResult({"id": Activity2.call_count}))
 
-    def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
+    async def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
         Activity2.compensate_count += 1
         return True
 
@@ -60,10 +60,10 @@ class Activity2(Activity):
 class FailingActivity(Activity):
     """Activity that always fails."""
 
-    def do_work(self, work_item: WorkItem) -> WorkLog:
+    async def do_work(self, work_item: WorkItem) -> WorkLog:
         raise RuntimeError("Intentional failure")
 
-    def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
+    async def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
         return True
 
     @property
@@ -75,7 +75,7 @@ class FailingActivity(Activity):
         return "sb://./failingCompensation"
 
 
-class ActivityHostAcceptMessageTestCase(unittest.TestCase):
+class ActivityHostAcceptMessageTestCase(unittest.IsolatedAsyncioTestCase):
     """Test cases for ActivityHost.accept_message()."""
 
     def setUp(self):
@@ -88,45 +88,45 @@ class ActivityHostAcceptMessageTestCase(unittest.TestCase):
     def send(self, uri: str, routing_slip: RoutingSlip):
         self.sent_messages.append((uri, routing_slip))
 
-    def test_accept_work_item_message(self):
+    async def test_accept_work_item_message(self):
         """Host accepts message for its work queue."""
         host = ActivityHost(Activity1, self.send)
         slip = RoutingSlip([WorkItem(Activity1, WorkItemArguments())])
 
-        result = host.accept_message("sb://./activity1", slip)
+        result = await host.accept_message("sb://./activity1", slip)
 
         self.assertTrue(result)
 
-    def test_accept_compensation_message(self):
+    async def test_accept_compensation_message(self):
         """Host accepts message for its compensation queue."""
         host = ActivityHost(Activity1, self.send)
         slip = RoutingSlip([WorkItem(Activity1, WorkItemArguments())])
-        slip.process_next()
+        await slip.process_next()
 
-        result = host.accept_message("sb://./activity1Compensation", slip)
+        result = await host.accept_message("sb://./activity1Compensation", slip)
 
         self.assertTrue(result)
 
-    def test_reject_unknown_message(self):
+    async def test_reject_unknown_message(self):
         """Host rejects message for unknown queue."""
         host = ActivityHost(Activity1, self.send)
         slip = RoutingSlip([WorkItem(Activity1, WorkItemArguments())])
 
-        result = host.accept_message("sb://./unknown", slip)
+        result = await host.accept_message("sb://./unknown", slip)
 
         self.assertFalse(result)
 
-    def test_reject_other_activity_message(self):
+    async def test_reject_other_activity_message(self):
         """Host rejects message for other activity."""
         host = ActivityHost(Activity1, self.send)
         slip = RoutingSlip([WorkItem(Activity2, WorkItemArguments())])
 
-        result = host.accept_message("sb://./activity2", slip)
+        result = await host.accept_message("sb://./activity2", slip)
 
         self.assertFalse(result)
 
 
-class ActivityHostForwardMessageTestCase(unittest.TestCase):
+class ActivityHostForwardMessageTestCase(unittest.IsolatedAsyncioTestCase):
     """Test cases for ActivityHost.process_forward_message()."""
 
     def setUp(self):
@@ -139,7 +139,7 @@ class ActivityHostForwardMessageTestCase(unittest.TestCase):
     def send(self, uri: str, routing_slip: RoutingSlip):
         self.sent_messages.append((uri, routing_slip))
 
-    def test_forward_success_continues_forward(self):
+    async def test_forward_success_continues_forward(self):
         """Successful work sends to next activity."""
         host = ActivityHost(Activity1, self.send)
         slip = RoutingSlip([
@@ -147,38 +147,38 @@ class ActivityHostForwardMessageTestCase(unittest.TestCase):
             WorkItem(Activity2, WorkItemArguments()),
         ])
 
-        host.process_forward_message(slip)
+        await host.process_forward_message(slip)
 
         self.assertEqual(len(self.sent_messages), 1)
         uri, _ = self.sent_messages[0]
         self.assertEqual(uri, "sb://./activity2")
 
-    def test_forward_failure_starts_compensation(self):
+    async def test_forward_failure_starts_compensation(self):
         """Failed work sends to compensation queue."""
         host = ActivityHost(FailingActivity, self.send)
         slip = RoutingSlip([
             WorkItem(Activity1, WorkItemArguments()),
             WorkItem(FailingActivity, WorkItemArguments()),
         ])
-        slip.process_next()  # Complete Activity1
+        await slip.process_next()  # Complete Activity1
 
-        host.process_forward_message(slip)
+        await host.process_forward_message(slip)
 
         self.assertEqual(len(self.sent_messages), 1)
         uri, _ = self.sent_messages[0]
         self.assertEqual(uri, "sb://./activity1Compensation")
 
-    def test_forward_completed_does_nothing(self):
+    async def test_forward_completed_does_nothing(self):
         """Forward on completed slip does nothing."""
         host = ActivityHost(Activity1, self.send)
         slip = RoutingSlip()
 
-        host.process_forward_message(slip)
+        await host.process_forward_message(slip)
 
         self.assertEqual(len(self.sent_messages), 0)
 
 
-class ActivityHostBackwardMessageTestCase(unittest.TestCase):
+class ActivityHostBackwardMessageTestCase(unittest.IsolatedAsyncioTestCase):
     """Test cases for ActivityHost.process_backward_message()."""
 
     def setUp(self):
@@ -191,33 +191,33 @@ class ActivityHostBackwardMessageTestCase(unittest.TestCase):
     def send(self, uri: str, routing_slip: RoutingSlip):
         self.sent_messages.append((uri, routing_slip))
 
-    def test_backward_continues_backward(self):
+    async def test_backward_continues_backward(self):
         """Compensation continues to previous activity."""
         host = ActivityHost(Activity2, self.send)
         slip = RoutingSlip([
             WorkItem(Activity1, WorkItemArguments()),
             WorkItem(Activity2, WorkItemArguments()),
         ])
-        slip.process_next()
-        slip.process_next()
+        await slip.process_next()
+        await slip.process_next()
 
-        host.process_backward_message(slip)
+        await host.process_backward_message(slip)
 
         self.assertEqual(len(self.sent_messages), 1)
         uri, _ = self.sent_messages[0]
         self.assertEqual(uri, "sb://./activity1Compensation")
 
-    def test_backward_not_in_progress_does_nothing(self):
+    async def test_backward_not_in_progress_does_nothing(self):
         """Backward on non-started slip does nothing."""
         host = ActivityHost(Activity1, self.send)
         slip = RoutingSlip([WorkItem(Activity1, WorkItemArguments())])
 
-        host.process_backward_message(slip)
+        await host.process_backward_message(slip)
 
         self.assertEqual(len(self.sent_messages), 0)
 
 
-class ActivityHostFullSagaTestCase(unittest.TestCase):
+class ActivityHostFullSagaTestCase(unittest.IsolatedAsyncioTestCase):
     """Integration tests for full saga with multiple hosts."""
 
     def setUp(self):
@@ -226,7 +226,7 @@ class ActivityHostFullSagaTestCase(unittest.TestCase):
         Activity2.call_count = 0
         Activity2.compensate_count = 0
 
-    def test_distributed_saga_success(self):
+    async def test_distributed_saga_success(self):
         """Saga completes through multiple hosts."""
         messages = []
 
@@ -249,14 +249,14 @@ class ActivityHostFullSagaTestCase(unittest.TestCase):
         while messages:
             uri, routing_slip = messages.pop(0)
             for host in hosts:
-                if host.accept_message(uri, routing_slip):
+                if await host.accept_message(uri, routing_slip):
                     break
 
         self.assertTrue(slip.is_completed)
         self.assertEqual(Activity1.call_count, 1)
         self.assertEqual(Activity2.call_count, 1)
 
-    def test_distributed_saga_with_compensation(self):
+    async def test_distributed_saga_with_compensation(self):
         """Failed saga compensates through hosts."""
         messages = []
 
@@ -281,7 +281,7 @@ class ActivityHostFullSagaTestCase(unittest.TestCase):
         while messages:
             uri, routing_slip = messages.pop(0)
             for host in hosts:
-                if host.accept_message(uri, routing_slip):
+                if await host.accept_message(uri, routing_slip):
                     break
 
         self.assertFalse(slip.is_in_progress)

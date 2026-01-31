@@ -1,6 +1,6 @@
 """Activity host - processes messages for a specific activity type."""
 
-from typing import Callable, Generic, TypeVar
+from typing import Awaitable, Callable, Generic, TypeVar, Union
 
 from ascetic_ddd.saga.activity import Activity
 from ascetic_ddd.saga.routing_slip import RoutingSlip
@@ -13,7 +13,7 @@ __all__ = (
 
 T = TypeVar('T', bound=Activity)
 
-SendCallback = Callable[[str, RoutingSlip], None]
+SendCallback = Callable[[str, RoutingSlip], Union[None, Awaitable[None]]]
 
 
 class ActivityHost(Generic[T]):
@@ -35,7 +35,7 @@ class ActivityHost(Generic[T]):
         self._activity_type: type[T] = activity_type
         self._send: SendCallback = send
 
-    def process_forward_message(self, routing_slip: RoutingSlip) -> None:
+    async def process_forward_message(self, routing_slip: RoutingSlip) -> None:
         """Process a forward (do_work) message.
 
         If work succeeds, sends to next activity's work queue.
@@ -45,16 +45,20 @@ class ActivityHost(Generic[T]):
             routing_slip: The routing slip to process.
         """
         if not routing_slip.is_completed:
-            if routing_slip.process_next():
+            if await routing_slip.process_next():
                 # Success - continue forward
                 if routing_slip.progress_uri:
-                    self._send(routing_slip.progress_uri, routing_slip)
+                    result = self._send(routing_slip.progress_uri, routing_slip)
+                    if hasattr(result, '__await__'):
+                        await result
             else:
                 # Failure - start compensation
                 if routing_slip.compensation_uri:
-                    self._send(routing_slip.compensation_uri, routing_slip)
+                    result = self._send(routing_slip.compensation_uri, routing_slip)
+                    if hasattr(result, '__await__'):
+                        await result
 
-    def process_backward_message(self, routing_slip: RoutingSlip) -> None:
+    async def process_backward_message(self, routing_slip: RoutingSlip) -> None:
         """Process a backward (compensate) message.
 
         If compensation succeeds, continues backward to previous activity.
@@ -64,16 +68,20 @@ class ActivityHost(Generic[T]):
             routing_slip: The routing slip to process.
         """
         if routing_slip.is_in_progress:
-            if routing_slip.undo_last():
+            if await routing_slip.undo_last():
                 # Continue backward
                 if routing_slip.compensation_uri:
-                    self._send(routing_slip.compensation_uri, routing_slip)
+                    result = self._send(routing_slip.compensation_uri, routing_slip)
+                    if hasattr(result, '__await__'):
+                        await result
             else:
                 # Resume forward (compensation added new work)
                 if routing_slip.progress_uri:
-                    self._send(routing_slip.progress_uri, routing_slip)
+                    result = self._send(routing_slip.progress_uri, routing_slip)
+                    if hasattr(result, '__await__'):
+                        await result
 
-    def accept_message(self, uri: str, routing_slip: RoutingSlip) -> bool:
+    async def accept_message(self, uri: str, routing_slip: RoutingSlip) -> bool:
         """Accept and process a message if it matches this host's queues.
 
         Args:
@@ -86,11 +94,11 @@ class ActivityHost(Generic[T]):
         activity: Activity = self._activity_type()
 
         if activity.compensation_queue_address == uri:
-            self.process_backward_message(routing_slip)
+            await self.process_backward_message(routing_slip)
             return True
 
         if activity.work_item_queue_address == uri:
-            self.process_forward_message(routing_slip)
+            await self.process_forward_message(routing_slip)
             return True
 
         return False

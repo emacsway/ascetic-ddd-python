@@ -26,7 +26,7 @@ class Activity(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def do_work(self, work_item: 'WorkItem') -> 'WorkLog':
+    async def do_work(self, work_item: 'WorkItem') -> 'WorkLog | None':
         """Execute the activity's business logic.
 
         Args:
@@ -38,7 +38,7 @@ class Activity(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def compensate(self, work_log: 'WorkLog', routing_slip: 'RoutingSlip') -> bool:
+    async def compensate(self, work_log: 'WorkLog', routing_slip: 'RoutingSlip') -> bool:
         """Compensate (undo) the previously completed work.
 
         Called during the backward path when the saga needs to be rolled back.
