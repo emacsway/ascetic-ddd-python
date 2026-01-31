@@ -82,7 +82,7 @@ class Inbox(IInbox):
         key = (message.event_type, message.event_version)
         if key in self._subscribers:
             for handler in self._subscribers[key]:
-                handler(session, message)
+                await handler(session, message)
         else:
             # Just watch for a message, mark it as processed.
             pass
