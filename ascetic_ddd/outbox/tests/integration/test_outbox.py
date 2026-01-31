@@ -208,12 +208,17 @@ class OutboxIntegrationTestCase(IsolatedAsyncioTestCase):
                     )
                     await self.outbox.publish(tx_session, message)
 
-        # Run with timeout
-        with self.assertRaises(asyncio.TimeoutError):
-            await asyncio.wait_for(
-                self.outbox.run(self._publisher, workers=1, poll_interval=0.01),
-                timeout=0.2
-            )
+        # Run with graceful shutdown
+        stop_event = asyncio.Event()
+
+        async def stop_after_delay():
+            await asyncio.sleep(0.2)
+            stop_event.set()
+
+        await asyncio.gather(
+            self.outbox.run(self._publisher, workers=1, poll_interval=0.01, stop_event=stop_event),
+            stop_after_delay(),
+        )
 
         self.assertEqual(len(self.published_messages), 3)
 
@@ -229,12 +234,17 @@ class OutboxIntegrationTestCase(IsolatedAsyncioTestCase):
                     )
                     await self.outbox.publish(tx_session, message)
 
-        # Run with multiple workers and timeout
-        with self.assertRaises(asyncio.TimeoutError):
-            await asyncio.wait_for(
-                self.outbox.run(self._publisher, workers=3, poll_interval=0.01),
-                timeout=0.3
-            )
+        # Run with multiple workers and graceful shutdown
+        stop_event = asyncio.Event()
+
+        async def stop_after_delay():
+            await asyncio.sleep(0.3)
+            stop_event.set()
+
+        await asyncio.gather(
+            self.outbox.run(self._publisher, workers=3, poll_interval=0.01, stop_event=stop_event),
+            stop_after_delay(),
+        )
 
         # All messages should be processed
         self.assertEqual(len(self.published_messages), 10)

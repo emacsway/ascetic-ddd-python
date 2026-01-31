@@ -123,14 +123,34 @@ class Outbox(IOutbox):
             subscriber: 'ISubscriber',
             consumer_group: str = '',
             workers: int = 1,
-            poll_interval: float = 1.0
+            poll_interval: float = 1.0,
+            stop_event: asyncio.Event | None = None,
     ) -> None:
-        """Run message dispatching with concurrent workers."""
+        """Run message dispatching with concurrent workers.
+
+        Args:
+            subscriber: Message handler.
+            consumer_group: Consumer group name.
+            workers: Number of concurrent workers.
+            poll_interval: Seconds to wait when no messages available.
+            stop_event: Event to signal graceful shutdown. Workers stop
+                between iterations when this event is set.
+        """
+        if stop_event is None:
+            stop_event = asyncio.Event()
+
         async def worker():
-            while True:
+            while not stop_event.is_set():
                 has_messages = await self.dispatch(subscriber, consumer_group)
                 if not has_messages:
-                    await asyncio.sleep(poll_interval)
+                    try:
+                        await asyncio.wait_for(
+                            stop_event.wait(),
+                            timeout=poll_interval
+                        )
+                        break  # stop_event was set
+                    except asyncio.TimeoutError:
+                        pass  # Continue polling
 
         tasks = [asyncio.create_task(worker()) for _ in range(workers)]
         await asyncio.gather(*tasks)

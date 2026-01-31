@@ -351,9 +351,17 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
 
         inbox = TestInbox(pool)
 
-        # Run with timeout to prevent infinite loop
-        with self.assertRaises(asyncio.TimeoutError):
-            await asyncio.wait_for(inbox.run(workers=1, poll_interval=0.01), timeout=0.1)
+        # Run with graceful shutdown
+        stop_event = asyncio.Event()
+
+        async def stop_after_delay():
+            await asyncio.sleep(0.1)
+            stop_event.set()
+
+        await asyncio.gather(
+            inbox.run(workers=1, poll_interval=0.01, stop_event=stop_event),
+            stop_after_delay(),
+        )
 
         # Message should be processed
         self.assertEqual(len(inbox.handled_messages), 1)
@@ -382,9 +390,17 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
 
         inbox = TestInbox(pool)
 
-        # Run with timeout to prevent infinite loop
-        with self.assertRaises(asyncio.TimeoutError):
-            await asyncio.wait_for(inbox.run(workers=2, poll_interval=0.01), timeout=0.1)
+        # Run with graceful shutdown
+        stop_event = asyncio.Event()
+
+        async def stop_after_delay():
+            await asyncio.sleep(0.1)
+            stop_event.set()
+
+        await asyncio.gather(
+            inbox.run(workers=2, poll_interval=0.01, stop_event=stop_event),
+            stop_after_delay(),
+        )
 
         # Multiple messages should be processed
         self.assertGreaterEqual(len(inbox.handled_messages), 1)
@@ -398,9 +414,17 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
 
         inbox = TestInbox(pool)
 
-        # Run with short timeout
-        with self.assertRaises(asyncio.TimeoutError):
-            await asyncio.wait_for(inbox.run(workers=1, poll_interval=0.05), timeout=0.1)
+        # Run with graceful shutdown
+        stop_event = asyncio.Event()
+
+        async def stop_after_delay():
+            await asyncio.sleep(0.1)
+            stop_event.set()
+
+        await asyncio.gather(
+            inbox.run(workers=1, poll_interval=0.05, stop_event=stop_event),
+            stop_after_delay(),
+        )
 
         # No messages processed
         self.assertEqual(len(inbox.handled_messages), 0)

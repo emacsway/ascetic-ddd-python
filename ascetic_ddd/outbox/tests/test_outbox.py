@@ -302,12 +302,17 @@ class OutboxRunTestCase(IsolatedAsyncioTestCase):
         async def publisher(msg):
             published.append(msg)
 
-        # Run with timeout
-        with self.assertRaises(asyncio.TimeoutError):
-            await asyncio.wait_for(
-                outbox.run(publisher, workers=1, poll_interval=0.01),
-                timeout=0.1
-            )
+        # Run with graceful shutdown
+        stop_event = asyncio.Event()
+
+        async def stop_after_delay():
+            await asyncio.sleep(0.1)
+            stop_event.set()
+
+        await asyncio.gather(
+            outbox.run(publisher, workers=1, poll_interval=0.01, stop_event=stop_event),
+            stop_after_delay(),
+        )
 
         self.assertGreaterEqual(len(published), 1)
 
@@ -324,12 +329,17 @@ class OutboxRunTestCase(IsolatedAsyncioTestCase):
         async def publisher(msg):
             published.append(msg)
 
-        # Run with short timeout
-        with self.assertRaises(asyncio.TimeoutError):
-            await asyncio.wait_for(
-                outbox.run(publisher, workers=1, poll_interval=0.05),
-                timeout=0.1
-            )
+        # Run with graceful shutdown
+        stop_event = asyncio.Event()
+
+        async def stop_after_delay():
+            await asyncio.sleep(0.1)
+            stop_event.set()
+
+        await asyncio.gather(
+            outbox.run(publisher, workers=1, poll_interval=0.05, stop_event=stop_event),
+            stop_after_delay(),
+        )
 
         self.assertEqual(len(published), 0)
 

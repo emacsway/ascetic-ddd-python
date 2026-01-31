@@ -132,29 +132,49 @@ class Inbox(IInbox):
     async def run(
             self,
             workers: int = 1,
-            poll_interval: float = 1.0
+            poll_interval: float = 1.0,
+            stop_event: asyncio.Event | None = None,
     ) -> None:
         """Run message processing with concurrent workers.
 
         Args:
             workers: Number of concurrent workers.
             poll_interval: Seconds to wait when no messages available.
+            stop_event: Event to signal graceful shutdown. Workers stop
+                between iterations when this event is set.
         """
+        if stop_event is None:
+            stop_event = asyncio.Event()
+
         if workers == 1:
-            await self._worker(poll_interval)
+            await self._worker(poll_interval, stop_event)
         else:
             tasks = [
-                asyncio.create_task(self._worker(poll_interval))
+                asyncio.create_task(self._worker(poll_interval, stop_event))
                 for _ in range(workers)
             ]
             await asyncio.gather(*tasks)
 
-    async def _worker(self, poll_interval: float = 1.0) -> None:
+    async def _worker(
+            self,
+            poll_interval: float = 1.0,
+            stop_event: asyncio.Event | None = None,
+    ) -> None:
         """Single worker loop for processing messages."""
-        while True:
+        while stop_event is None or not stop_event.is_set():
             processed = await self.dispatch()
             if not processed:
-                await asyncio.sleep(poll_interval)
+                if stop_event is not None:
+                    try:
+                        await asyncio.wait_for(
+                            stop_event.wait(),
+                            timeout=poll_interval
+                        )
+                        break  # stop_event was set
+                    except asyncio.TimeoutError:
+                        pass  # Continue polling
+                else:
+                    await asyncio.sleep(poll_interval)
 
     async def _insert_message(self, session: IPgSession, message: InboxMessage) -> None:
         """Insert message into inbox table."""
