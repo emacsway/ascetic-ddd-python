@@ -11,10 +11,10 @@ from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool
 from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
 
 
-__all__ = ('PgOutbox',)
+__all__ = ('Outbox',)
 
 
-class PgOutbox(IOutbox):
+class Outbox(IOutbox):
     """PostgreSQL implementation of the Transactional Outbox pattern.
 
     Uses transaction_id (xid8) for correct ordering across concurrent transactions.

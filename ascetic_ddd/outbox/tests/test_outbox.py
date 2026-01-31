@@ -1,11 +1,11 @@
-"""Unit tests for PgOutbox."""
+"""Unit tests for Outbox."""
 
 import asyncio
 import unittest
 from unittest import IsolatedAsyncioTestCase
 
 from ascetic_ddd.outbox.message import OutboxMessage
-from ascetic_ddd.outbox.pg_outbox import PgOutbox
+from ascetic_ddd.outbox.outbox import Outbox
 
 
 class MockCursor:
@@ -118,7 +118,7 @@ class MockSessionPool:
 
 
 class OutboxPublishTestCase(IsolatedAsyncioTestCase):
-    """Test cases for PgOutbox.publish()."""
+    """Test cases for Outbox.publish()."""
 
     async def test_publish_inserts_message(self):
         """publish() inserts message into database."""
@@ -127,7 +127,7 @@ class OutboxPublishTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool)
+        outbox = Outbox(pool)
         message = OutboxMessage(
             event_type="OrderCreated",
             payload={"order_id": "123", "amount": 100},
@@ -152,7 +152,7 @@ class OutboxPublishTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool, outbox_table="custom_outbox")
+        outbox = Outbox(pool, outbox_table="custom_outbox")
         message = OutboxMessage(
             event_type="OrderCreated",
             payload={"order_id": "123"},
@@ -165,7 +165,7 @@ class OutboxPublishTestCase(IsolatedAsyncioTestCase):
 
 
 class OutboxDispatchTestCase(IsolatedAsyncioTestCase):
-    """Test cases for PgOutbox.dispatch()."""
+    """Test cases for Outbox.dispatch()."""
 
     async def test_dispatch_returns_false_when_no_messages(self):
         """dispatch() returns False when no unprocessed messages."""
@@ -174,7 +174,7 @@ class OutboxDispatchTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool)
+        outbox = Outbox(pool)
         published = []
 
         async def publisher(msg):
@@ -196,7 +196,7 @@ class OutboxDispatchTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool)
+        outbox = Outbox(pool)
         published = []
 
         async def publisher(msg):
@@ -219,7 +219,7 @@ class OutboxDispatchTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool)
+        outbox = Outbox(pool)
 
         async def publisher(msg):
             pass
@@ -232,7 +232,7 @@ class OutboxDispatchTestCase(IsolatedAsyncioTestCase):
 
 
 class OutboxGetPositionTestCase(IsolatedAsyncioTestCase):
-    """Test cases for PgOutbox.get_position()."""
+    """Test cases for Outbox.get_position()."""
 
     async def test_get_position_returns_zeros_when_not_found(self):
         """get_position() returns (0, 0) when consumer group not found."""
@@ -241,7 +241,7 @@ class OutboxGetPositionTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool)
+        outbox = Outbox(pool)
         result = await outbox.get_position(session, "test-group")
 
         self.assertEqual(result, (0, 0))
@@ -253,14 +253,14 @@ class OutboxGetPositionTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool)
+        outbox = Outbox(pool)
         result = await outbox.get_position(session, "test-group")
 
         self.assertEqual(result, (100, 50))
 
 
 class OutboxSetPositionTestCase(IsolatedAsyncioTestCase):
-    """Test cases for PgOutbox.set_position()."""
+    """Test cases for Outbox.set_position()."""
 
     async def test_set_position_upserts(self):
         """set_position() uses INSERT ... ON CONFLICT DO UPDATE."""
@@ -269,7 +269,7 @@ class OutboxSetPositionTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool)
+        outbox = Outbox(pool)
         await outbox.set_position(session, "test-group", transaction_id=100, offset=50)
 
         self.assertEqual(len(cursor.executed_sql), 1)
@@ -284,7 +284,7 @@ class OutboxSetPositionTestCase(IsolatedAsyncioTestCase):
 
 
 class OutboxRunTestCase(IsolatedAsyncioTestCase):
-    """Test cases for PgOutbox.run()."""
+    """Test cases for Outbox.run()."""
 
     async def test_run_with_single_worker(self):
         """run() with single worker processes messages."""
@@ -296,7 +296,7 @@ class OutboxRunTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool)
+        outbox = Outbox(pool)
         published = []
 
         async def publisher(msg):
@@ -318,7 +318,7 @@ class OutboxRunTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool)
+        outbox = Outbox(pool)
         published = []
 
         async def publisher(msg):
@@ -335,7 +335,7 @@ class OutboxRunTestCase(IsolatedAsyncioTestCase):
 
 
 class OutboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
-    """Test cases for PgOutbox async iterator."""
+    """Test cases for Outbox async iterator."""
 
     async def test_aiter_yields_messages(self):
         """Async iterator yields OutboxMessage."""
@@ -347,7 +347,7 @@ class OutboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        outbox = PgOutbox(pool)
+        outbox = Outbox(pool)
 
         iterator = outbox.__aiter__()
         message = await iterator.__anext__()

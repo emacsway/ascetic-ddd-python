@@ -1,23 +1,23 @@
-"""Integration tests for PgOutbox with PostgreSQL."""
+"""Integration tests for Outbox with PostgreSQL."""
 
 import asyncio
 import unittest
 from unittest import IsolatedAsyncioTestCase
 
 from ascetic_ddd.outbox.message import OutboxMessage
-from ascetic_ddd.outbox.pg_outbox import PgOutbox
+from ascetic_ddd.outbox.outbox import Outbox
 from ascetic_ddd.outbox.tests.integration.db import make_pg_session_pool
 
 
 class OutboxIntegrationTestCase(IsolatedAsyncioTestCase):
-    """Integration tests for PgOutbox with real PostgreSQL."""
+    """Integration tests for Outbox with real PostgreSQL."""
 
     _outbox_table: str = 'outbox_test'
     _offsets_table: str = 'outbox_offsets_test'
 
     async def asyncSetUp(self):
         self._session_pool = await make_pg_session_pool()
-        self.outbox = PgOutbox(
+        self.outbox = Outbox(
             self._session_pool,
             outbox_table=self._outbox_table,
             offsets_table=self._offsets_table,
@@ -294,7 +294,7 @@ class OutboxConcurrencyTestCase(IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         self._session_pool = await make_pg_session_pool()
-        self.outbox = PgOutbox(
+        self.outbox = Outbox(
             self._session_pool,
             outbox_table=self._outbox_table,
             offsets_table=self._offsets_table,
