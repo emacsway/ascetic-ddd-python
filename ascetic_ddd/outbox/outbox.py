@@ -5,7 +5,7 @@ import typing
 
 from psycopg.types.json import Jsonb
 
-from ascetic_ddd.outbox.interfaces import IOutbox, IOutboxPublisher
+from ascetic_ddd.outbox.interfaces import IOutbox, ISubscriber
 from ascetic_ddd.outbox.message import OutboxMessage
 from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool
 from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
@@ -61,7 +61,7 @@ class Outbox(IOutbox):
 
     async def dispatch(
             self,
-            publisher: 'IOutboxPublisher',
+            subscriber: 'ISubscriber',
             consumer_group: str = ''
     ) -> bool:
         """Dispatch the next batch of unprocessed messages."""
@@ -76,9 +76,9 @@ class Outbox(IOutbox):
                 if not messages:
                     return False
 
-                # Publish each message
+                # Process each message
                 for message in messages:
-                    await publisher(message)
+                    await subscriber(message)
 
                 # Update consumer position to the last message
                 last = messages[-1]
@@ -120,7 +120,7 @@ class Outbox(IOutbox):
 
     async def run(
             self,
-            publisher: 'IOutboxPublisher',
+            subscriber: 'ISubscriber',
             consumer_group: str = '',
             workers: int = 1,
             poll_interval: float = 1.0
@@ -128,7 +128,7 @@ class Outbox(IOutbox):
         """Run message dispatching with concurrent workers."""
         async def worker():
             while True:
-                has_messages = await self.dispatch(publisher, consumer_group)
+                has_messages = await self.dispatch(subscriber, consumer_group)
                 if not has_messages:
                     await asyncio.sleep(poll_interval)
 

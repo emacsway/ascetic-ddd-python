@@ -70,12 +70,12 @@ from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
 
 __all__ = (
     'IOutbox',
-    'IOutboxPublisher',
+    'ISubscriber',
 )
 
 
-# Callback for publishing messages to external systems
-IOutboxPublisher: TypeAlias = Callable[[OutboxMessage], Awaitable[None]]
+# Callback for handling messages from the outbox
+ISubscriber: TypeAlias = Callable[[OutboxMessage], Awaitable[None]]
 
 
 class IOutbox(metaclass=ABCMeta):
@@ -116,7 +116,7 @@ class IOutbox(metaclass=ABCMeta):
     @abstractmethod
     async def dispatch(
             self,
-            publisher: 'IOutboxPublisher',
+            subscriber: 'ISubscriber',
             consumer_group: str = ''
     ) -> bool:
         """Dispatch the next batch of unprocessed messages.
@@ -126,14 +126,14 @@ class IOutbox(metaclass=ABCMeta):
           (only from committed, visible transactions)
         - Are after the consumer group's last processed position
 
-        For each message, calls the publisher callback. After successful
-        publishing of the batch, updates the consumer group's position.
+        For each message, calls the subscriber callback. After successful
+        processing of the batch, updates the consumer group's position.
 
         Uses FOR UPDATE to lock the consumer group row, preventing concurrent
         dispatchers from processing the same messages.
 
         Args:
-            publisher: Callback to publish each message to external system.
+            subscriber: Callback to handle each message.
             consumer_group: Consumer group identifier (empty string for default).
 
         Returns:
@@ -164,7 +164,7 @@ class IOutbox(metaclass=ABCMeta):
     @abstractmethod
     async def run(
             self,
-            publisher: 'IOutboxPublisher',
+            subscriber: 'ISubscriber',
             consumer_group: str = '',
             workers: int = 1,
             poll_interval: float = 1.0
@@ -172,7 +172,7 @@ class IOutbox(metaclass=ABCMeta):
         """Run message dispatching with concurrent workers.
 
         Args:
-            publisher: Callback to publish each message to external system.
+            subscriber: Callback to handle each message.
             consumer_group: Consumer group identifier.
             workers: Number of concurrent dispatcher workers.
             poll_interval: Seconds to wait when no messages available.
