@@ -167,6 +167,111 @@ The `compensate()` method returns a boolean:
 
 This allows for sophisticated recovery strategies where compensation might involve retrying with different parameters.
 
+## Parallel Execution (Fork/Join)
+
+Based on Section 8 of the original Sagas paper, `ParallelActivity` executes multiple RoutingSlips concurrently.
+Each branch is a full saga with its own forward/backward paths:
+
+```python
+from ascetic_ddd.saga import (
+    RoutingSlip, WorkItem, WorkItemArguments, ParallelActivity
+)
+
+# T1 → (T2a,T2b || T3) → T4
+routing_slip = RoutingSlip([
+    WorkItem(ReserveFlightActivity, WorkItemArguments({"destination": "DUS"})),
+    WorkItem(ParallelActivity, WorkItemArguments({
+        "branches": [
+            RoutingSlip([
+                WorkItem(ReserveHotelActivity, WorkItemArguments({"room": "Suite"})),
+                WorkItem(ConfirmHotelActivity, WorkItemArguments({})),
+            ]),
+            RoutingSlip([
+                WorkItem(ReserveCarActivity, WorkItemArguments({"type": "Compact"})),
+            ]),
+        ]
+    })),
+    WorkItem(SendConfirmationActivity, WorkItemArguments({})),
+])
+
+# Process the saga
+while not routing_slip.is_completed:
+    if not await routing_slip.process_next():
+        while routing_slip.is_in_progress:
+            await routing_slip.undo_last()
+        break
+```
+
+**Behavior:**
+- Each branch is a full RoutingSlip (multi-step saga)
+- All branches execute concurrently
+- **Fail-fast**: On first failure, all branches are compensated
+- **Compensation**: All branches compensated in parallel (reverse order within each)
+
+## Recovery Blocks (Fallback)
+
+Based on Section 6 of the original paper, `FallbackActivity` tries alternative RoutingSlips until one succeeds:
+
+```python
+from ascetic_ddd.saga import (
+    RoutingSlip, WorkItem, WorkItemArguments, FallbackActivity
+)
+
+# Try primary payment flow, if fails try backup flow
+routing_slip = RoutingSlip([
+    WorkItem(PrepareOrderActivity, WorkItemArguments({})),
+    WorkItem(FallbackActivity, WorkItemArguments({
+        "alternatives": [
+            RoutingSlip([
+                WorkItem(PrimaryPaymentActivity, WorkItemArguments({"amount": 100})),
+                WorkItem(ConfirmPaymentActivity, WorkItemArguments({})),
+            ]),
+            RoutingSlip([
+                WorkItem(BackupPaymentActivity, WorkItemArguments({"amount": 100})),
+            ]),
+        ]
+    })),
+    WorkItem(ShipOrderActivity, WorkItemArguments({})),
+])
+```
+
+**Behavior:**
+- Each alternative is a full RoutingSlip (multi-step saga)
+- Tries each alternative in order
+- If alternative fails, it compensates itself before trying next
+- Only the successful alternative needs compensation later
+- If all alternatives fail, returns `None` (saga can compensate previous steps)
+
+## Combining Parallel and Fallback
+
+Activities can be nested for complex scenarios:
+
+```python
+# Flight → (Hotel saga || Car with fallback) → Confirmation
+routing_slip = RoutingSlip([
+    WorkItem(ReserveFlightActivity, WorkItemArguments({"dest": "DUS"})),
+    WorkItem(ParallelActivity, WorkItemArguments({
+        "branches": [
+            # Branch 1: Hotel saga
+            RoutingSlip([
+                WorkItem(ReserveHotelActivity, WorkItemArguments({"room": "Suite"})),
+                WorkItem(ConfirmHotelActivity, WorkItemArguments({})),
+            ]),
+            # Branch 2: Car with fallback providers
+            RoutingSlip([
+                WorkItem(FallbackActivity, WorkItemArguments({
+                    "alternatives": [
+                        RoutingSlip([WorkItem(ReserveHertzActivity, WorkItemArguments({}))]),
+                        RoutingSlip([WorkItem(ReserveAvisActivity, WorkItemArguments({}))]),
+                    ]
+                })),
+            ]),
+        ]
+    })),
+    WorkItem(SendConfirmationActivity, WorkItemArguments({})),
+])
+```
+
 ## Distributed Execution
 
 For distributed systems, use `ActivityHost` with message queues:

@@ -41,6 +41,8 @@ See Also:
 
 from ascetic_ddd.saga.activity import Activity
 from ascetic_ddd.saga.activity_host import ActivityHost
+from ascetic_ddd.saga.fallback_activity import FallbackActivity
+from ascetic_ddd.saga.parallel_activity import ParallelActivity
 from ascetic_ddd.saga.routing_slip import InvalidOperationError, RoutingSlip
 from ascetic_ddd.saga.work_item import WorkItem
 from ascetic_ddd.saga.work_item_arguments import WorkItemArguments
@@ -51,7 +53,9 @@ from ascetic_ddd.saga.work_result import WorkResult
 __all__ = (
     'Activity',
     'ActivityHost',
+    'FallbackActivity',
     'InvalidOperationError',
+    'ParallelActivity',
     'RoutingSlip',
     'WorkItem',
     'WorkItemArguments',
