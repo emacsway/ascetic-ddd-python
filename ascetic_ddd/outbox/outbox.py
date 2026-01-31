@@ -135,70 +135,6 @@ class Outbox(IOutbox):
         tasks = [asyncio.create_task(worker()) for _ in range(workers)]
         await asyncio.gather(*tasks)
 
-    async def setup(self) -> None:
-        """Initialize the outbox (create tables, sequences, indexes)."""
-        async with self._session_pool.session() as session:
-            async with session.atomic() as tx_session:
-                await self._create_outbox_table(tx_session)
-                await self._create_offsets_table(tx_session)
-
-    async def _create_outbox_table(self, session: 'IPgSession') -> None:
-        """Create outbox table with indexes."""
-        sql = """
-            CREATE TABLE IF NOT EXISTS %s (
-                "position" BIGSERIAL,
-                "event_type" VARCHAR(255) NOT NULL,
-                "event_version" SMALLINT NOT NULL DEFAULT 1,
-                "payload" JSONB NOT NULL,
-                "metadata" JSONB NOT NULL,
-                "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                "transaction_id" xid8 NOT NULL,
-                PRIMARY KEY ("transaction_id", "position")
-            )
-        """ % (self._outbox_table,)
-        async with session.connection.cursor() as cursor:
-            await cursor.execute(sql)
-
-        # Index for position-based queries
-        sql = """
-            CREATE INDEX IF NOT EXISTS %s_position_idx ON %s ("position")
-        """ % (self._outbox_table, self._outbox_table)
-        async with session.connection.cursor() as cursor:
-            await cursor.execute(sql)
-
-        # Index for event_type filtering
-        sql = """
-            CREATE INDEX IF NOT EXISTS %s_event_type_idx ON %s ("event_type")
-        """ % (self._outbox_table, self._outbox_table)
-        async with session.connection.cursor() as cursor:
-            await cursor.execute(sql)
-
-        # Unique index on event_id for idempotency
-        sql = """
-            CREATE UNIQUE INDEX IF NOT EXISTS %s_event_id_uniq
-            ON %s (((metadata->>'event_id')::uuid))
-        """ % (self._outbox_table, self._outbox_table)
-        async with session.connection.cursor() as cursor:
-            await cursor.execute(sql)
-
-    async def _create_offsets_table(self, session: 'IPgSession') -> None:
-        """Create offsets table for consumer groups."""
-        sql = """
-            CREATE TABLE IF NOT EXISTS %s (
-                "consumer_group" VARCHAR(255) NOT NULL,
-                "offset_acked" BIGINT NOT NULL DEFAULT 0,
-                "last_processed_transaction_id" xid8 NOT NULL DEFAULT '0',
-                "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY ("consumer_group")
-            )
-        """ % (self._offsets_table,)
-        async with session.connection.cursor() as cursor:
-            await cursor.execute(sql)
-
-    async def cleanup(self) -> None:
-        """Cleanup resources."""
-        pass
-
     async def get_position(
             self,
             session: 'IPgSession',
@@ -340,3 +276,67 @@ class Outbox(IOutbox):
     def _to_jsonb(obj: dict) -> Jsonb:
         """Convert dict to Jsonb for psycopg."""
         return Jsonb(obj)
+
+    async def setup(self) -> None:
+        """Initialize the outbox (create tables, sequences, indexes)."""
+        async with self._session_pool.session() as session:
+            async with session.atomic() as tx_session:
+                await self._create_outbox_table(tx_session)
+                await self._create_offsets_table(tx_session)
+
+    async def _create_outbox_table(self, session: 'IPgSession') -> None:
+        """Create outbox table with indexes."""
+        sql = """
+            CREATE TABLE IF NOT EXISTS %s (
+                "position" BIGSERIAL,
+                "event_type" VARCHAR(255) NOT NULL,
+                "event_version" SMALLINT NOT NULL DEFAULT 1,
+                "payload" JSONB NOT NULL,
+                "metadata" JSONB NOT NULL,
+                "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                "transaction_id" xid8 NOT NULL,
+                PRIMARY KEY ("transaction_id", "position")
+            )
+        """ % (self._outbox_table,)
+        async with session.connection.cursor() as cursor:
+            await cursor.execute(sql)
+
+        # Index for position-based queries
+        sql = """
+            CREATE INDEX IF NOT EXISTS %s_position_idx ON %s ("position")
+        """ % (self._outbox_table, self._outbox_table)
+        async with session.connection.cursor() as cursor:
+            await cursor.execute(sql)
+
+        # Index for event_type filtering
+        sql = """
+            CREATE INDEX IF NOT EXISTS %s_event_type_idx ON %s ("event_type")
+        """ % (self._outbox_table, self._outbox_table)
+        async with session.connection.cursor() as cursor:
+            await cursor.execute(sql)
+
+        # Unique index on event_id for idempotency
+        sql = """
+            CREATE UNIQUE INDEX IF NOT EXISTS %s_event_id_uniq
+            ON %s (((metadata->>'event_id')::uuid))
+        """ % (self._outbox_table, self._outbox_table)
+        async with session.connection.cursor() as cursor:
+            await cursor.execute(sql)
+
+    async def _create_offsets_table(self, session: 'IPgSession') -> None:
+        """Create offsets table for consumer groups."""
+        sql = """
+            CREATE TABLE IF NOT EXISTS %s (
+                "consumer_group" VARCHAR(255) NOT NULL,
+                "offset_acked" BIGINT NOT NULL DEFAULT 0,
+                "last_processed_transaction_id" xid8 NOT NULL DEFAULT '0',
+                "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY ("consumer_group")
+            )
+        """ % (self._offsets_table,)
+        async with session.connection.cursor() as cursor:
+            await cursor.execute(sql)
+
+    async def cleanup(self) -> None:
+        """Cleanup resources."""
+        pass
