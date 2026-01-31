@@ -167,6 +167,63 @@ The `compensate()` method returns a boolean:
 
 This allows for sophisticated recovery strategies where compensation might involve retrying with different parameters.
 
+## Idempotency Requirement
+
+**Activities MUST be idempotent.** This is a fundamental requirement for saga reliability.
+
+### Why Idempotency?
+
+In distributed systems with message queues, messages are typically delivered with "at least once" semantics:
+
+1. Worker receives message from queue
+2. Worker processes the saga step
+3. Worker sends **Ack** (acknowledgment) to queue
+4. If worker crashes before Ack, message returns to queue and is redelivered
+
+This means `do_work()` and `compensate()` may be called multiple times for the same logical operation.
+
+### Ensuring Idempotency
+
+```python
+class ReserveHotelActivity(Activity):
+    async def do_work(self, work_item: WorkItem) -> WorkLog:
+        reservation_key = work_item.arguments["idempotency_key"]
+
+        # Check if already processed
+        existing = await db.find_reservation(reservation_key)
+        if existing:
+            return WorkLog(self, WorkResult({"id": existing.id}))
+
+        # Create new reservation with idempotency key
+        reservation = await db.create_reservation(
+            key=reservation_key,
+            room_type=work_item.arguments["roomType"],
+        )
+        return WorkLog(self, WorkResult({"id": reservation.id}))
+
+    async def compensate(self, work_log: WorkLog, routing_slip: RoutingSlip) -> bool:
+        reservation_id = work_log.result["id"]
+
+        # Idempotent cancellation - safe to call multiple times
+        await db.cancel_reservation_if_exists(reservation_id)
+        return True
+```
+
+### ParallelActivity and FallbackActivity
+
+Both `ParallelActivity` and `FallbackActivity` execute branches **in-process** using asyncio:
+
+- **ParallelActivity**: Uses `asyncio.gather()` for concurrent execution
+- **FallbackActivity**: Uses sequential loop to try alternatives
+
+If the process crashes during execution:
+1. No Ack is sent to the message queue
+2. The message is redelivered
+3. The entire step (including all branches) is re-executed
+4. Idempotent activities ensure correctness on retry
+
+This design avoids the complexity of distributed coordination while maintaining reliability through idempotency.
+
 ## Parallel Execution (Fork/Join)
 
 Based on Section 8 of the original Sagas paper, `ParallelActivity` executes multiple RoutingSlips concurrently.
