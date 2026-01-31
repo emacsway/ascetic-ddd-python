@@ -314,6 +314,29 @@ class FallbackActivityQueueAddressTestCase(unittest.TestCase):
         self.assertEqual(activity.compensation_queue_address, "sb://./fallbackCompensation")
 
 
+
+class FallbackActivityParentTestCase(unittest.IsolatedAsyncioTestCase):
+    """Test cases for parent assignment to alternatives."""
+
+    def setUp(self):
+        PrimaryActivity.call_count = 0
+        PrimaryActivity.compensate_count = 0
+        PrimaryActivity.should_fail = False
+
+    async def test_successful_alternative_has_parent_set(self):
+        """Successful alternative has parent WorkItem set."""
+        alternative = RoutingSlip([WorkItem(PrimaryActivity, WorkItemArguments({}))])
+
+        activity = FallbackActivity()
+        work_item = WorkItem(FallbackActivity, WorkItemArguments({
+            "alternatives": [alternative]
+        }))
+
+        await activity.do_work(work_item)
+
+        self.assertIs(alternative.parent, work_item)
+
+
 class FallbackActivityIntegrationTestCase(unittest.IsolatedAsyncioTestCase):
     """Integration tests with RoutingSlip."""
 

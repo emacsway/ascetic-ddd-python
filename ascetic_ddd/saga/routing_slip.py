@@ -26,14 +26,20 @@ class RoutingSlip:
     serialized for transmission between distributed systems.
     """
 
-    def __init__(self, work_items: list['WorkItem'] | None = None):
+    def __init__(
+        self,
+        work_items: list['WorkItem'] | None = None,
+        parent: 'WorkItem | None' = None,
+    ):
         """Initialize routing slip.
 
         Args:
             work_items: Optional list of work items to process.
+            parent: Optional parent WorkItem (for parallel/fallback branches).
         """
         self._completed_work_logs: list['WorkLog'] = []
         self._next_work_items: deque['WorkItem'] = deque()
+        self._parent: 'WorkItem | None' = parent
 
         if work_items:
             for work_item in work_items:
@@ -122,6 +128,16 @@ class RoutingSlip:
     def pending_work_items(self) -> deque['WorkItem']:
         """Queue of pending work items (for inspection/testing)."""
         return self._next_work_items
+
+    @property
+    def parent(self) -> 'WorkItem | None':
+        """Parent WorkItem (for parallel/fallback branches)."""
+        return self._parent
+
+    @parent.setter
+    def parent(self, value: 'WorkItem') -> None:
+        """Set the parent WorkItem."""
+        self._parent = value
 
 
 class InvalidOperationError(Exception):

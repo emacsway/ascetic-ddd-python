@@ -206,6 +206,32 @@ class ParallelActivityQueueAddressTestCase(unittest.TestCase):
         self.assertEqual(activity.compensation_queue_address, "sb://./parallelCompensation")
 
 
+
+class ParallelActivityParentTestCase(unittest.IsolatedAsyncioTestCase):
+    """Test cases for parent assignment to branches."""
+
+    def setUp(self):
+        BranchAActivity.call_count = 0
+        BranchAActivity.compensate_count = 0
+        BranchBActivity.call_count = 0
+        BranchBActivity.compensate_count = 0
+
+    async def test_branches_have_parent_set(self):
+        """Branches have parent WorkItem set after do_work."""
+        branch_a = RoutingSlip([WorkItem(BranchAActivity, WorkItemArguments({}))])
+        branch_b = RoutingSlip([WorkItem(BranchBActivity, WorkItemArguments({}))])
+
+        activity = ParallelActivity()
+        work_item = WorkItem(ParallelActivity, WorkItemArguments({
+            "branches": [branch_a, branch_b]
+        }))
+
+        await activity.do_work(work_item)
+
+        self.assertIs(branch_a.parent, work_item)
+        self.assertIs(branch_b.parent, work_item)
+
+
 class ParallelActivityIntegrationTestCase(unittest.IsolatedAsyncioTestCase):
     """Integration tests with RoutingSlip."""
 
