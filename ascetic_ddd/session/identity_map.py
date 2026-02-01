@@ -1,7 +1,7 @@
 import contextlib
 import weakref
 
-from ascetic_ddd.seedwork.domain.aggregate import ObjectDoesNotExist
+from ascetic_ddd.session.exceptions import ObjectDoesNotExist
 from ascetic_ddd.session.interfaces import IIdentityKey, IIdentityMap, IModel
 
 __all__ = ("IdentityMap",)

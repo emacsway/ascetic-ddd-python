@@ -78,7 +78,7 @@ class IEventSourcedAggregate(
         raise NotImplementedError
 
 
-class IHashable(IEqualOperand, typing.Protocol, metaclass=ABCMeta):
-    @abstractmethod
+class IHashable(IEqualOperand, typing.Protocol):
+
     def __hash__(self) -> int:
-        raise NotImplementedError
+        ...

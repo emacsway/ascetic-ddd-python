@@ -1,7 +1,7 @@
 import typing
 from collections.abc import Callable, Hashable
 
-from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool, ISession
+from ascetic_ddd.session.interfaces import ISessionPool, ISession
 
 __all__ = (
     "CompositeSessionPool",

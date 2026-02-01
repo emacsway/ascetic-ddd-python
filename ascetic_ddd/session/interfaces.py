@@ -3,8 +3,7 @@ import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
 
-from ascetic_ddd.seedwork.domain.aggregate import IHashable
-from ascetic_ddd.seedwork.domain.session.interfaces import ISession as _ISession
+from ascetic_ddd.observable.interfaces import IObservable
 
 __all__ = (
     "Query",
@@ -15,11 +14,37 @@ __all__ = (
     "IAsyncCursor",
     "IAsyncTransaction",
     "ISession",
+    "ISessionPool",
     "IIdentityMap",
     "IIdentityKey",
     "IModel",
     "IPgSession",
 )
+
+
+class ISession(IObservable, typing.Protocol, metaclass=ABCMeta):
+    response_time: float
+
+    @abstractmethod
+    async def atomic(self) -> typing.AsyncContextManager["ISession"]:
+        raise NotImplementedError
+
+
+class ISessionPool(IObservable, typing.Protocol, metaclass=ABCMeta):
+    response_time: float
+
+    @abstractmethod
+    def session(self) -> typing.AsyncContextManager[ISession]:
+        raise NotImplementedError
+
+
+class IHashable(typing.Protocol, metaclass=ABCMeta):
+
+    def __eq__(self, other: "IHashable") -> bool:
+        ...
+
+    def __hash__(self) -> int:
+        raise NotImplementedError
 
 
 IIdentityKey: typing.TypeAlias = IHashable
@@ -41,50 +66,62 @@ class IAsyncCursor(typing.Protocol):
         binary: bool | None = None,
     ) -> "IAsyncCursor": ...
 
-    async def fetchone(self) -> Row | None: ...
+    async def fetchone(self) -> Row | None:
+        ...
 
-    async def fetchmany(self, size: int = 0) -> list[Row]: ...
+    async def fetchmany(self, size: int = 0) -> list[Row]:
+        ...
 
-    async def fetchall(self) -> list[Row]: ...
+    async def fetchall(self) -> list[Row]:
+        ...
 
-    async def close(self) -> None: ...
+    async def close(self) -> None:
+        ...
 
-    async def __aenter__(self) -> "IAsyncCursor": ...
+    async def __aenter__(self) -> "IAsyncCursor":
+        ...
 
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> None: ...
+    ) -> None:
+        ...
 
 
 @typing.runtime_checkable
 class IAsyncTransaction(typing.Protocol):
     @property
-    def connection(self) -> "IAsyncConnection": ...
+    def connection(self) -> "IAsyncConnection":
+        ...
 
-    async def __aenter__(self) -> "IAsyncTransaction": ...
+    async def __aenter__(self) -> "IAsyncTransaction":
+        ...
 
     async def __aexit__(
         self,
         exc_type: typing.Optional[type[BaseException]],
         exc_val: typing.Optional[BaseException],
         exc_tb: typing.Any,
-    ) -> None: ...
+    ) -> None:
+        ...
 
 
 @typing.runtime_checkable
 class IAsyncConnection(typing.Protocol):
-    def cursor(self, *args: typing.Any, **kwargs: typing.Any) -> IAsyncCursor: ...
+    def cursor(self, *args: typing.Any, **kwargs: typing.Any) -> IAsyncCursor:
+        ...
 
     def transaction(
         self,
         savepoint_name: str | None = None,
         force_rollback: bool = False
-    ) -> typing.AsyncContextManager["IAsyncTransaction"]: ...
+    ) -> typing.AsyncContextManager["IAsyncTransaction"]:
+        ...
 
-    async def close(self) -> None: ...
+    async def close(self) -> None:
+        ...
 
     async def execute(
         self,
@@ -95,18 +132,21 @@ class IAsyncConnection(typing.Protocol):
         binary: bool = False,
     ) -> IAsyncCursor: ...
 
-    async def __aenter__(self) -> "IAsyncConnection": ...
+    async def __aenter__(self) -> "IAsyncConnection":
+        ...
 
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> None: ...
+    ) -> None:
+        ...
 
 
 class IAsyncConnectionPool(typing.Protocol):
-    async def connection(self, timeout: float | None = None) -> typing.AsyncContextManager["IAsyncConnection"]: ...
+    async def connection(self, timeout: float | None = None) -> typing.AsyncContextManager["IAsyncConnection"]:
+        ...
 
 
 class IIdentityMap(metaclass=ABCMeta):
@@ -131,18 +171,15 @@ class IIdentityMap(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-class ISession(_ISession, typing.Protocol, metaclass=ABCMeta):
+@typing.runtime_checkable
+class IPgSession(ISession, typing.Protocol):
     @property
     @abstractmethod
     def identity_map(self) -> IIdentityMap:
-        raise NotImplementedError
-
-
-@typing.runtime_checkable
-class IPgSession(_ISession, typing.Protocol, metaclass=ABCMeta):
+        ...
 
     @property
     @abstractmethod
     def connection(self) -> IAsyncConnection:
         """For ReadModels (Queries)."""
-        raise NotImplementedError
+        ...

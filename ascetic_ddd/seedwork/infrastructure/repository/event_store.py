@@ -6,8 +6,8 @@ from abc import ABCMeta
 from psycopg.errors import UniqueViolation
 
 from ascetic_ddd.mediator.interfaces import IMediator
+from ascetic_ddd.session.exceptions import ConcurrentUpdate
 from ascetic_ddd.seedwork.domain.aggregate import (
-    ConcurrentUpdate,
     EventMeta,
     IDomainEventAccessor,
     PersistentDomainEvent,

@@ -5,7 +5,6 @@ from ascetic_ddd.seedwork.domain.aggregate.domain_event import *
 from ascetic_ddd.seedwork.domain.aggregate.event_meta import *
 from ascetic_ddd.seedwork.domain.aggregate.event_meta_exporter import *
 from ascetic_ddd.seedwork.domain.aggregate.eventive_entity import *
-from ascetic_ddd.seedwork.domain.aggregate.exceptions import *
 from ascetic_ddd.seedwork.domain.aggregate.hashable_entity import *
 from ascetic_ddd.seedwork.domain.aggregate.persistent_domain_event import *
 from ascetic_ddd.seedwork.domain.aggregate.persistent_domain_event_exporter import *
