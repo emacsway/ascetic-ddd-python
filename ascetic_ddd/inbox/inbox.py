@@ -2,14 +2,14 @@
 
 import asyncio
 import json
-import typing
-from typing import AsyncIterator, Callable, Awaitable
-from abc import abstractmethod
-from collections import defaultdict
-from typing import Any
+from typing import AsyncIterator, Any
 
 from ascetic_ddd.inbox.interfaces import IInbox, ISubscriber
 from ascetic_ddd.inbox.message import InboxMessage
+from ascetic_ddd.inbox.partition_strategy import (
+    IPartitionKeyStrategy,
+    UriPartitionKeyStrategy,
+)
 from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool
 from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
 
@@ -27,32 +27,21 @@ class Inbox(IInbox):
 
     _table: str = 'inbox'
     _sequence: str = 'inbox_received_position_seq'
-    _subscribers: dict[str, list[ISubscriber]]
 
-    def __init__(self, session_pool: ISessionPool):
+    def __init__(
+            self,
+            session_pool: ISessionPool,
+            partition_key_strategy: IPartitionKeyStrategy | None = None,
+    ):
         """Initialize Inbox.
 
         Args:
             session_pool: Pool for obtaining database sessions.
+            partition_key_strategy: Strategy for computing partition key.
+                Defaults to UriPartitionKeyStrategy.
         """
         self._session_pool = session_pool
-        self._subscribers = defaultdict(list)
-
-    def subscribe(
-            self,
-            uri: str,
-            handler: typing.Optional[ISubscriber] = None
-    ) -> Callable[[ISubscriber], ISubscriber] | None:
-
-        def deco(func: ISubscriber) -> ISubscriber:
-            self._subscribers[uri].append(func)
-            return func
-
-        if handler is not None:
-            deco(handler)
-            return None
-        else:
-            return deco
+        self._partition_key_strategy = partition_key_strategy or UriPartitionKeyStrategy()
 
     async def publish(self, message: InboxMessage) -> None:
         """Receive and store an incoming message.
@@ -63,27 +52,30 @@ class Inbox(IInbox):
             async with session.atomic():
                 await self._insert_message(session, message)
 
-    async def dispatch(self) -> bool:
-        """Process the next unprocessed message with satisfied dependencies."""
+    async def dispatch(
+            self,
+            subscriber: ISubscriber,
+            worker_id: int = 0,
+            num_workers: int = 1,
+    ) -> bool:
+        """Process the next unprocessed message with satisfied dependencies.
+
+        Args:
+            subscriber: Callback to process the message.
+            worker_id: This worker's ID (0 to num_workers-1).
+            num_workers: Total number of workers for partitioning.
+        """
         async with self._session_pool.session() as session:
             async with session.atomic():
-                message = await self._fetch_next_processable(session)
+                message = await self._fetch_next_processable(
+                    session, worker_id=worker_id, num_workers=num_workers
+                )
                 if message is None:
                     return False
 
-                await self.do_handle(session, message)
+                await subscriber(session, message)
                 await self._mark_processed(session, message)
                 return True
-
-    @abstractmethod
-    async def do_handle(self, session: IPgSession, message: InboxMessage) -> None:
-        """Process a single message. Override in subclasses."""
-        if message.uri in self._subscribers:
-            for handler in self._subscribers[message.uri]:
-                await handler(session, message)
-        else:
-            # Just watch for a message, mark it as processed.
-            pass
 
     def __aiter__(self) -> AsyncIterator[tuple[IPgSession, InboxMessage]]:
         """Return async iterator for continuous message processing.
@@ -129,40 +121,41 @@ class Inbox(IInbox):
 
     async def run(
             self,
-            workers: int = 1,
+            subscriber: ISubscriber,
+            process_id: int = 0,
+            num_processes: int = 1,
+            concurrency: int = 1,
             poll_interval: float = 1.0,
             stop_event: asyncio.Event | None = None,
     ) -> None:
-        """Run message processing with concurrent workers.
+        """Run message processing with partitioned workers.
+
+        Each coroutine processes its own partitions:
+          effective_id = process_id * concurrency + local_id
+          effective_total = num_processes * concurrency
 
         Args:
-            workers: Number of concurrent workers.
+            subscriber: Callback to process each message.
+            process_id: This process's ID (0 to num_processes-1).
+            num_processes: Total number of processes.
+            concurrency: Number of coroutines within this process.
             poll_interval: Seconds to wait when no messages available.
-            stop_event: Event to signal graceful shutdown. Workers stop
-                between iterations when this event is set.
+            stop_event: Event to signal graceful shutdown.
         """
         if stop_event is None:
             stop_event = asyncio.Event()
 
-        if workers == 1:
-            await self._worker(poll_interval, stop_event)
-        else:
-            tasks = [
-                asyncio.create_task(self._worker(poll_interval, stop_event))
-                for _ in range(workers)
-            ]
-            await asyncio.gather(*tasks)
+        effective_total = num_processes * concurrency
 
-    async def _worker(
-            self,
-            poll_interval: float = 1.0,
-            stop_event: asyncio.Event | None = None,
-    ) -> None:
-        """Single worker loop for processing messages."""
-        while stop_event is None or not stop_event.is_set():
-            processed = await self.dispatch()
-            if not processed:
-                if stop_event is not None:
+        async def worker_loop(local_id: int):
+            effective_id = process_id * concurrency + local_id
+            while not stop_event.is_set():
+                processed = await self.dispatch(
+                    subscriber,
+                    worker_id=effective_id,
+                    num_workers=effective_total,
+                )
+                if not processed:
                     try:
                         await asyncio.wait_for(
                             stop_event.wait(),
@@ -171,8 +164,12 @@ class Inbox(IInbox):
                         break  # stop_event was set
                     except asyncio.TimeoutError:
                         pass  # Continue polling
-                else:
-                    await asyncio.sleep(poll_interval)
+
+        if concurrency == 1:
+            await worker_loop(0)
+        else:
+            tasks = [asyncio.create_task(worker_loop(i)) for i in range(concurrency)]
+            await asyncio.gather(*tasks)
 
     async def _insert_message(self, session: IPgSession, message: InboxMessage) -> None:
         """Insert message into inbox table."""
@@ -201,20 +198,28 @@ class Inbox(IInbox):
             )
 
     async def _fetch_next_processable(
-            self, session: IPgSession, start_offset: int = 0
+            self,
+            session: IPgSession,
+            start_offset: int = 0,
+            worker_id: int = 0,
+            num_workers: int = 1,
     ) -> InboxMessage | None:
         """Find next message with satisfied dependencies.
 
         Args:
             session: Database session.
             start_offset: Offset to start searching from.
+            worker_id: This worker's ID (0 to num_workers-1).
+            num_workers: Total number of workers for partitioning.
 
         Returns:
             Next processable message or None if no messages available.
         """
         offset = start_offset
         while True:
-            message = await self._fetch_unprocessed_message(session, offset)
+            message = await self._fetch_unprocessed_message(
+                session, offset, worker_id=worker_id, num_workers=num_workers
+            )
             if message is None:
                 return None
             if await self._are_dependencies_satisfied(session, message):
@@ -222,9 +227,29 @@ class Inbox(IInbox):
             offset += 1
 
     async def _fetch_unprocessed_message(
-            self, session: IPgSession, offset: int
+            self,
+            session: IPgSession,
+            offset: int,
+            worker_id: int = 0,
+            num_workers: int = 1,
     ) -> InboxMessage | None:
-        """Fetch first unprocessed message at given offset with row-level lock."""
+        """Fetch first unprocessed message at given offset with row-level lock.
+
+        Args:
+            session: Database session.
+            offset: Offset within the result set.
+            worker_id: This worker's ID (0 to num_workers-1).
+            num_workers: Total number of workers for partitioning.
+        """
+        # Build partition filter
+        if num_workers > 1:
+            partition_expr = self._partition_key_strategy.get_sql_expression()
+            partition_filter = "AND hashtext(%s) %%%% %d = %d" % (
+                partition_expr, num_workers, worker_id
+            )
+        else:
+            partition_filter = ""
+
         sql = """
             SELECT
                 tenant_id, stream_type, stream_id, stream_position,
@@ -232,10 +257,11 @@ class Inbox(IInbox):
                 received_position, processed_position
             FROM %s
             WHERE processed_position IS NULL
+            %s
             ORDER BY received_position ASC
             LIMIT 1 OFFSET %%s
             FOR UPDATE SKIP LOCKED
-        """ % self._table
+        """ % (self._table, partition_filter)
 
         async with session.connection.cursor() as cursor:
             await cursor.execute(sql, (offset,))

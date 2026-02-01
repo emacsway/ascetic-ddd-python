@@ -1,9 +1,7 @@
 """Tests for Inbox class."""
 
 import asyncio
-import json
 import unittest
-from typing import Any
 from unittest import IsolatedAsyncioTestCase
 
 from ascetic_ddd.inbox.inbox import Inbox
@@ -86,17 +84,6 @@ class MockSessionPool:
         pass
 
 
-class TestInbox(Inbox):
-    """Concrete Inbox implementation for testing."""
-
-    def __init__(self, session_pool):
-        super().__init__(session_pool)
-        self.handled_messages = []
-
-    async def do_handle(self, session, message: InboxMessage) -> None:
-        self.handled_messages.append(message)
-
-
 class InboxReceiveTestCase(IsolatedAsyncioTestCase):
     """Test cases for Inbox.publish()."""
 
@@ -107,7 +94,7 @@ class InboxReceiveTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
+        inbox = Inbox(pool)
         message = InboxMessage(
             tenant_id="tenant1",
             stream_type="Order",
@@ -142,11 +129,16 @@ class InboxDispatchTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
-        result = await inbox.dispatch()
+        inbox = Inbox(pool)
+        handled = []
+
+        async def subscriber(sess, msg):
+            handled.append(msg)
+
+        result = await inbox.dispatch(subscriber)
 
         self.assertFalse(result)
-        self.assertEqual(len(inbox.handled_messages), 0)
+        self.assertEqual(len(handled), 0)
 
     async def test_dispatch_processes_message_without_dependencies(self):
         """dispatch() processes message without causal dependencies."""
@@ -166,12 +158,17 @@ class InboxDispatchTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
-        result = await inbox.dispatch()
+        inbox = Inbox(pool)
+        handled = []
+
+        async def subscriber(sess, msg):
+            handled.append(msg)
+
+        result = await inbox.dispatch(subscriber)
 
         self.assertTrue(result)
-        self.assertEqual(len(inbox.handled_messages), 1)
-        self.assertEqual(inbox.handled_messages[0].tenant_id, "tenant1")
+        self.assertEqual(len(handled), 1)
+        self.assertEqual(handled[0].tenant_id, "tenant1")
 
 
 class InboxDependencyCheckTestCase(IsolatedAsyncioTestCase):
@@ -194,7 +191,7 @@ class InboxDependencyCheckTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
+        inbox = Inbox(pool)
         result = await inbox._are_dependencies_satisfied(session, message)
 
         self.assertTrue(result)
@@ -206,7 +203,7 @@ class InboxDependencyCheckTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
+        inbox = Inbox(pool)
         dep = {
             "tenant_id": "tenant1",
             "stream_type": "User",
@@ -225,7 +222,7 @@ class InboxDependencyCheckTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
+        inbox = Inbox(pool)
         dep = {
             "tenant_id": "tenant1",
             "stream_type": "User",
@@ -248,7 +245,7 @@ class InboxSetupTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
+        inbox = Inbox(pool)
         await inbox.setup()
 
         self.assertEqual(len(cursor.executed_sql), 2)
@@ -278,8 +275,7 @@ class InboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
-        results = []
+        inbox = Inbox(pool)
 
         # Use anext to get one item without infinite loop
         iterator = inbox.__aiter__()
@@ -307,7 +303,7 @@ class InboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
+        inbox = Inbox(pool)
 
         iterator = inbox.__aiter__()
         await iterator.__anext__()
@@ -342,7 +338,11 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
+        inbox = Inbox(pool)
+        handled = []
+
+        async def subscriber(sess, msg):
+            handled.append(msg)
 
         # Run with graceful shutdown
         stop_event = asyncio.Event()
@@ -352,12 +352,12 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
             stop_event.set()
 
         await asyncio.gather(
-            inbox.run(workers=1, poll_interval=0.01, stop_event=stop_event),
+            inbox.run(subscriber, concurrency=1, poll_interval=0.01, stop_event=stop_event),
             stop_after_delay(),
         )
 
         # Message should be processed
-        self.assertEqual(len(inbox.handled_messages), 1)
+        self.assertEqual(len(handled), 1)
 
     async def test_run_multiple_workers_spawns_tasks(self):
         """run() with multiple workers spawns concurrent tasks."""
@@ -380,7 +380,11 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
+        inbox = Inbox(pool)
+        handled = []
+
+        async def subscriber(sess, msg):
+            handled.append(msg)
 
         # Run with graceful shutdown
         stop_event = asyncio.Event()
@@ -390,12 +394,12 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
             stop_event.set()
 
         await asyncio.gather(
-            inbox.run(workers=2, poll_interval=0.01, stop_event=stop_event),
+            inbox.run(subscriber, concurrency=2, poll_interval=0.01, stop_event=stop_event),
             stop_after_delay(),
         )
 
         # Multiple messages should be processed
-        self.assertGreaterEqual(len(inbox.handled_messages), 1)
+        self.assertGreaterEqual(len(handled), 1)
 
     async def test_run_worker_sleeps_when_no_messages(self):
         """run() worker sleeps when no messages available."""
@@ -404,7 +408,11 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
         session = MockSession(connection)
         pool = MockSessionPool(session)
 
-        inbox = TestInbox(pool)
+        inbox = Inbox(pool)
+        handled = []
+
+        async def subscriber(sess, msg):
+            handled.append(msg)
 
         # Run with graceful shutdown
         stop_event = asyncio.Event()
@@ -414,12 +422,12 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
             stop_event.set()
 
         await asyncio.gather(
-            inbox.run(workers=1, poll_interval=0.05, stop_event=stop_event),
+            inbox.run(subscriber, concurrency=1, poll_interval=0.05, stop_event=stop_event),
             stop_after_delay(),
         )
 
         # No messages processed
-        self.assertEqual(len(inbox.handled_messages), 0)
+        self.assertEqual(len(handled), 0)
 
 
 if __name__ == '__main__':

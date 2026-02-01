@@ -21,6 +21,7 @@ class InboxMessage:
         uri: Routing URI (e.g., 'kafka://orders', 'amqp://exchange/key').
         payload: Event payload data (must contain 'type' for deserialization).
         metadata: Optional event metadata (may contain event_id, causal_dependencies, etc.).
+        partition_key: Key for worker distribution (computed by strategy, auto-assigned).
         received_position: Position when message was received (auto-assigned by DB).
         processed_position: Position when message was processed (None if not processed).
     """

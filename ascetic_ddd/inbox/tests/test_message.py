@@ -15,8 +15,7 @@ class InboxMessageTestCase(unittest.TestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={"amount": 100},
         )
 
@@ -24,8 +23,7 @@ class InboxMessageTestCase(unittest.TestCase):
         self.assertEqual(message.stream_type, "Order")
         self.assertEqual(message.stream_id, {"id": "order-123"})
         self.assertEqual(message.stream_position, 1)
-        self.assertEqual(message.event_type, "OrderCreated")
-        self.assertEqual(message.event_version, 1)
+        self.assertEqual(message.uri, "kafka://orders")
         self.assertEqual(message.payload, {"amount": 100})
         self.assertIsNone(message.metadata)
         self.assertIsNone(message.received_position)
@@ -38,8 +36,7 @@ class InboxMessageTestCase(unittest.TestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={"amount": 100},
             metadata={"event_id": "uuid-123", "timestamp": "2024-01-01T00:00:00Z"},
         )
@@ -53,8 +50,7 @@ class InboxMessageTestCase(unittest.TestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={},
         )
 
@@ -67,8 +63,7 @@ class InboxMessageTestCase(unittest.TestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={},
             metadata={"event_id": "uuid-123"},
         )
@@ -86,8 +81,7 @@ class InboxMessageTestCase(unittest.TestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={},
             metadata={"causal_dependencies": deps},
         )
@@ -102,8 +96,7 @@ class InboxMessageTestCase(unittest.TestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={},
         )
 
@@ -116,8 +109,7 @@ class InboxMessageTestCase(unittest.TestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={},
             metadata={"event_id": "uuid-456"},
         )
@@ -131,8 +123,7 @@ class InboxMessageTestCase(unittest.TestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={},
             received_position=100,
             processed_position=50,

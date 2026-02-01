@@ -15,14 +15,6 @@ class TestInbox(Inbox):
     _table: str = 'inbox_test'
     _sequence: str = 'inbox_test_received_position_seq'
 
-    def __init__(self, session_pool):
-        super().__init__(session_pool)
-        self.handled_messages = []
-
-    async def do_handle(self, session, message: InboxMessage) -> None:
-        self.handled_messages.append(message)
-        await super().do_handle(session, message)
-
 
 class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
     """Integration tests for Inbox with real PostgreSQL."""
@@ -32,6 +24,7 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         self.inbox = TestInbox(self.session_pool)
         await self.inbox.setup()
         await self._truncate_table()
+        self.handled_messages = []
 
     async def asyncTearDown(self):
         await self._drop_table()
@@ -52,6 +45,10 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
                     await cursor.execute("DROP TABLE IF EXISTS %s" % self.inbox._table)
                     await cursor.execute("DROP SEQUENCE IF EXISTS %s" % self.inbox._sequence)
 
+    async def _subscriber(self, session, message: InboxMessage) -> None:
+        """Test subscriber that collects messages."""
+        self.handled_messages.append(message)
+
     async def test_publish_and_dispatch(self):
         """publish() stores message, dispatch() processes it."""
         message = InboxMessage(
@@ -65,12 +62,12 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         )
 
         await self.inbox.publish(message)
-        result = await self.inbox.dispatch()
+        result = await self.inbox.dispatch(self._subscriber)
 
         self.assertTrue(result)
-        self.assertEqual(len(self.inbox.handled_messages), 1)
-        self.assertEqual(self.inbox.handled_messages[0].tenant_id, "tenant1")
-        self.assertEqual(self.inbox.handled_messages[0].stream_id, {"id": "order-123"})
+        self.assertEqual(len(self.handled_messages), 1)
+        self.assertEqual(self.handled_messages[0].tenant_id, "tenant1")
+        self.assertEqual(self.handled_messages[0].stream_id, {"id": "order-123"})
 
     async def test_idempotency(self):
         """Duplicate messages are ignored."""
@@ -88,11 +85,11 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         await self.inbox.publish(message)
 
         # Only one message should be processed
-        await self.inbox.dispatch()
-        result = await self.inbox.dispatch()
+        await self.inbox.dispatch(self._subscriber)
+        result = await self.inbox.dispatch(self._subscriber)
 
         self.assertFalse(result)
-        self.assertEqual(len(self.inbox.handled_messages), 1)
+        self.assertEqual(len(self.handled_messages), 1)
 
     async def test_causal_dependencies(self):
         """Messages wait for dependencies to be processed."""
@@ -120,7 +117,7 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         await self.inbox.publish(dependent_message)
 
         # Should not process (dependency not met)
-        result = await self.inbox.dispatch()
+        result = await self.inbox.dispatch(self._subscriber)
         self.assertFalse(result)
 
         # Now publish the dependency
@@ -135,14 +132,14 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         await self.inbox.publish(dependency_message)
 
         # Process dependency first
-        result = await self.inbox.dispatch()
+        result = await self.inbox.dispatch(self._subscriber)
         self.assertTrue(result)
-        self.assertEqual(self.inbox.handled_messages[0].uri, "kafka://orders")
+        self.assertEqual(self.handled_messages[0].uri, "kafka://orders")
 
         # Now dependent message can be processed
-        result = await self.inbox.dispatch()
+        result = await self.inbox.dispatch(self._subscriber)
         self.assertTrue(result)
-        self.assertEqual(self.inbox.handled_messages[1].uri, "kafka://shipments")
+        self.assertEqual(self.handled_messages[1].uri, "kafka://shipments")
 
     async def test_ordering_by_received_position(self):
         """Messages are processed in order of arrival."""
@@ -158,24 +155,22 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             await self.inbox.publish(message)
 
         # Process all messages
-        while await self.inbox.dispatch():
+        while await self.inbox.dispatch(self._subscriber):
             pass
 
-        self.assertEqual(len(self.inbox.handled_messages), 3)
-        for i, msg in enumerate(self.inbox.handled_messages):
+        self.assertEqual(len(self.handled_messages), 3)
+        for i, msg in enumerate(self.handled_messages):
             self.assertEqual(msg.payload["order"], i)
 
-    async def test_subscribe_decorator(self):
-        """@inbox.subscribe registers handlers."""
+    async def test_routing_by_uri(self):
+        """Subscriber can route by uri."""
         handled_events = []
 
-        @self.inbox.subscribe("kafka://orders")
-        async def handle_order_created(session, message):
-            handled_events.append(("orders", message.stream_id))
-
-        @self.inbox.subscribe("kafka://shipments")
-        async def handle_order_shipped(session, message):
-            handled_events.append(("shipments", message.stream_id))
+        async def routing_subscriber(session, message):
+            if message.uri == "kafka://orders":
+                handled_events.append(("orders", message.stream_id))
+            elif message.uri == "kafka://shipments":
+                handled_events.append(("shipments", message.stream_id))
 
         # Publish messages
         await self.inbox.publish(InboxMessage(
@@ -196,8 +191,8 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         ))
 
         # Process messages
-        await self.inbox.dispatch()
-        await self.inbox.dispatch()
+        await self.inbox.dispatch(routing_subscriber)
+        await self.inbox.dispatch(routing_subscriber)
 
         self.assertEqual(len(handled_events), 2)
         self.assertEqual(handled_events[0], ("orders", {"id": "order-1"}))
@@ -252,11 +247,11 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stop_event.set()
 
         await asyncio.gather(
-            self.inbox.run(workers=1, poll_interval=0.01, stop_event=stop_event),
+            self.inbox.run(self._subscriber, concurrency=1, poll_interval=0.01, stop_event=stop_event),
             stop_after_delay(),
         )
 
-        self.assertEqual(len(self.inbox.handled_messages), 3)
+        self.assertEqual(len(self.handled_messages), 3)
 
     async def test_run_with_multiple_workers(self):
         """run() with multiple workers processes messages concurrently."""
@@ -278,12 +273,12 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stop_event.set()
 
         await asyncio.gather(
-            self.inbox.run(workers=3, poll_interval=0.01, stop_event=stop_event),
+            self.inbox.run(self._subscriber, concurrency=3, poll_interval=0.01, stop_event=stop_event),
             stop_after_delay(),
         )
 
         # All messages should be processed (order may vary due to concurrency)
-        self.assertEqual(len(self.inbox.handled_messages), 10)
+        self.assertEqual(len(self.handled_messages), 10)
 
     async def test_for_update_skip_locked(self):
         """Multiple workers don't process same message (FOR UPDATE SKIP LOCKED)."""
@@ -305,12 +300,12 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stop_event.set()
 
         await asyncio.gather(
-            self.inbox.run(workers=3, poll_interval=0.01, stop_event=stop_event),
+            self.inbox.run(self._subscriber, concurrency=3, poll_interval=0.01, stop_event=stop_event),
             stop_after_delay(),
         )
 
         # Message should be processed exactly once
-        self.assertEqual(len(self.inbox.handled_messages), 1)
+        self.assertEqual(len(self.handled_messages), 1)
 
 
 if __name__ == '__main__':
