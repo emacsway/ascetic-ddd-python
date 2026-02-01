@@ -108,9 +108,9 @@ class Outbox(IOutbox):
 
     def __aiter__(self) -> typing.AsyncIterator['OutboxMessage']:
         """Return async iterator for continuous message dispatching."""
-        return self._message_iterator()
+        return self._iterate()
 
-    async def _message_iterator(
+    async def _iterate(
             self,
             consumer_group: str = '',
             uri: str = '',
