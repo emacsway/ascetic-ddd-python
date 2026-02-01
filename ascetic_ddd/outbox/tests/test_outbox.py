@@ -229,6 +229,31 @@ class OutboxDispatchTestCase(IsolatedAsyncioTestCase):
         ack_sql = [sql for sql in cursor.executed_sql if "ON CONFLICT" in sql and "offset_acked" in sql]
         self.assertGreaterEqual(len(ack_sql), 1)
 
+    async def test_dispatch_with_uri_filter(self):
+        """dispatch() with uri filters messages by uri."""
+        rows = [
+            (1, 100, "kafka://orders", {"type": "OrderCreated", "order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
+        ]
+        cursor = MockCursor(rows=rows)
+        connection = MockConnection(cursor)
+        session = MockSession(connection)
+        pool = MockSessionPool(session)
+
+        outbox = Outbox(pool)
+        published = []
+
+        async def publisher(msg):
+            published.append(msg)
+
+        result = await outbox.dispatch(publisher, consumer_group="test-group", uri="kafka://orders")
+
+        self.assertTrue(result)
+        self.assertEqual(len(published), 1)
+
+        # Verify uri filter was applied (check params contain uri)
+        uri_params = [p for p in cursor.executed_params if p and p.get("uri") == "kafka://orders"]
+        self.assertGreaterEqual(len(uri_params), 1)
+
 
 class OutboxGetPositionTestCase(IsolatedAsyncioTestCase):
     """Test cases for Outbox.get_position()."""
@@ -257,6 +282,21 @@ class OutboxGetPositionTestCase(IsolatedAsyncioTestCase):
 
         self.assertEqual(result, (100, 50))
 
+    async def test_get_position_with_uri(self):
+        """get_position() filters by uri."""
+        cursor = MockCursor(rows=[(100, 50)])
+        connection = MockConnection(cursor)
+        session = MockSession(connection)
+        pool = MockSessionPool(session)
+
+        outbox = Outbox(pool)
+        result = await outbox.get_position(session, "test-group", uri="kafka://orders")
+
+        self.assertEqual(result, (100, 50))
+        # Verify uri was included in query params
+        params = cursor.executed_params[0]
+        self.assertEqual(params["uri"], "kafka://orders")
+
 
 class OutboxSetPositionTestCase(IsolatedAsyncioTestCase):
     """Test cases for Outbox.set_position()."""
@@ -269,7 +309,7 @@ class OutboxSetPositionTestCase(IsolatedAsyncioTestCase):
         pool = MockSessionPool(session)
 
         outbox = Outbox(pool)
-        await outbox.set_position(session, "test-group", transaction_id=100, offset=50)
+        await outbox.set_position(session, "test-group", uri="", transaction_id=100, offset=50)
 
         self.assertEqual(len(cursor.executed_sql), 1)
         self.assertIn("INSERT INTO", cursor.executed_sql[0])
@@ -278,8 +318,24 @@ class OutboxSetPositionTestCase(IsolatedAsyncioTestCase):
 
         params = cursor.executed_params[0]
         self.assertEqual(params["consumer_group"], "test-group")
+        self.assertEqual(params["uri"], "")
         self.assertEqual(params["offset"], 50)
         self.assertEqual(params["transaction_id"], "100")
+
+    async def test_set_position_with_uri(self):
+        """set_position() includes uri in upsert."""
+        cursor = MockCursor()
+        connection = MockConnection(cursor)
+        session = MockSession(connection)
+        pool = MockSessionPool(session)
+
+        outbox = Outbox(pool)
+        await outbox.set_position(session, "test-group", uri="kafka://orders", transaction_id=100, offset=50)
+
+        params = cursor.executed_params[0]
+        self.assertEqual(params["consumer_group"], "test-group")
+        self.assertEqual(params["uri"], "kafka://orders")
+        self.assertEqual(params["offset"], 50)
 
 
 class OutboxRunTestCase(IsolatedAsyncioTestCase):

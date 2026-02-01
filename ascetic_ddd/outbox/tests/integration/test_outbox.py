@@ -160,12 +160,26 @@ class OutboxIntegrationTestCase(IsolatedAsyncioTestCase):
             pos = await self.outbox.get_position(session, "test-group")
             self.assertEqual(pos, (0, 0))
 
-            # Set position
-            await self.outbox.set_position(session, "test-group", transaction_id=100, offset=50)
+            # Set position (without uri filter - tracks all URIs)
+            await self.outbox.set_position(session, "test-group", uri="", transaction_id=100, offset=50)
 
             # Get updated position
             pos = await self.outbox.get_position(session, "test-group")
             self.assertEqual(pos, (100, 50))
+
+    async def test_get_and_set_position_with_uri(self):
+        """get_position() and set_position() work with uri filter."""
+        async with self._session_pool.session() as session:
+            # Set position for specific uri
+            await self.outbox.set_position(session, "test-group", uri="kafka://orders", transaction_id=100, offset=50)
+            await self.outbox.set_position(session, "test-group", uri="kafka://users", transaction_id=200, offset=30)
+
+            # Get positions - should be independent
+            pos_orders = await self.outbox.get_position(session, "test-group", uri="kafka://orders")
+            pos_users = await self.outbox.get_position(session, "test-group", uri="kafka://users")
+
+            self.assertEqual(pos_orders, (100, 50))
+            self.assertEqual(pos_users, (200, 30))
 
     async def test_async_iterator(self):
         """Async iterator yields messages."""
@@ -272,6 +286,81 @@ class OutboxIntegrationTestCase(IsolatedAsyncioTestCase):
         result = await self.outbox.dispatch(self._publisher)
         self.assertTrue(result)
         self.assertEqual(len(self.published_messages), 1)
+
+    async def test_dispatch_with_uri_filter(self):
+        """dispatch() with uri filter only processes messages with that uri."""
+        async with self._session_pool.session() as session:
+            async with session.atomic() as tx_session:
+                # Publish to different URIs
+                await self.outbox.publish(tx_session, OutboxMessage(
+                    uri="kafka://orders",
+                    payload={"type": "OrderCreated", "order_id": "1"},
+                    metadata={"event_id": "550e8400-e29b-41d4-a716-446655440080"},
+                ))
+                await self.outbox.publish(tx_session, OutboxMessage(
+                    uri="kafka://users",
+                    payload={"type": "UserCreated", "user_id": "1"},
+                    metadata={"event_id": "550e8400-e29b-41d4-a716-446655440081"},
+                ))
+                await self.outbox.publish(tx_session, OutboxMessage(
+                    uri="kafka://orders",
+                    payload={"type": "OrderShipped", "order_id": "1"},
+                    metadata={"event_id": "550e8400-e29b-41d4-a716-446655440082"},
+                ))
+
+        # Dispatch only kafka://orders
+        result = await self.outbox.dispatch(self._publisher, consumer_group="orders-consumer", uri="kafka://orders")
+        self.assertTrue(result)
+        self.assertEqual(len(self.published_messages), 2)
+        self.assertTrue(all(m.uri == "kafka://orders" for m in self.published_messages))
+
+        # Dispatch kafka://orders again - should return False (already processed)
+        result = await self.outbox.dispatch(self._publisher, consumer_group="orders-consumer", uri="kafka://orders")
+        self.assertFalse(result)
+
+        # Dispatch kafka://users - should work (separate position tracking)
+        result = await self.outbox.dispatch(self._publisher, consumer_group="orders-consumer", uri="kafka://users")
+        self.assertTrue(result)
+        self.assertEqual(len(self.published_messages), 3)
+        self.assertEqual(self.published_messages[2].uri, "kafka://users")
+
+    async def test_multiple_uris_independent_positions(self):
+        """Different URIs track positions independently for same consumer group."""
+        async with self._session_pool.session() as session:
+            for i in range(3):
+                async with session.atomic() as tx_session:
+                    await self.outbox.publish(tx_session, OutboxMessage(
+                        uri="kafka://orders",
+                        payload={"type": "OrderCreated", "order": i},
+                        metadata={"event_id": "550e8400-e29b-41d4-a716-44665544009%d" % i},
+                    ))
+                    await self.outbox.publish(tx_session, OutboxMessage(
+                        uri="kafka://users",
+                        payload={"type": "UserCreated", "user": i},
+                        metadata={"event_id": "550e8400-e29b-41d4-a716-44665544019%d" % i},
+                    ))
+
+        # Consumer 1 processes orders
+        orders_messages = []
+        async def orders_publisher(msg):
+            orders_messages.append(msg)
+
+        while await self.outbox.dispatch(orders_publisher, consumer_group="group1", uri="kafka://orders"):
+            pass
+
+        # Consumer 2 processes users
+        users_messages = []
+        async def users_publisher(msg):
+            users_messages.append(msg)
+
+        while await self.outbox.dispatch(users_publisher, consumer_group="group1", uri="kafka://users"):
+            pass
+
+        # Both should get all their messages
+        self.assertEqual(len(orders_messages), 3)
+        self.assertEqual(len(users_messages), 3)
+        self.assertTrue(all(m.uri == "kafka://orders" for m in orders_messages))
+        self.assertTrue(all(m.uri == "kafka://users" for m in users_messages))
 
     async def test_idempotency_via_event_id(self):
         """Duplicate event_id causes unique constraint violation."""

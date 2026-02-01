@@ -117,7 +117,8 @@ class IOutbox(metaclass=ABCMeta):
     async def dispatch(
             self,
             subscriber: 'ISubscriber',
-            consumer_group: str = ''
+            consumer_group: str = '',
+            uri: str = ''
     ) -> bool:
         """Dispatch the next batch of unprocessed messages.
 
@@ -125,6 +126,7 @@ class IOutbox(metaclass=ABCMeta):
         - Have transaction_id < pg_snapshot_xmin(pg_current_snapshot())
           (only from committed, visible transactions)
         - Are after the consumer group's last processed position
+        - Match the URI filter (if specified)
 
         For each message, calls the subscriber callback. After successful
         processing of the batch, updates the consumer group's position.
@@ -135,6 +137,9 @@ class IOutbox(metaclass=ABCMeta):
         Args:
             subscriber: Callback to handle each message.
             consumer_group: Consumer group identifier (empty string for default).
+            uri: Optional URI filter. If empty, processes all URIs and tracks
+                 position per consumer_group. If specified, only processes
+                 messages with that URI and tracks position per (consumer_group, uri).
 
         Returns:
             True if messages were dispatched, False if no messages available.
@@ -166,6 +171,7 @@ class IOutbox(metaclass=ABCMeta):
             self,
             subscriber: 'ISubscriber',
             consumer_group: str = '',
+            uri: str = '',
             workers: int = 1,
             poll_interval: float = 1.0
     ) -> None:
@@ -174,6 +180,7 @@ class IOutbox(metaclass=ABCMeta):
         Args:
             subscriber: Callback to handle each message.
             consumer_group: Consumer group identifier.
+            uri: Optional URI filter. If empty, processes all URIs.
             workers: Number of concurrent dispatcher workers.
             poll_interval: Seconds to wait when no messages available.
         """
@@ -193,13 +200,15 @@ class IOutbox(metaclass=ABCMeta):
     async def get_position(
             self,
             session: 'IPgSession',
-            consumer_group: str = ''
+            consumer_group: str = '',
+            uri: str = ''
     ) -> tuple[int, int]:
         """Get current position for a consumer group.
 
         Args:
             session: Database session.
             consumer_group: Consumer group identifier.
+            uri: Optional URI filter. Position is tracked per (consumer_group, uri).
 
         Returns:
             Tuple of (last_processed_transaction_id, offset_acked).
@@ -211,6 +220,7 @@ class IOutbox(metaclass=ABCMeta):
             self,
             session: 'IPgSession',
             consumer_group: str,
+            uri: str,
             transaction_id: int,
             offset: int
     ) -> None:
@@ -224,6 +234,8 @@ class IOutbox(metaclass=ABCMeta):
         Args:
             session: Database session.
             consumer_group: Consumer group identifier.
+            uri: URI filter. Position is tracked per (consumer_group, uri).
+                 Use empty string for "all URIs" mode.
             transaction_id: Transaction ID to set as last processed.
             offset: Offset to set as acknowledged.
         """

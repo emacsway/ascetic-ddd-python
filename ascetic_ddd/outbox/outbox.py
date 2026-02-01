@@ -61,16 +61,25 @@ class Outbox(IOutbox):
     async def dispatch(
             self,
             subscriber: 'ISubscriber',
-            consumer_group: str = ''
+            consumer_group: str = '',
+            uri: str = ''
     ) -> bool:
-        """Dispatch the next batch of unprocessed messages."""
+        """Dispatch the next batch of unprocessed messages.
+
+        Args:
+            subscriber: Message handler.
+            consumer_group: Consumer group name.
+            uri: Optional URI filter. If empty, processes all URIs.
+                 If specified, only processes messages with that URI
+                 and tracks position per (consumer_group, uri).
+        """
         async with self._session_pool.session() as session:
-            await self._ensure_consumer_group(session, consumer_group)
+            await self._ensure_consumer_group(session, consumer_group, uri)
 
         async with self._session_pool.session() as session:
             async with session.atomic() as tx_session:
                 # FOR UPDATE blocks if another dispatcher holds the lock
-                messages = await self._fetch_messages(tx_session, consumer_group)
+                messages = await self._fetch_messages(tx_session, consumer_group, uri)
 
                 if not messages:
                     return False
@@ -81,7 +90,7 @@ class Outbox(IOutbox):
 
                 # Update consumer position to the last message
                 last = messages[-1]
-                await self._ack_message(tx_session, consumer_group, last.transaction_id, last.position)
+                await self._ack_message(tx_session, consumer_group, uri, last.transaction_id, last.position)
 
                 return True
 
@@ -92,25 +101,26 @@ class Outbox(IOutbox):
     async def _message_iterator(
             self,
             consumer_group: str = '',
+            uri: str = '',
             poll_interval: float = 1.0
     ) -> typing.AsyncGenerator['OutboxMessage', None]:
         """Async generator that yields messages continuously."""
         # Ensure consumer group exists (once, before loop)
         async with self._session_pool.session() as session:
-            await self._ensure_consumer_group(session, consumer_group)
+            await self._ensure_consumer_group(session, consumer_group, uri)
 
         while True:
             messages: list[OutboxMessage] = []
 
             async with self._session_pool.session() as session:
                 async with session.atomic() as tx_session:
-                    messages = await self._fetch_messages(tx_session, consumer_group)
+                    messages = await self._fetch_messages(tx_session, consumer_group, uri)
 
                     for message in messages:
                         yield message
                         # Ack after each message is processed
                         await self._ack_message(
-                            tx_session, consumer_group,
+                            tx_session, consumer_group, uri,
                             message.transaction_id, message.position
                         )
 
@@ -121,6 +131,7 @@ class Outbox(IOutbox):
             self,
             subscriber: 'ISubscriber',
             consumer_group: str = '',
+            uri: str = '',
             workers: int = 1,
             poll_interval: float = 1.0,
             stop_event: asyncio.Event | None = None,
@@ -130,6 +141,7 @@ class Outbox(IOutbox):
         Args:
             subscriber: Message handler.
             consumer_group: Consumer group name.
+            uri: Optional URI filter. If empty, processes all URIs.
             workers: Number of concurrent workers.
             poll_interval: Seconds to wait when no messages available.
             stop_event: Event to signal graceful shutdown. Workers stop
@@ -140,7 +152,7 @@ class Outbox(IOutbox):
 
         async def worker():
             while not stop_event.is_set():
-                has_messages = await self.dispatch(subscriber, consumer_group)
+                has_messages = await self.dispatch(subscriber, consumer_group, uri)
                 if not has_messages:
                     try:
                         await asyncio.wait_for(
@@ -157,17 +169,18 @@ class Outbox(IOutbox):
     async def get_position(
             self,
             session: 'IPgSession',
-            consumer_group: str = ''
+            consumer_group: str = '',
+            uri: str = ''
     ) -> tuple[int, int]:
-        """Get current position for a consumer group."""
+        """Get current position for a consumer group (optionally filtered by uri)."""
         sql = """
             SELECT last_processed_transaction_id, offset_acked
             FROM %s
-            WHERE consumer_group = %%(consumer_group)s
+            WHERE consumer_group = %%(consumer_group)s AND uri = %%(uri)s
         """ % (self._offsets_table,)
 
         async with session.connection.cursor() as cursor:
-            await cursor.execute(sql, {'consumer_group': consumer_group})
+            await cursor.execute(sql, {'consumer_group': consumer_group, 'uri': uri})
             row = await cursor.fetchone()
             if row is None:
                 return (0, 0)
@@ -177,14 +190,15 @@ class Outbox(IOutbox):
             self,
             session: 'IPgSession',
             consumer_group: str,
+            uri: str,
             transaction_id: int,
             offset: int
     ) -> None:
-        """Set position for a consumer group."""
+        """Set position for a consumer group (optionally filtered by uri)."""
         sql = """
-            INSERT INTO %s (consumer_group, offset_acked, last_processed_transaction_id, updated_at)
-            VALUES (%%(consumer_group)s, %%(offset)s, %%(transaction_id)s, CURRENT_TIMESTAMP)
-            ON CONFLICT (consumer_group) DO UPDATE SET
+            INSERT INTO %s (consumer_group, uri, offset_acked, last_processed_transaction_id, updated_at)
+            VALUES (%%(consumer_group)s, %%(uri)s, %%(offset)s, %%(transaction_id)s, CURRENT_TIMESTAMP)
+            ON CONFLICT (consumer_group, uri) DO UPDATE SET
                 offset_acked = EXCLUDED.offset_acked,
                 last_processed_transaction_id = EXCLUDED.last_processed_transaction_id,
                 updated_at = EXCLUDED.updated_at
@@ -193,30 +207,32 @@ class Outbox(IOutbox):
         async with session.connection.cursor() as cursor:
             await cursor.execute(sql, {
                 'consumer_group': consumer_group,
+                'uri': uri,
                 'offset': offset,
                 'transaction_id': str(transaction_id),
             })
 
     # Private methods
 
-    async def _ensure_consumer_group(self, session: 'IPgSession', consumer_group: str) -> None:
+    async def _ensure_consumer_group(self, session: 'IPgSession', consumer_group: str, uri: str = '') -> None:
         """Ensure consumer group exists with zero position.
 
         Required for FOR UPDATE locking to work (can't lock non-existent row).
         """
         sql = """
-            INSERT INTO %s (consumer_group, offset_acked, last_processed_transaction_id)
-            VALUES (%%(consumer_group)s, 0, '0')
+            INSERT INTO %s (consumer_group, uri, offset_acked, last_processed_transaction_id)
+            VALUES (%%(consumer_group)s, %%(uri)s, 0, '0')
             ON CONFLICT DO NOTHING
         """ % (self._offsets_table,)
 
         async with session.connection.cursor() as cursor:
-            await cursor.execute(sql, {'consumer_group': consumer_group})
+            await cursor.execute(sql, {'consumer_group': consumer_group, 'uri': uri})
 
     async def _fetch_messages(
             self,
             session: 'IPgSession',
-            consumer_group: str
+            consumer_group: str,
+            uri: str = ''
     ) -> list['OutboxMessage']:
         """Fetch next batch of messages with FOR UPDATE lock.
 
@@ -224,14 +240,23 @@ class Outbox(IOutbox):
         See watermill-sql comments for details.
 
         Note: _ensure_consumer_group must be called before this method.
+
+        Args:
+            session: Database session.
+            consumer_group: Consumer group name.
+            uri: Optional URI filter. If empty, fetches all URIs.
+                 If specified, only fetches messages with that URI.
         """
+        # Build uri filter clause
+        uri_filter = "AND uri = %(uri)s" if uri else ""
+
         # Query with subquery wrapper for query planner optimization
         sql = """
             SELECT * FROM (
                 WITH last_processed AS (
                     SELECT offset_acked, last_processed_transaction_id
                     FROM %s
-                    WHERE consumer_group = %%(consumer_group)s
+                    WHERE consumer_group = %%(consumer_group)s AND uri = %%(uri)s
                     FOR UPDATE
                 )
                 SELECT "position", transaction_id, uri, payload, metadata, created_at
@@ -243,13 +268,14 @@ class Outbox(IOutbox):
                     (transaction_id > (SELECT last_processed_transaction_id FROM last_processed))
                 )
                 AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
+                %s
             ) AS messages
             ORDER BY transaction_id ASC, "position" ASC
             LIMIT %d
-        """ % (self._offsets_table, self._outbox_table, self._batch_size)
+        """ % (self._offsets_table, self._outbox_table, uri_filter, self._batch_size)
 
         async with session.connection.cursor() as cursor:
-            await cursor.execute(sql, {'consumer_group': consumer_group})
+            await cursor.execute(sql, {'consumer_group': consumer_group, 'uri': uri})
             rows = await cursor.fetchall()
 
         return [self._row_to_message(row) for row in rows]
@@ -258,14 +284,15 @@ class Outbox(IOutbox):
             self,
             session: 'IPgSession',
             consumer_group: str,
+            uri: str,
             transaction_id: int,
             position: int
     ) -> None:
         """Acknowledge message by updating consumer position."""
         sql = """
-            INSERT INTO %s (consumer_group, offset_acked, last_processed_transaction_id, updated_at)
-            VALUES (%%(consumer_group)s, %%(position)s, %%(transaction_id)s, CURRENT_TIMESTAMP)
-            ON CONFLICT (consumer_group) DO UPDATE SET
+            INSERT INTO %s (consumer_group, uri, offset_acked, last_processed_transaction_id, updated_at)
+            VALUES (%%(consumer_group)s, %%(uri)s, %%(position)s, %%(transaction_id)s, CURRENT_TIMESTAMP)
+            ON CONFLICT (consumer_group, uri) DO UPDATE SET
                 offset_acked = EXCLUDED.offset_acked,
                 last_processed_transaction_id = EXCLUDED.last_processed_transaction_id,
                 updated_at = EXCLUDED.updated_at
@@ -274,6 +301,7 @@ class Outbox(IOutbox):
         async with session.connection.cursor() as cursor:
             await cursor.execute(sql, {
                 'consumer_group': consumer_group,
+                'uri': uri,
                 'position': position,
                 'transaction_id': str(transaction_id),
             })
@@ -341,14 +369,20 @@ class Outbox(IOutbox):
             await cursor.execute(sql)
 
     async def _create_offsets_table(self, session: 'IPgSession') -> None:
-        """Create offsets table for consumer groups."""
+        """Create offsets table for consumer groups.
+
+        The composite PK (consumer_group, uri) allows:
+        - uri='' (empty string): track position for all URIs (default behavior)
+        - uri='kafka://orders': track position for specific URI only
+        """
         sql = """
             CREATE TABLE IF NOT EXISTS %s (
                 "consumer_group" VARCHAR(255) NOT NULL,
+                "uri" VARCHAR(255) NOT NULL DEFAULT '',
                 "offset_acked" BIGINT NOT NULL DEFAULT 0,
                 "last_processed_transaction_id" xid8 NOT NULL DEFAULT '0',
                 "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY ("consumer_group")
+                PRIMARY KEY ("consumer_group", "uri")
             )
         """ % (self._offsets_table,)
         async with session.connection.cursor() as cursor:
