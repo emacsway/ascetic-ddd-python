@@ -6,7 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from psycopg_pool import AsyncConnectionPool
 
-from ascetic_ddd.seedwork.infrastructure.session.pg_session import PgSessionPool
+from ascetic_ddd.session.pg_session import PgSessionPool
 
 # Load environment variables from config/.env
 _config_env = Path(__file__).parents[4] / 'config' / '.env'

@@ -3,7 +3,7 @@ import typing
 from abc import ABCMeta
 
 from ascetic_ddd.deferred.deferred import Deferred
-from ascetic_ddd.seedwork.infrastructure.session.interfaces import (
+from ascetic_ddd.session.interfaces import (
     IPgSession, Query, Params, Row,
 )
 

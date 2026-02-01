@@ -2,7 +2,7 @@ import contextlib
 import weakref
 
 from ascetic_ddd.seedwork.domain.aggregate import ObjectDoesNotExist
-from ascetic_ddd.seedwork.infrastructure.session.interfaces import IIdentityKey, IIdentityMap, IModel
+from ascetic_ddd.session.interfaces import IIdentityKey, IIdentityMap, IModel
 
 __all__ = ("IdentityMap",)
 

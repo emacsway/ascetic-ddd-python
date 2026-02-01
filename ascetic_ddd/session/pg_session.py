@@ -8,10 +8,10 @@ from psycopg import IsolationLevel
 
 from ascetic_ddd.observable.observable import Observable
 from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool, ISession
-from ascetic_ddd.seedwork.infrastructure.session.interfaces import (
+from ascetic_ddd.session.interfaces import (
     IPgSession, IIdentityMap, IAsyncConnection, IAsyncConnectionPool, IAsyncCursor, Query, Params
 )
-from ascetic_ddd.seedwork.infrastructure.session.identity_map import IdentityMap
+from ascetic_ddd.session.identity_map import IdentityMap
 
 __all__ = (
     "PgSession",

@@ -1,7 +1,7 @@
 from ascetic_ddd.faker.infrastructure.session import IInternalPgSession, IExternalPgSession
-from ascetic_ddd.seedwork.infrastructure.session.interfaces import IAsyncConnection
-from ascetic_ddd.seedwork.infrastructure.session.identity_map import IdentityMap
-from ascetic_ddd.seedwork.infrastructure.session.pg_session import PgSession, PgSessionPool, PgSavepointSession
+from ascetic_ddd.session.interfaces import IAsyncConnection
+from ascetic_ddd.session.identity_map import IdentityMap
+from ascetic_ddd.session.pg_session import PgSession, PgSessionPool, PgSavepointSession
 
 __all__ = (
     'extract_internal_connection',
@@ -16,7 +16,7 @@ __all__ = (
     'ExternalPgSavepointSession',
 )
 
-from ascetic_ddd.seedwork.infrastructure.session.pg_session import PgTransactionSession
+from ascetic_ddd.session.pg_session import PgTransactionSession
 
 
 def extract_internal_connection(session: IInternalPgSession) -> IAsyncConnection:

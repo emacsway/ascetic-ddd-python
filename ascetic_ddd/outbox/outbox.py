@@ -8,7 +8,7 @@ from psycopg.types.json import Jsonb
 from ascetic_ddd.outbox.interfaces import IOutbox, ISubscriber
 from ascetic_ddd.outbox.message import OutboxMessage
 from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool
-from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
+from ascetic_ddd.session.interfaces import IPgSession
 
 
 __all__ = ('Outbox',)

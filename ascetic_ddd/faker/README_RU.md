@@ -180,7 +180,7 @@ from ascetic_ddd.faker.infrastructure.repositories.composite_repository import C
 from ascetic_ddd.faker.infrastructure.repositories.internal_pg_repository import InternalPgRepository
 from ascetic_ddd.faker.infrastructure.repositories.pg_repository import PgRepository
 from ascetic_ddd.faker.infrastructure.session.pg_session import InternalPgSessionPool, ExternalPgSessionPool
-from ascetic_ddd.seedwork.infrastructure.session.composite_session import CompositeSessionPool
+from ascetic_ddd.session.composite_session import CompositeSessionPool
 
 from faker import Faker
 fake = Faker()

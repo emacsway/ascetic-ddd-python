@@ -1,14 +1,13 @@
 import typing
 from contextlib import asynccontextmanager
 
-from ascetic_ddd.seedwork.infrastructure.session.tortoise_session import extract_connection, extract_client
 from ascetic_ddd.seedwork.domain.observable.observable import Observable
 from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool, ISession
-from ascetic_ddd.seedwork.infrastructure.session.interfaces import (
+from ascetic_ddd.session.interfaces import (
     IPgSession, IIdentityMap, IAsyncConnection
 )
-from ascetic_ddd.seedwork.infrastructure.session.identity_map import IdentityMap
-from ascetic_ddd.seedwork.infrastructure.session.pg_session import AsyncConnectionStatsDecorator
+from ascetic_ddd.session.identity_map import IdentityMap
+from ascetic_ddd.session.pg_session import AsyncConnectionStatsDecorator
 from tortoise.transactions import in_transaction, _get_connection
 from tortoise import BaseDBAsyncClient
 

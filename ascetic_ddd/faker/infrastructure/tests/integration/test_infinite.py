@@ -34,7 +34,7 @@ from ascetic_ddd.faker.infrastructure.repositories import (
     InternalPgRepository, InMemoryRepository, RestRepository,
     CompositeAutoPkRepository as CompositeRepository
 )
-from ascetic_ddd.seedwork.infrastructure.session.composite_session import CompositeSessionPool
+from ascetic_ddd.session.composite_session import CompositeSessionPool
 from ascetic_ddd.seedwork.infrastructure.tests.mock_server import get_free_port, start_mock_server
 
 # logging.basicConfig(level="INFO")

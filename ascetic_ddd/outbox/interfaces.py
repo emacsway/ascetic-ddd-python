@@ -65,7 +65,7 @@ from abc import ABCMeta, abstractmethod
 from typing import AsyncIterator, TypeAlias, Callable, Awaitable, Optional, Any
 
 from ascetic_ddd.outbox.message import OutboxMessage
-from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
+from ascetic_ddd.session.interfaces import IPgSession
 
 
 __all__ = (

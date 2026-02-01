@@ -2,7 +2,7 @@ import typing
 from aiohttp import ClientSession
 
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
-from ascetic_ddd.seedwork.infrastructure.session.interfaces import IAsyncConnection
+from ascetic_ddd.session.interfaces import IAsyncConnection
 
 
 __all__ = (

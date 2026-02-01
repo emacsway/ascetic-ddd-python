@@ -11,7 +11,7 @@ from ascetic_ddd.inbox.partition_strategy import (
     UriPartitionKeyStrategy,
 )
 from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool
-from ascetic_ddd.seedwork.infrastructure.session.interfaces import IPgSession
+from ascetic_ddd.session.interfaces import IPgSession
 
 
 __all__ = (
