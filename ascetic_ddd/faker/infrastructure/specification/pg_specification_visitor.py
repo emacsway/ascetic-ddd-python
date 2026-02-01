@@ -6,7 +6,6 @@ import typing
 from psycopg.types.json import Jsonb
 
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
-from ascetic_ddd.seedwork.infrastructure.utils.pg import escape
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecificationVisitor
 
 __all__ = ("PgSpecificationVisitor",)

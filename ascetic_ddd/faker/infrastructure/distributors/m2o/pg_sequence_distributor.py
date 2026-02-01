@@ -3,7 +3,7 @@ import typing
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.observable.observable import Observable
-from ascetic_ddd.seedwork.infrastructure.utils.pg import escape
+from ascetic_ddd.utils.pg import escape
 from ascetic_ddd.faker.infrastructure.session.pg_session import extract_internal_connection
 
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor

@@ -9,7 +9,7 @@ from psycopg.types.json import Jsonb
 from ascetic_ddd.faker.domain.values.json import Json
 from ascetic_ddd.faker.infrastructure.utils.dataclasses import IDataclass
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
-from ascetic_ddd.seedwork.infrastructure.utils.pg import escape
+from ascetic_ddd.utils.pg import escape
 from ascetic_ddd.seedwork.domain.identity.interfaces import IAccessible
 from ascetic_ddd.faker.infrastructure.session.pg_session import extract_external_connection
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
