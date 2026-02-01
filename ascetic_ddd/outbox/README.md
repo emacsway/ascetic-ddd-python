@@ -23,8 +23,8 @@ Instead of publishing directly, save the message to an `outbox` table within the
 async with session.atomic():
     await repository.save(order)
     await outbox.publish(session, OutboxMessage(
-        event_type="OrderCreated",
-        payload={"order_id": str(order.id), "amount": order.amount},
+        uri="kafka://orders",
+        payload={"type": "OrderCreated", "order_id": str(order.id), "amount": order.amount},
         metadata={"event_id": str(uuid4())},
     ))
 # Both are committed atomically - or neither
@@ -67,6 +67,23 @@ Multiple consumers can independently track their position in the outbox. Each co
 
 `transaction_id < pg_snapshot_xmin(pg_current_snapshot())` ensures we only read messages from transactions that are fully committed and visible to all sessions.
 
+### 6. URI-Based Filtering
+
+Consumers can subscribe to specific URIs for selective message processing:
+
+```python
+# Process only orders
+await outbox.dispatch(handler, consumer_group="notifications", uri="kafka://orders")
+
+# Process only users
+await outbox.dispatch(handler, consumer_group="notifications", uri="kafka://users")
+
+# Process all messages (default)
+await outbox.dispatch(handler, consumer_group="notifications")
+```
+
+Each `(consumer_group, uri)` pair tracks its position independently. This is equivalent to Watermill's table-per-topic approach, but without creating separate tables.
+
 ## Installation
 
 ```python
@@ -103,9 +120,9 @@ async with session.atomic():
 
     # Publish to outbox (same transaction)
     await outbox.publish(session, OutboxMessage(
-        event_type="OrderCreated",
-        event_version=1,
+        uri="kafka://orders",
         payload={
+            "type": "OrderCreated",
             "order_id": str(order.id),
             "customer_id": str(order.customer_id),
             "amount": order.amount,
@@ -118,6 +135,15 @@ async with session.atomic():
     ))
 ```
 
+### URI Examples
+
+| URI | Transport | Description |
+|-----|-----------|-------------|
+| `kafka://orders` | Kafka | Topic "orders" |
+| `amqp://exchange/routing.key` | RabbitMQ | Exchange with routing key |
+| `sb://./queue-name` | Azure Service Bus | Queue |
+| `sqs://queue-name` | AWS SQS | Queue |
+
 ### Dispatching Messages
 
 #### Option 1: dispatch() - Single Batch
@@ -125,24 +151,31 @@ async with session.atomic():
 ```python
 async def send_to_broker(message: OutboxMessage) -> None:
     await broker.publish(
-        topic=message.event_type,
+        topic=message.uri,
         payload=message.payload,
         headers=message.metadata,
     )
 
-# Process one batch
+# Process one batch (all URIs)
 has_messages = await outbox.dispatch(send_to_broker, consumer_group="broker")
+
+# Process one batch (specific URI)
+has_messages = await outbox.dispatch(send_to_broker, consumer_group="broker", uri="kafka://orders")
 ```
 
 #### Option 2: run() - Continuous with Workers
 
 ```python
 # Run continuously with 3 workers
+stop_event = asyncio.Event()
+
 await outbox.run(
     subscriber=send_to_broker,
     consumer_group="broker",
+    uri="kafka://orders",  # optional, empty = all URIs
     workers=3,
     poll_interval=1.0,
+    stop_event=stop_event,  # for graceful shutdown
 )
 ```
 
@@ -157,14 +190,17 @@ async for message in outbox:
 ### Position Management
 
 ```python
-# Get current position
+# Get current position (all URIs)
 tx_id, offset = await outbox.get_position(session, "broker")
 
+# Get current position (specific URI)
+tx_id, offset = await outbox.get_position(session, "broker", uri="kafka://orders")
+
 # Reset position (reprocess from beginning)
-await outbox.set_position(session, "broker", transaction_id=0, offset=0)
+await outbox.set_position(session, "broker", uri="", transaction_id=0, offset=0)
 
 # Skip ahead
-await outbox.set_position(session, "broker", transaction_id=1000, offset=50)
+await outbox.set_position(session, "broker", uri="kafka://orders", transaction_id=1000, offset=50)
 ```
 
 ## Schema
@@ -176,8 +212,7 @@ The `setup()` method creates:
 ```sql
 CREATE TABLE outbox (
     "position" BIGSERIAL,
-    "event_type" VARCHAR(255) NOT NULL,
-    "event_version" SMALLINT NOT NULL DEFAULT 1,
+    "uri" VARCHAR(255) NOT NULL,
     "payload" JSONB NOT NULL,
     "metadata" JSONB NOT NULL,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -186,7 +221,7 @@ CREATE TABLE outbox (
 );
 
 CREATE INDEX outbox_position_idx ON outbox ("position");
-CREATE INDEX outbox_event_type_idx ON outbox ("event_type");
+CREATE INDEX outbox_uri_idx ON outbox ("uri");
 CREATE UNIQUE INDEX outbox_event_id_uniq ON outbox (((metadata->>'event_id')::uuid));
 ```
 
@@ -195,12 +230,17 @@ CREATE UNIQUE INDEX outbox_event_id_uniq ON outbox (((metadata->>'event_id')::uu
 ```sql
 CREATE TABLE outbox_offsets (
     "consumer_group" VARCHAR(255) NOT NULL,
+    "uri" VARCHAR(255) NOT NULL DEFAULT '',
     "offset_acked" BIGINT NOT NULL DEFAULT 0,
     "last_processed_transaction_id" xid8 NOT NULL DEFAULT '0',
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY ("consumer_group")
+    PRIMARY KEY ("consumer_group", "uri")
 );
 ```
+
+The composite primary key `(consumer_group, uri)` allows:
+- `uri = ''` (empty string): Track position for ALL messages (default, backwards compatible)
+- `uri = 'kafka://orders'`: Track position for this URI only
 
 ## Considerations
 
@@ -222,6 +262,7 @@ async def handle_message(message: OutboxMessage) -> None:
 
 - Within a single transaction: ordered by `position`
 - Across transactions: ordered by `transaction_id`
+- With URI filter: order preserved within that URI
 
 ### Table Growth
 
@@ -249,10 +290,9 @@ This implementation uses polling. For lower latency, consider:
 ```python
 @dataclass
 class OutboxMessage:
-    event_type: str              # Event type (e.g., 'OrderCreated')
-    payload: dict[str, Any]      # Message payload
+    uri: str                     # Routing URI (e.g., 'kafka://orders')
+    payload: dict[str, Any]      # Message payload (must contain 'type' for deserialization)
     metadata: dict[str, Any]     # Must contain 'event_id' for idempotency
-    event_version: int = 1       # Schema version
     created_at: str | None       # Auto-assigned by DB
     position: int | None         # Auto-assigned by DB
     transaction_id: int | None   # Auto-assigned by pg_current_xact_id()
@@ -263,11 +303,11 @@ class OutboxMessage:
 | Method | Description |
 |--------|-------------|
 | `publish(session, message)` | Store message in outbox within current transaction |
-| `dispatch(subscriber, consumer_group)` | Dispatch next batch of messages |
-| `run(subscriber, consumer_group, workers, poll_interval)` | Run continuous dispatching |
+| `dispatch(subscriber, consumer_group, uri)` | Dispatch next batch of messages |
+| `run(subscriber, consumer_group, uri, workers, poll_interval, stop_event)` | Run continuous dispatching |
 | `__aiter__()` | Async iterator for message streaming |
-| `get_position(session, consumer_group)` | Get current position for consumer group |
-| `set_position(session, consumer_group, transaction_id, offset)` | Set position for consumer group |
+| `get_position(session, consumer_group, uri)` | Get current position for consumer group |
+| `set_position(session, consumer_group, uri, transaction_id, offset)` | Set position for consumer group |
 | `setup()` | Create tables and indexes |
 | `cleanup()` | Cleanup resources |
 
