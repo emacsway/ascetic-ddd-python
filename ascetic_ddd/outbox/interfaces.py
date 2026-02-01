@@ -118,7 +118,9 @@ class IOutbox(metaclass=ABCMeta):
             self,
             subscriber: 'ISubscriber',
             consumer_group: str = '',
-            uri: str = ''
+            uri: str = '',
+            worker_id: int = 0,
+            num_workers: int = 1
     ) -> bool:
         """Dispatch the next batch of unprocessed messages.
 
@@ -127,6 +129,7 @@ class IOutbox(metaclass=ABCMeta):
           (only from committed, visible transactions)
         - Are after the consumer group's last processed position
         - Match the URI filter (if specified)
+        - Are assigned to this worker (hashtext(uri) % num_workers = worker_id)
 
         For each message, calls the subscriber callback. After successful
         processing of the batch, updates the consumer group's position.
@@ -134,12 +137,22 @@ class IOutbox(metaclass=ABCMeta):
         Uses FOR UPDATE to lock the consumer group row, preventing concurrent
         dispatchers from processing the same messages.
 
+        URI and Partitioning:
+        - uri="kafka://orders" matches both "kafka://orders" and "kafka://orders/*"
+        - Messages are distributed across workers by hash(full_uri) % num_workers
+        - This ensures all messages with the same URI go to the same worker,
+          preserving ordering within a partition key
+        - When num_workers > 1, consumer_group is extended with worker_id
+          ("broker" becomes "broker:0", "broker:1", etc.) for offset isolation
+
         Args:
             subscriber: Callback to handle each message.
             consumer_group: Consumer group identifier (empty string for default).
-            uri: Optional URI filter. If empty, processes all URIs and tracks
-                 position per consumer_group. If specified, only processes
-                 messages with that URI and tracks position per (consumer_group, uri).
+            uri: Optional URI prefix filter. If empty, processes all URIs.
+                 If specified, processes messages with exact URI or URI/* prefix.
+            worker_id: This worker's ID (0 to num_workers-1).
+            num_workers: Total number of workers. Messages are distributed
+                         by hashtext(uri) % num_workers.
 
         Returns:
             True if messages were dispatched, False if no messages available.
@@ -172,16 +185,28 @@ class IOutbox(metaclass=ABCMeta):
             subscriber: 'ISubscriber',
             consumer_group: str = '',
             uri: str = '',
-            workers: int = 1,
+            process_id: int = 0,
+            num_processes: int = 1,
+            concurrency: int = 1,
             poll_interval: float = 1.0
     ) -> None:
-        """Run message dispatching with concurrent workers.
+        """Run message dispatching loop.
+
+        Each coroutine processes its own partitions:
+          effective_id = process_id * concurrency + local_id
+          effective_total = num_processes * concurrency
+
+        Example with 2 processes, 2 coroutines each (4 total partitions):
+          Process 0: coroutines handle partitions 0, 1
+          Process 1: coroutines handle partitions 2, 3
 
         Args:
             subscriber: Callback to handle each message.
             consumer_group: Consumer group identifier.
-            uri: Optional URI filter. If empty, processes all URIs.
-            workers: Number of concurrent dispatcher workers.
+            uri: Optional URI prefix filter. If empty, processes all URIs.
+            process_id: This process's ID (0 to num_processes-1).
+            num_processes: Total number of processes.
+            concurrency: Number of coroutines within this process.
             poll_interval: Seconds to wait when no messages available.
         """
         raise NotImplementedError

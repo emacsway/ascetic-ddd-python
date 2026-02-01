@@ -230,7 +230,7 @@ class OutboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stop_event.set()
 
         await asyncio.gather(
-            self.outbox.run(self._publisher, workers=1, poll_interval=0.01, stop_event=stop_event),
+            self.outbox.run(self._publisher, concurrency=1, poll_interval=0.01, stop_event=stop_event),
             stop_after_delay(),
         )
 
@@ -256,7 +256,7 @@ class OutboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stop_event.set()
 
         await asyncio.gather(
-            self.outbox.run(self._publisher, workers=3, poll_interval=0.01, stop_event=stop_event),
+            self.outbox.run(self._publisher, concurrency=3, poll_interval=0.01, stop_event=stop_event),
             stop_after_delay(),
         )
 

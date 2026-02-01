@@ -67,22 +67,56 @@ Multiple consumers can independently track their position in the outbox. Each co
 
 `transaction_id < pg_snapshot_xmin(pg_current_snapshot())` ensures we only read messages from transactions that are fully committed and visible to all sessions.
 
-### 6. URI-Based Filtering
+### 6. URI-Based Filtering and Partitioning
 
-Consumers can subscribe to specific URIs for selective message processing:
+URI serves two purposes:
+- **Routing**: Determines where messages are sent (topic, exchange, queue)
+- **Partitioning**: Determines which worker processes the message
 
 ```python
-# Process only orders
-await outbox.dispatch(handler, consumer_group="notifications", uri="kafka://orders")
+# URI without partition key — all messages go to one worker
+await outbox.publish(session, OutboxMessage(uri="kafka://orders", ...))
 
-# Process only users
-await outbox.dispatch(handler, consumer_group="notifications", uri="kafka://users")
-
-# Process all messages (default)
-await outbox.dispatch(handler, consumer_group="notifications")
+# URI with partition key — distributed across workers by hash
+await outbox.publish(session, OutboxMessage(uri="kafka://orders/order-123", ...))
+await outbox.publish(session, OutboxMessage(uri="kafka://orders/order-456", ...))
 ```
 
-Each `(consumer_group, uri)` pair tracks its position independently. This is equivalent to Watermill's table-per-topic approach, but without creating separate tables.
+Dispatch with prefix matching:
+
+```python
+# Matches both "kafka://orders" and "kafka://orders/*"
+await outbox.dispatch(handler, consumer_group="broker", uri="kafka://orders")
+```
+
+Each `(consumer_group, uri)` pair tracks its position independently.
+
+### 7. Partitioning
+
+To ensure message ordering within a partition key, each process/coroutine must process only its assigned partitions:
+
+```python
+# Process 0 of 3: hash(uri) % 3 == 0, offset tracked as "broker:0"
+await outbox.run(subscriber, consumer_group="broker", uri="kafka://orders", process_id=0, num_processes=3)
+
+# Process 1 of 3: hash(uri) % 3 == 1, offset tracked as "broker:1"
+await outbox.run(subscriber, consumer_group="broker", uri="kafka://orders", process_id=1, num_processes=3)
+
+# Process 2 of 3: hash(uri) % 3 == 2, offset tracked as "broker:2"
+await outbox.run(subscriber, consumer_group="broker", uri="kafka://orders", process_id=2, num_processes=3)
+```
+
+**Why this matters**: If multiple processes write to the same Kafka partition, message order is not guaranteed. By partitioning at the Outbox level, each process writes only to its assigned partitions.
+
+**Offset isolation**: When using multiple workers (via `num_processes * concurrency > 1` in `run()` or `num_workers > 1` in `dispatch()`), each worker automatically gets its own offset tracking. The `consumer_group` is extended with effective worker ID: `"broker"` becomes `"broker:0"`, `"broker:1"`, etc.
+
+**Partition distribution**:
+
+| URI | hash % 3 | Process |
+|-----|----------|---------|
+| `kafka://orders` | 1 | Process 1 (all messages without partition key) |
+| `kafka://orders/order-123` | 0 | Process 0 |
+| `kafka://orders/order-456` | 2 | Process 2 |
 
 ## Installation
 
@@ -139,10 +173,13 @@ async with session.atomic():
 
 | URI | Transport | Description |
 |-----|-----------|-------------|
-| `kafka://orders` | Kafka | Topic "orders" |
+| `kafka://orders` | Kafka | Topic "orders" (no partition key) |
+| `kafka://orders/order-123` | Kafka | Topic "orders", partition key "order-123" |
 | `amqp://exchange/routing.key` | RabbitMQ | Exchange with routing key |
 | `sb://./queue-name` | Azure Service Bus | Queue |
 | `sqs://queue-name` | AWS SQS | Queue |
+
+The part after the topic/queue name serves as a partition key for worker distribution. All messages with the same full URI go to the same worker, preserving order.
 
 ### Dispatching Messages
 
@@ -163,20 +200,42 @@ has_messages = await outbox.dispatch(send_to_broker, consumer_group="broker")
 has_messages = await outbox.dispatch(send_to_broker, consumer_group="broker", uri="kafka://orders")
 ```
 
-#### Option 2: run() - Continuous with Workers
+#### Option 2: run() - Continuous Loop
 
 ```python
-# Run continuously with 3 workers
 stop_event = asyncio.Event()
 
+# Single coroutine, single process (default)
 await outbox.run(
     subscriber=send_to_broker,
     consumer_group="broker",
-    uri="kafka://orders",  # optional, empty = all URIs
-    workers=3,
+    uri="kafka://orders",
     poll_interval=1.0,
-    stop_event=stop_event,  # for graceful shutdown
+    stop_event=stop_event,
 )
+
+# Multiple coroutines in single process (4 partitions)
+await outbox.run(subscriber, consumer_group="broker", uri="kafka://orders", concurrency=4)
+
+# Multiple processes (run in separate processes, 3 partitions total)
+# Process 0:
+await outbox.run(subscriber, consumer_group="broker", uri="kafka://orders", process_id=0, num_processes=3)
+# Process 1:
+await outbox.run(subscriber, consumer_group="broker", uri="kafka://orders", process_id=1, num_processes=3)
+# Process 2:
+await outbox.run(subscriber, consumer_group="broker", uri="kafka://orders", process_id=2, num_processes=3)
+
+# Multiple processes with multiple coroutines (2 processes × 2 coroutines = 4 partitions)
+# Process 0: handles partitions 0, 1
+await outbox.run(subscriber, consumer_group="broker", uri="kafka://orders", process_id=0, num_processes=2, concurrency=2)
+# Process 1: handles partitions 2, 3
+await outbox.run(subscriber, consumer_group="broker", uri="kafka://orders", process_id=1, num_processes=2, concurrency=2)
+```
+
+Each coroutine processes its own partitions:
+```
+effective_id = process_id * concurrency + local_id
+effective_total = num_processes * concurrency
 ```
 
 #### Option 3: Async Iterator
@@ -263,6 +322,7 @@ async def handle_message(message: OutboxMessage) -> None:
 - Within a single transaction: ordered by `position`
 - Across transactions: ordered by `transaction_id`
 - With URI filter: order preserved within that URI
+- With partitioning: order preserved within each partition key (full URI)
 
 ### Table Growth
 
@@ -303,13 +363,36 @@ class OutboxMessage:
 | Method | Description |
 |--------|-------------|
 | `publish(session, message)` | Store message in outbox within current transaction |
-| `dispatch(subscriber, consumer_group, uri)` | Dispatch next batch of messages |
-| `run(subscriber, consumer_group, uri, workers, poll_interval, stop_event)` | Run continuous dispatching |
+| `dispatch(subscriber, ...)` | Dispatch next batch of messages |
+| `run(subscriber, ...)` | Run continuous dispatching loop |
 | `__aiter__()` | Async iterator for message streaming |
 | `get_position(session, consumer_group, uri)` | Get current position for consumer group |
 | `set_position(session, consumer_group, uri, transaction_id, offset)` | Set position for consumer group |
 | `setup()` | Create tables and indexes |
 | `cleanup()` | Cleanup resources |
+
+### dispatch() Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `subscriber` | `ISubscriber` | required | Callback to handle each message |
+| `consumer_group` | `str` | `''` | Consumer group identifier |
+| `uri` | `str` | `''` | URI prefix filter (matches exact and `uri/*`) |
+| `worker_id` | `int` | `0` | This worker's ID (0 to num_workers-1) |
+| `num_workers` | `int` | `1` | Total number of workers for partitioning |
+
+### run() Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `subscriber` | `ISubscriber` | required | Callback to handle each message |
+| `consumer_group` | `str` | `''` | Consumer group identifier |
+| `uri` | `str` | `''` | URI prefix filter |
+| `process_id` | `int` | `0` | This process's ID (0 to num_processes-1) |
+| `num_processes` | `int` | `1` | Total number of processes |
+| `concurrency` | `int` | `1` | Number of coroutines in this process |
+| `poll_interval` | `float` | `1.0` | Seconds to wait when no messages |
+| `stop_event` | `Event` | `None` | For graceful shutdown |
 
 ### ISubscriber
 

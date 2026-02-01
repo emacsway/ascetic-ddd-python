@@ -62,24 +62,36 @@ class Outbox(IOutbox):
             self,
             subscriber: 'ISubscriber',
             consumer_group: str = '',
-            uri: str = ''
+            uri: str = '',
+            worker_id: int = 0,
+            num_workers: int = 1
     ) -> bool:
         """Dispatch the next batch of unprocessed messages.
 
         Args:
             subscriber: Message handler.
             consumer_group: Consumer group name.
-            uri: Optional URI filter. If empty, processes all URIs.
-                 If specified, only processes messages with that URI
-                 and tracks position per (consumer_group, uri).
+            uri: Optional URI prefix filter. If empty, processes all URIs.
+                 If specified, processes messages with exact URI or URI/* prefix.
+            worker_id: This worker's ID (0 to num_workers-1).
+            num_workers: Total number of workers for partitioning.
         """
+        # Each worker tracks its own offset
+        effective_consumer_group = (
+            "%s:%d" % (consumer_group, worker_id)
+            if num_workers > 1 else consumer_group
+        )
+
         async with self._session_pool.session() as session:
-            await self._ensure_consumer_group(session, consumer_group, uri)
+            await self._ensure_consumer_group(session, effective_consumer_group, uri)
 
         async with self._session_pool.session() as session:
             async with session.atomic() as tx_session:
                 # FOR UPDATE blocks if another dispatcher holds the lock
-                messages = await self._fetch_messages(tx_session, consumer_group, uri)
+                messages = await self._fetch_messages(
+                    tx_session, effective_consumer_group, uri,
+                    worker_id=worker_id, num_workers=num_workers
+                )
 
                 if not messages:
                     return False
@@ -90,7 +102,7 @@ class Outbox(IOutbox):
 
                 # Update consumer position to the last message
                 last = messages[-1]
-                await self._ack_message(tx_session, consumer_group, uri, last.transaction_id, last.position)
+                await self._ack_message(tx_session, effective_consumer_group, uri, last.transaction_id, last.position)
 
                 return True
 
@@ -102,6 +114,8 @@ class Outbox(IOutbox):
             self,
             consumer_group: str = '',
             uri: str = '',
+            worker_id: int = 0,
+            num_workers: int = 1,
             poll_interval: float = 1.0
     ) -> typing.AsyncGenerator['OutboxMessage', None]:
         """Async generator that yields messages continuously."""
@@ -114,7 +128,10 @@ class Outbox(IOutbox):
 
             async with self._session_pool.session() as session:
                 async with session.atomic() as tx_session:
-                    messages = await self._fetch_messages(tx_session, consumer_group, uri)
+                    messages = await self._fetch_messages(
+                        tx_session, consumer_group, uri,
+                        worker_id=worker_id, num_workers=num_workers
+                    )
 
                     for message in messages:
                         yield message
@@ -132,27 +149,40 @@ class Outbox(IOutbox):
             subscriber: 'ISubscriber',
             consumer_group: str = '',
             uri: str = '',
-            workers: int = 1,
+            process_id: int = 0,
+            num_processes: int = 1,
+            concurrency: int = 1,
             poll_interval: float = 1.0,
             stop_event: asyncio.Event | None = None,
     ) -> None:
-        """Run message dispatching with concurrent workers.
+        """Run message dispatching loop.
+
+        Each coroutine processes its own partitions:
+          effective_id = process_id * concurrency + local_id
+          effective_total = num_processes * concurrency
 
         Args:
             subscriber: Message handler.
             consumer_group: Consumer group name.
-            uri: Optional URI filter. If empty, processes all URIs.
-            workers: Number of concurrent workers.
+            uri: Optional URI prefix filter. If empty, processes all URIs.
+            process_id: This process's ID (0 to num_processes-1).
+            num_processes: Total number of processes.
+            concurrency: Number of coroutines within this process.
             poll_interval: Seconds to wait when no messages available.
-            stop_event: Event to signal graceful shutdown. Workers stop
-                between iterations when this event is set.
+            stop_event: Event to signal graceful shutdown.
         """
         if stop_event is None:
             stop_event = asyncio.Event()
 
-        async def worker():
+        effective_total = num_processes * concurrency
+
+        async def worker_loop(local_id: int):
+            effective_id = process_id * concurrency + local_id
             while not stop_event.is_set():
-                has_messages = await self.dispatch(subscriber, consumer_group, uri)
+                has_messages = await self.dispatch(
+                    subscriber, consumer_group, uri,
+                    worker_id=effective_id, num_workers=effective_total
+                )
                 if not has_messages:
                     try:
                         await asyncio.wait_for(
@@ -163,8 +193,11 @@ class Outbox(IOutbox):
                     except asyncio.TimeoutError:
                         pass  # Continue polling
 
-        tasks = [asyncio.create_task(worker()) for _ in range(workers)]
-        await asyncio.gather(*tasks)
+        if concurrency == 1:
+            await worker_loop(0)
+        else:
+            tasks = [asyncio.create_task(worker_loop(i)) for i in range(concurrency)]
+            await asyncio.gather(*tasks)
 
     async def get_position(
             self,
@@ -232,7 +265,9 @@ class Outbox(IOutbox):
             self,
             session: 'IPgSession',
             consumer_group: str,
-            uri: str = ''
+            uri: str = '',
+            worker_id: int = 0,
+            num_workers: int = 1
     ) -> list['OutboxMessage']:
         """Fetch next batch of messages with FOR UPDATE lock.
 
@@ -244,11 +279,22 @@ class Outbox(IOutbox):
         Args:
             session: Database session.
             consumer_group: Consumer group name.
-            uri: Optional URI filter. If empty, fetches all URIs.
-                 If specified, only fetches messages with that URI.
+            uri: Optional URI prefix filter. If empty, fetches all URIs.
+                 If specified, fetches messages with exact URI or URI/* prefix.
+            worker_id: This worker's ID (0 to num_workers-1).
+            num_workers: Total number of workers for partitioning.
         """
-        # Build uri filter clause
-        uri_filter = "AND uri = %(uri)s" if uri else ""
+        # Build uri filter clause (prefix matching)
+        if uri:
+            uri_filter = "AND (uri = %(uri)s OR uri LIKE %(uri_prefix)s)"
+        else:
+            uri_filter = ""
+
+        # Build partition clause
+        if num_workers > 1:
+            partition_filter = "AND hashtext(uri) %% %(num_workers)s = %(worker_id)s"
+        else:
+            partition_filter = ""
 
         # Query with subquery wrapper for query planner optimization
         sql = """
@@ -269,13 +315,22 @@ class Outbox(IOutbox):
                 )
                 AND transaction_id < pg_snapshot_xmin(pg_current_snapshot())
                 %s
+                %s
             ) AS messages
             ORDER BY transaction_id ASC, "position" ASC
             LIMIT %d
-        """ % (self._offsets_table, self._outbox_table, uri_filter, self._batch_size)
+        """ % (self._offsets_table, self._outbox_table, uri_filter, partition_filter, self._batch_size)
+
+        params = {
+            'consumer_group': consumer_group,
+            'uri': uri,
+            'uri_prefix': uri + '/%' if uri else '',
+            'worker_id': worker_id,
+            'num_workers': num_workers,
+        }
 
         async with session.connection.cursor() as cursor:
-            await cursor.execute(sql, {'consumer_group': consumer_group, 'uri': uri})
+            await cursor.execute(sql, params)
             rows = await cursor.fetchall()
 
         return [self._row_to_message(row) for row in rows]

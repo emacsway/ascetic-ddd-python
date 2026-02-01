@@ -230,7 +230,7 @@ class OutboxDispatchTestCase(IsolatedAsyncioTestCase):
         self.assertGreaterEqual(len(ack_sql), 1)
 
     async def test_dispatch_with_uri_filter(self):
-        """dispatch() with uri filters messages by uri."""
+        """dispatch() with uri filters messages by uri prefix."""
         rows = [
             (1, 100, "kafka://orders", {"type": "OrderCreated", "order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
         ]
@@ -250,9 +250,47 @@ class OutboxDispatchTestCase(IsolatedAsyncioTestCase):
         self.assertTrue(result)
         self.assertEqual(len(published), 1)
 
-        # Verify uri filter was applied (check params contain uri)
+        # Verify uri filter was applied (check params contain uri and uri_prefix)
         uri_params = [p for p in cursor.executed_params if p and p.get("uri") == "kafka://orders"]
         self.assertGreaterEqual(len(uri_params), 1)
+        # Check uri_prefix for LIKE pattern
+        prefix_params = [p for p in cursor.executed_params if p and p.get("uri_prefix") == "kafka://orders/%"]
+        self.assertGreaterEqual(len(prefix_params), 1)
+
+    async def test_dispatch_with_partitioning(self):
+        """dispatch() with worker_id and num_workers partitions messages."""
+        rows = [
+            (1, 100, "kafka://orders/order-123", {"type": "OrderCreated"}, {}, "2024-01-01 00:00:00"),
+        ]
+        cursor = MockCursor(rows=rows)
+        connection = MockConnection(cursor)
+        session = MockSession(connection)
+        pool = MockSessionPool(session)
+
+        outbox = Outbox(pool)
+        published = []
+
+        async def publisher(msg):
+            published.append(msg)
+
+        result = await outbox.dispatch(
+            publisher,
+            consumer_group="test-group",
+            uri="kafka://orders",
+            worker_id=0,
+            num_workers=3
+        )
+
+        self.assertTrue(result)
+
+        # Verify partition filter was applied
+        partition_params = [p for p in cursor.executed_params if p and p.get("num_workers") == 3]
+        self.assertGreaterEqual(len(partition_params), 1)
+        self.assertEqual(partition_params[0]["worker_id"], 0)
+
+        # Verify consumer_group was modified to include worker_id
+        consumer_group_params = [p for p in cursor.executed_params if p and p.get("consumer_group") == "test-group:0"]
+        self.assertGreaterEqual(len(consumer_group_params), 1)
 
 
 class OutboxGetPositionTestCase(IsolatedAsyncioTestCase):
@@ -341,8 +379,8 @@ class OutboxSetPositionTestCase(IsolatedAsyncioTestCase):
 class OutboxRunTestCase(IsolatedAsyncioTestCase):
     """Test cases for Outbox.run()."""
 
-    async def test_run_with_single_worker(self):
-        """run() with single worker processes messages."""
+    async def test_run_processes_messages(self):
+        """run() processes messages."""
         rows = [
             (1, 100, "kafka://orders", {"type": "OrderCreated", "order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
         ]
@@ -365,7 +403,7 @@ class OutboxRunTestCase(IsolatedAsyncioTestCase):
             stop_event.set()
 
         await asyncio.gather(
-            outbox.run(publisher, workers=1, poll_interval=0.01, stop_event=stop_event),
+            outbox.run(publisher, poll_interval=0.01, stop_event=stop_event),
             stop_after_delay(),
         )
 
@@ -392,11 +430,50 @@ class OutboxRunTestCase(IsolatedAsyncioTestCase):
             stop_event.set()
 
         await asyncio.gather(
-            outbox.run(publisher, workers=1, poll_interval=0.05, stop_event=stop_event),
+            outbox.run(publisher, poll_interval=0.05, stop_event=stop_event),
             stop_after_delay(),
         )
 
         self.assertEqual(len(published), 0)
+
+    async def test_run_with_partitioning(self):
+        """run() with partitioning distributes messages across workers."""
+        rows = [
+            (1, 100, "kafka://orders/order-123", {"type": "OrderCreated"}, {}, "2024-01-01 00:00:00"),
+        ]
+        cursor = MockCursor(rows=rows, consume_on_fetch=True)
+        connection = MockConnection(cursor)
+        session = MockSession(connection)
+        pool = MockSessionPool(session)
+
+        outbox = Outbox(pool)
+        published = []
+
+        async def publisher(msg):
+            published.append(msg)
+
+        # Run with graceful shutdown
+        stop_event = asyncio.Event()
+
+        async def stop_after_delay():
+            await asyncio.sleep(0.1)
+            stop_event.set()
+
+        await asyncio.gather(
+            outbox.run(
+                publisher,
+                uri="kafka://orders",
+                process_id=0,
+                num_processes=3,
+                poll_interval=0.01,
+                stop_event=stop_event
+            ),
+            stop_after_delay(),
+        )
+
+        # Verify partition filter was applied
+        partition_params = [p for p in cursor.executed_params if p and p.get("num_workers") == 3]
+        self.assertGreaterEqual(len(partition_params), 1)
 
 
 class OutboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
