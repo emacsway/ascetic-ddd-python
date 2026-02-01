@@ -20,7 +20,7 @@ from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factor
 from ascetic_ddd.faker.domain.distributors.m2o.dummy_distributor import DummyDistributor
 from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
 from ascetic_ddd.faker.domain.providers.composite_value_provider import CompositeValueProvider
-from ascetic_ddd.faker.domain.providers.interfaces import IValueProvider, IReferenceProvider, IEntityProvider
+from ascetic_ddd.faker.domain.providers.interfaces import IEntityProvider
 from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
 from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
@@ -35,7 +35,7 @@ from ascetic_ddd.faker.infrastructure.repositories import (
     CompositeAutoPkRepository as CompositeRepository
 )
 from ascetic_ddd.session.composite_session import CompositeSessionPool
-from ascetic_ddd.seedwork.infrastructure.tests.mock_server import get_free_port, start_mock_server
+from ascetic_ddd.utils.tests.mock_server import get_free_port, start_mock_server
 
 # logging.basicConfig(level="INFO")
 
