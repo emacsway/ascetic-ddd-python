@@ -1,8 +1,8 @@
 """Evaluate visitor for executing specification expressions."""
 from typing import Any, Protocol, runtime_checkable
 
-from .constants import OPERATOR_MAPPING
-from .nodes import (
+from ascetic_ddd.specification.domain.constants import OPERATOR_MAPPING
+from ascetic_ddd.specification.domain.nodes import (
     Collection, Field, GlobalScope, Infix, Item, Object, Prefix, Value, Postfix,
 )
 

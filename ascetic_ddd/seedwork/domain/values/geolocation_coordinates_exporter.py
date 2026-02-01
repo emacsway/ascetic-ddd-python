@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from .geolocation_coordinates import IGeolocationCoordinatesExporter
+from ascetic_ddd.seedwork.domain.values.geolocation_coordinates import IGeolocationCoordinatesExporter
 
 __all__ = ("GeolocationCoordinatesExporter",)
 

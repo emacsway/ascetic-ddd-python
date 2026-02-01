@@ -31,11 +31,11 @@ Example usage:
     >>> print(result)  # 10 USD
 """
 
-from .bank import Bank
-from .currency import Currency
-from .expression import Expression
-from .money import Money, IMoneyExporter
-from .money_exporter import MoneyExporter
-from .sum import Sum
+from ascetic_ddd.seedwork.domain.values.money.bank import Bank
+from ascetic_ddd.seedwork.domain.values.money.currency import Currency
+from ascetic_ddd.seedwork.domain.values.money.expression import Expression
+from ascetic_ddd.seedwork.domain.values.money.money import Money, IMoneyExporter
+from ascetic_ddd.seedwork.domain.values.money.money_exporter import MoneyExporter
+from ascetic_ddd.seedwork.domain.values.money.sum import Sum
 
 __all__ = ["Expression", "Money", "IMoneyExporter", "MoneyExporter", "Sum", "Bank", "Currency"]

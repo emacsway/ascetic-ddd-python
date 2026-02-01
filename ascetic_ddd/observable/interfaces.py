@@ -2,7 +2,7 @@ import typing
 from collections.abc import Callable, Hashable
 from abc import ABCMeta, abstractmethod
 
-from ..disposable.interfaces import IDisposable
+from ascetic_ddd.disposable.interfaces import IDisposable
 
 
 class IObservable(typing.Protocol, metaclass=ABCMeta):

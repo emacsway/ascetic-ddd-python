@@ -1,5 +1,5 @@
-from .event_bus import IEventBus, InMemoryEventBus
-from .utils.amemo import amemo
+from ascetic_ddd.event_bus import IEventBus, InMemoryEventBus
+from ascetic_ddd.utils.amemo import amemo
 
 __all__ = (
     "ascetic_ddd_factory",

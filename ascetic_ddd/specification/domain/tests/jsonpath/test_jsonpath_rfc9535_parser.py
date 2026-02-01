@@ -2,7 +2,7 @@
 import unittest
 from typing import Any
 
-from ...jsonpath.jsonpath_rfc9535_parser import parse
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_rfc9535_parser import parse
 
 
 class DictContext:

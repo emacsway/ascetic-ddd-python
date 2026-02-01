@@ -1,8 +1,8 @@
 import collections
 import typing
 
-from ..disposable import Disposable, IDisposable
-from .interfaces import IEventBus, IEventHandler
+from ascetic_ddd.disposable import Disposable, IDisposable
+from ascetic_ddd.event_bus.interfaces import IEventBus, IEventHandler
 
 __all__ = ("InMemoryEventBus",)
 

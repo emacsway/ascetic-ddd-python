@@ -7,11 +7,11 @@ from types import TracebackType
 from psycopg import IsolationLevel
 
 from ascetic_ddd.observable.observable import Observable
-from ...domain.session.interfaces import ISessionPool, ISession
-from ..session.interfaces import (
+from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool, ISession
+from ascetic_ddd.seedwork.infrastructure.session.interfaces import (
     IPgSession, IIdentityMap, IAsyncConnection, IAsyncConnectionPool, IAsyncCursor, Query, Params
 )
-from .identity_map import IdentityMap
+from ascetic_ddd.seedwork.infrastructure.session.identity_map import IdentityMap
 
 __all__ = (
     "PgSession",

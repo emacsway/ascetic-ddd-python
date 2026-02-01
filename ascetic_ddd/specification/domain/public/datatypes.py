@@ -1,7 +1,7 @@
 import typing
 from datetime import datetime
 
-from .adapters import Factory, Logical, Comparison, Mathematical, Nullable
+from ascetic_ddd.specification.domain.public.adapters import Factory, Logical, Comparison, Mathematical, Nullable
 
 __all__ = (
     'Boolean',

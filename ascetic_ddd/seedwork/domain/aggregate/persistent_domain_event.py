@@ -1,8 +1,8 @@
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 
-from .domain_event import DomainEvent
-from .event_meta import EventMeta
+from ascetic_ddd.seedwork.domain.aggregate.domain_event import DomainEvent
+from ascetic_ddd.seedwork.domain.aggregate.event_meta import EventMeta
 
 __all__ = (
     "PersistentDomainEvent",

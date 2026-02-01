@@ -1,6 +1,6 @@
-from .event_meta import EventMeta
-from .event_meta_exporter import EventMetaExporter
-from .persistent_domain_event import IPersistentDomainEventExporter
+from ascetic_ddd.seedwork.domain.aggregate.event_meta import EventMeta
+from ascetic_ddd.seedwork.domain.aggregate.event_meta_exporter import EventMetaExporter
+from ascetic_ddd.seedwork.domain.aggregate.persistent_domain_event import IPersistentDomainEventExporter
 
 __all__ = ("PersistentDomainEventExporter",)
 

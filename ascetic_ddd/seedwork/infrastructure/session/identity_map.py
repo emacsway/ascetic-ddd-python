@@ -1,8 +1,8 @@
 import contextlib
 import weakref
 
-from ...domain.aggregate import ObjectDoesNotExist
-from .interfaces import IIdentityKey, IIdentityMap, IModel
+from ascetic_ddd.seedwork.domain.aggregate import ObjectDoesNotExist
+from ascetic_ddd.seedwork.infrastructure.session.interfaces import IIdentityKey, IIdentityMap, IModel
 
 __all__ = ("IdentityMap",)
 

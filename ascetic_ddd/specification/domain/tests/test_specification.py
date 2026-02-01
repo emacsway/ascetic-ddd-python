@@ -2,11 +2,11 @@
 import unittest
 from typing import Any
 
-from ..evaluate_visitor import (
+from ascetic_ddd.specification.domain.evaluate_visitor import (
     CollectionContext,
     EvaluateVisitor,
 )
-from ..nodes import (
+from ascetic_ddd.specification.domain.nodes import (
     And,
     Equal,
     Field,

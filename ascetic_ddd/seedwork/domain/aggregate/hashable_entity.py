@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 
-from ....specification.domain.interfaces import IEqualOperand
-from .interfaces import IHashable
+from ascetic_ddd.specification.domain.interfaces import IEqualOperand
+from ascetic_ddd.seedwork.domain.aggregate.interfaces import IHashable
 
 __all__ = ("HashableEntity",)
 

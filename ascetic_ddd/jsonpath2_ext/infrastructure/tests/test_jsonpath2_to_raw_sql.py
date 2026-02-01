@@ -5,7 +5,7 @@ Tests the compilation of JSONPath expressions to raw SQL queries.
 """
 import unittest
 
-from ..jsonpath2_to_raw_sql import (
+from ascetic_ddd.jsonpath2_ext.infrastructure.jsonpath2_to_raw_sql import (
     JSONPathToRawSQLCompiler, SchemaDef, TableDef, ColumnDef, RelationshipDef,
     RelationType, SQLQuery
 )

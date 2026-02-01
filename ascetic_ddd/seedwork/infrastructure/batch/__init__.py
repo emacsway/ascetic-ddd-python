@@ -1,18 +1,18 @@
 """Batch query processing module."""
-from .interfaces import (
+from ascetic_ddd.seedwork.infrastructure.batch.interfaces import (
     IQueryEvaluator,
     IMultiQuerier,
 )
-from .utils import (
+from ascetic_ddd.seedwork.infrastructure.batch.utils import (
     is_insert_query,
     is_autoincrement_insert_query,
 )
-from .multi_query import (
+from ascetic_ddd.seedwork.infrastructure.batch.multi_query import (
     MultiQueryBase,
     MultiQuery,
     AutoincrementMultiInsertQuery,
 )
-from .query_collector import QueryCollector, ConnectionCollector, CursorCollector
+from ascetic_ddd.seedwork.infrastructure.batch.query_collector import QueryCollector, ConnectionCollector, CursorCollector
 
 
 __all__ = (

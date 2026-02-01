@@ -5,7 +5,7 @@ Tests JSONPath to Raw SQL compiler with composite primary and foreign keys.
 """
 import unittest
 
-from ..jsonpath2_to_raw_sql import (
+from ascetic_ddd.jsonpath2_ext.infrastructure.jsonpath2_to_raw_sql import (
     JSONPathToRawSQLCompiler, SchemaDef, TableDef, ColumnDef, RelationshipDef,
     RelationType, SQLQuery
 )

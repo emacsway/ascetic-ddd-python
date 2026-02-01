@@ -1,11 +1,11 @@
 from abc import ABCMeta
 from typing import TYPE_CHECKING
 
-from .currency import Currency
-from .expression import Expression
+from ascetic_ddd.seedwork.domain.values.money.currency import Currency
+from ascetic_ddd.seedwork.domain.values.money.expression import Expression
 
 if TYPE_CHECKING:
-    from .bank import Bank
+    from ascetic_ddd.seedwork.domain.values.money.bank import Bank
 
 
 class Money(Expression):
@@ -86,7 +86,7 @@ class Money(Expression):
         Returns:
             A Sum expression representing the addition
         """
-        from .sum import Sum
+        from ascetic_ddd.seedwork.domain.values.money.sum import Sum
         return Sum(self, addend)
 
     def reduce(self, bank: "Bank", to: Currency) -> "Money":

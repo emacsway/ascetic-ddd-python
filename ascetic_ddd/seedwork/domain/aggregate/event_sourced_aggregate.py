@@ -2,10 +2,10 @@ import dataclasses
 import typing
 from abc import ABCMeta
 
-from . import PersistentDomainEvent
-from .eventive_entity import EventiveEntity
-from .interfaces import IEventSourcedAggregate
-from .versioned_aggregate import VersionedAggregate
+from ascetic_ddd.seedwork.domain.aggregate import PersistentDomainEvent
+from ascetic_ddd.seedwork.domain.aggregate.eventive_entity import EventiveEntity
+from ascetic_ddd.seedwork.domain.aggregate.interfaces import IEventSourcedAggregate
+from ascetic_ddd.seedwork.domain.aggregate.versioned_aggregate import VersionedAggregate
 
 __all__ = ("EventSourcedAggregate",)
 

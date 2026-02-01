@@ -13,7 +13,7 @@ RFC 9535 Compliance:
 from typing import Any, Dict, Tuple, Union
 import re
 
-from ..nodes import (
+from ascetic_ddd.specification.domain.nodes import (
     And,
     Equal,
     Field,
@@ -31,7 +31,7 @@ from ..nodes import (
     Visitable,
     Wildcard,
 )
-from ..evaluate_visitor import Context, EvaluateVisitor
+from ascetic_ddd.specification.domain.evaluate_visitor import Context, EvaluateVisitor
 
 
 class Token:

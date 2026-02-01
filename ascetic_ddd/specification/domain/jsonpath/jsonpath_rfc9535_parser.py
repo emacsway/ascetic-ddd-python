@@ -21,7 +21,7 @@ from jsonpath_rfc9535.filter_expressions import (
     NullLiteral,
 )
 
-from ..nodes import (
+from ascetic_ddd.specification.domain.nodes import (
     And,
     Equal,
     Field,
@@ -39,7 +39,7 @@ from ..nodes import (
     Visitable,
     Wildcard,
 )
-from ..evaluate_visitor import EvaluateVisitor
+from ascetic_ddd.specification.domain.evaluate_visitor import EvaluateVisitor
 
 
 class ParametrizedSpecificationRFC9535:

@@ -8,7 +8,7 @@ import ast
 import inspect
 from typing import Any, Callable
 
-from ..nodes import (
+from ascetic_ddd.specification.domain.nodes import (
     Add,
     And,
     Div,

@@ -2,9 +2,9 @@ import datetime
 import typing
 import uuid
 
-from .causal_dependency import CausalDependency
-from .causal_dependency_exporter import CausalDependencyExporter
-from .event_meta import IEventMetaExporter
+from ascetic_ddd.seedwork.domain.aggregate.causal_dependency import CausalDependency
+from ascetic_ddd.seedwork.domain.aggregate.causal_dependency_exporter import CausalDependencyExporter
+from ascetic_ddd.seedwork.domain.aggregate.event_meta import IEventMetaExporter
 
 __all__ = ("EventMetaExporter",)
 

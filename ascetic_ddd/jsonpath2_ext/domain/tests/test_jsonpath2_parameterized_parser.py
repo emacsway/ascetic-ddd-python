@@ -1,6 +1,6 @@
 """Unit tests for jsonpath_parser with C-style placeholders."""
 import unittest
-from ..jsonpath2_parameterized_parser import parse
+from ascetic_ddd.jsonpath2_ext.domain.jsonpath2_parameterized_parser import parse
 
 
 class TestPositionalPlaceholders(unittest.TestCase):

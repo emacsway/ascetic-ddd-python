@@ -3,8 +3,8 @@ import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
 
-from ...domain.aggregate import IHashable
-from ...domain.session.interfaces import ISession as _ISession
+from ascetic_ddd.seedwork.domain.aggregate import IHashable
+from ascetic_ddd.seedwork.domain.session.interfaces import ISession as _ISession
 
 __all__ = (
     "Query",

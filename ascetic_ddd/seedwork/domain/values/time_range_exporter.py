@@ -1,6 +1,6 @@
 import datetime
 
-from .time_range import ITimeRangeExporter
+from ascetic_ddd.seedwork.domain.values.time_range import ITimeRangeExporter
 
 __all__ = ("TimeRangeExporter",)
 

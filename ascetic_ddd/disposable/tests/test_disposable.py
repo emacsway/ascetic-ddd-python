@@ -1,6 +1,6 @@
 from unittest import IsolatedAsyncioTestCase, mock
 
-from ..disposable import Disposable
+from ascetic_ddd.disposable.disposable import Disposable
 
 
 # noinspection PyMethodMayBeStatic

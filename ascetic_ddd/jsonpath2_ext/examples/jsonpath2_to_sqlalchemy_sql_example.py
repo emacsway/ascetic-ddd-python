@@ -6,7 +6,7 @@ for normalized relational databases.
 """
 from sqlalchemy import Column, Integer, String, Float, MetaData, Table
 
-from ..infrastructure.jsonpath2_to_sqlalchemy_sql import JSONPathToSQLCompiler, SchemaMetadata, RelationshipMetadata
+from ascetic_ddd.jsonpath2_ext.infrastructure.jsonpath2_to_sqlalchemy_sql import JSONPathToSQLCompiler, SchemaMetadata, RelationshipMetadata
 
 
 def create_example_schema() -> SchemaMetadata:

@@ -4,8 +4,8 @@ See also: https://github.com/sqlalchemy/sqlalchemy/blob/main/lib/sqlalchemy/sql/
 import numbers
 import typing
 
-from .interfaces import INullable, ILogical, IDelegating, IComparison, IMathematical
-from ..import nodes
+from ascetic_ddd.specification.domain.public.interfaces import INullable, ILogical, IDelegating, IComparison, IMathematical
+from ascetic_ddd.specification.domain import nodes
 
 __all__ = (
     'Delegating',

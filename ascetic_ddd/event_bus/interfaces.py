@@ -2,7 +2,7 @@ import typing
 from abc import ABCMeta, abstractmethod
 from collections.abc import Awaitable, Callable
 
-from ..disposable import IDisposable
+from ascetic_ddd.disposable import IDisposable
 
 __all__ = (
     "IUri",

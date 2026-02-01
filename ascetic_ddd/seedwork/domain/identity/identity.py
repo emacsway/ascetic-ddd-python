@@ -1,8 +1,8 @@
 import typing
 
-from ..aggregate import IHashable
-from ....specification.domain.interfaces import IEqualOperand
-from .interfaces import IAccessible
+from ascetic_ddd.seedwork.domain.aggregate import IHashable
+from ascetic_ddd.specification.domain.interfaces import IEqualOperand
+from ascetic_ddd.seedwork.domain.identity.interfaces import IAccessible
 
 __all__ = ("Identity",)
 

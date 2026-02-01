@@ -7,7 +7,7 @@ import unittest
 
 from sqlalchemy import Column, Integer, String, MetaData, Table, Boolean, Text, Numeric, ForeignKey
 
-from ..jsonpath2_to_sqlalchemy_sql import (
+from ascetic_ddd.jsonpath2_ext.infrastructure.jsonpath2_to_sqlalchemy_sql import (
     JSONPathToSQLCompiler, SchemaMetadata, RelationshipMetadata,
     CompilationContext
 )

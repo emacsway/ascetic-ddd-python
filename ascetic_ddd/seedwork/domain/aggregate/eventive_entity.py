@@ -1,7 +1,7 @@
 import typing
 from abc import ABCMeta
 
-from .interfaces import IEventiveEntity
+from ascetic_ddd.seedwork.domain.aggregate.interfaces import IEventiveEntity
 
 __all__ = ("EventiveEntity",)
 

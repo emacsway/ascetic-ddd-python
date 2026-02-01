@@ -1,5 +1,5 @@
-from .currency import Currency
-from .money import IMoneyExporter
+from ascetic_ddd.seedwork.domain.values.money.currency import Currency
+from ascetic_ddd.seedwork.domain.values.money.money import IMoneyExporter
 
 __all__ = ('MoneyExporter',)
 

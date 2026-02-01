@@ -2,8 +2,8 @@
 import unittest
 from typing import Any
 
-from ...lambda_filter.lambda_parser import parse
-from ...nodes import (
+from ascetic_ddd.specification.domain.lambda_filter.lambda_parser import parse
+from ascetic_ddd.specification.domain.nodes import (
     Add,
     And,
     Div,
@@ -25,7 +25,7 @@ from ...nodes import (
     Wildcard,
     Object,
 )
-from ...evaluate_visitor import EvaluateVisitor
+from ascetic_ddd.specification.domain.evaluate_visitor import EvaluateVisitor
 
 
 class DictContext:

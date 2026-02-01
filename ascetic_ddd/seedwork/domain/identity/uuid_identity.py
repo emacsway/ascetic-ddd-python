@@ -1,6 +1,6 @@
 import uuid
 
-from .identity import Identity
+from ascetic_ddd.seedwork.domain.identity.identity import Identity
 
 __all__ = ("UuidIdentity",)
 

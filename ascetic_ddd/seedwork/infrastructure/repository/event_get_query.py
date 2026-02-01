@@ -5,13 +5,13 @@ from dataclasses import dataclass
 
 import dateutil.parser
 
-from ...domain.aggregate import (
+from ascetic_ddd.seedwork.domain.aggregate import (
     CausalDependency,
     EventMeta,
     PersistentDomainEvent,
 )
-from ...domain.session import ISession
-from .stream_id import StreamId
+from ascetic_ddd.seedwork.domain.session import ISession
+from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 
 __all__ = (
     "EventGetQuery",

@@ -1,7 +1,7 @@
 import typing
 import numbers
 
-from ..nodes import Visitable
+from ascetic_ddd.specification.domain.nodes import Visitable
 
 __all__ = (
     'IDelegating',

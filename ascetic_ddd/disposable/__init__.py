@@ -1,2 +1,2 @@
-from .disposable import *
-from .interfaces import *
+from ascetic_ddd.disposable.disposable import *
+from ascetic_ddd.disposable.interfaces import *

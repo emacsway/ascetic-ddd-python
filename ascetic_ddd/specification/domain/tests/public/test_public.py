@@ -2,9 +2,9 @@
 import unittest
 from datetime import datetime
 
-from ... import nodes
-from ...public.adapters import Delegating, Logical, Nullable, Comparison, Mathematical, object_, field
-from ...public.datatypes import Boolean, NullBoolean, Number, NullNumber, Datetime, NullDatetime, Text, NullText
+from ascetic_ddd.specification.domain import nodes
+from ascetic_ddd.specification.domain.public.adapters import Delegating, Logical, Nullable, Comparison, Mathematical, object_, field
+from ascetic_ddd.specification.domain.public.datatypes import Boolean, NullBoolean, Number, NullNumber, Datetime, NullDatetime, Text, NullText
 
 
 class TestDelegating(unittest.TestCase):

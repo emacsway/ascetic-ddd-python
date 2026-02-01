@@ -1,7 +1,7 @@
 import re
 import unittest
 
-from ..validators import (
+from ascetic_ddd.validators.validators import (
     Validator,
     Required,
     Regex,
@@ -12,7 +12,7 @@ from ..validators import (
     MultivalueValidator,
     MappingValidator,
 )
-from ...validators.exceptions import (
+from ascetic_ddd.validators.exceptions import (
     ValidationError,
     ChainValidationError,
     MappingValidationError,

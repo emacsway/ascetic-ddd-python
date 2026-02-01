@@ -7,7 +7,7 @@ Simplified version of:
 """
 from typing import Any, Generic, TypeVar
 
-from .interfaces import IDeferred, DeferredCallback
+from ascetic_ddd.deferred.interfaces import IDeferred, DeferredCallback
 
 T = TypeVar("T")
 

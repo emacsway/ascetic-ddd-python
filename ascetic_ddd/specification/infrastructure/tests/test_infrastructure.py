@@ -2,7 +2,7 @@
 import unittest
 from typing import Any, List, Protocol
 
-from ...domain.nodes import (
+from ascetic_ddd.specification.domain.nodes import (
     Equal,
     Not,
     Field,
@@ -12,10 +12,10 @@ from ...domain.nodes import (
     And,
 )
 
-from ..composite_expression_node import CompositeExpressionsDifferentLengthError, CompositeExpression
-from ..postgresql_visitor import compile_specification, PostgresqlVisitor
-from ..transform_visitor import TransformVisitor
-from ..transform_visitor import ITransformContext
+from ascetic_ddd.specification.infrastructure.composite_expression_node import CompositeExpressionsDifferentLengthError, CompositeExpression
+from ascetic_ddd.specification.infrastructure.postgresql_visitor import compile_specification, PostgresqlVisitor
+from ascetic_ddd.specification.infrastructure.transform_visitor import TransformVisitor
+from ascetic_ddd.specification.infrastructure.transform_visitor import ITransformContext
 
 
 # =============================================================================

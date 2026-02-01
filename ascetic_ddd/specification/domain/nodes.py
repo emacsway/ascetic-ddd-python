@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Protocol
 
-from .constants import OPERATOR, ASSOCIATIVITY
+from ascetic_ddd.specification.domain.constants import OPERATOR, ASSOCIATIVITY
 
 
 class Visitor(Protocol):

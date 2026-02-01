@@ -1,6 +1,6 @@
 """Deferred pattern for handling asynchronous operations."""
-from .deferred import Deferred, noop
-from .interfaces import IDeferred, DeferredCallback
+from ascetic_ddd.deferred.deferred import Deferred, noop
+from ascetic_ddd.deferred.interfaces import IDeferred, DeferredCallback
 
 __all__ = [
     "IDeferred",

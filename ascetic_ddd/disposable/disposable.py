@@ -1,7 +1,7 @@
 import typing
 from collections.abc import Awaitable, Callable
 
-from .interfaces import IDisposable
+from ascetic_ddd.disposable.interfaces import IDisposable
 
 __all__ = ("Disposable",)
 

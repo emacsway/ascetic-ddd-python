@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from .point import IPointExporter
+from ascetic_ddd.seedwork.domain.values.point import IPointExporter
 
 __all__ = ("PointExporter",)
 

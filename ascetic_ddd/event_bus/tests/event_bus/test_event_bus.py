@@ -3,7 +3,7 @@ import time
 from contextlib import contextmanager
 from unittest import IsolatedAsyncioTestCase, mock
 
-from ...in_memory_event_bus import InMemoryEventBus
+from ascetic_ddd.event_bus.in_memory_event_bus import InMemoryEventBus
 
 
 class InMemoryEventBusTestCase(IsolatedAsyncioTestCase):

@@ -1,7 +1,7 @@
 """Unit tests for Deferred pattern implementation."""
 import unittest
 
-from ..deferred import Deferred, noop
+from ascetic_ddd.deferred.deferred import Deferred, noop
 
 
 class TestNoop(unittest.TestCase):

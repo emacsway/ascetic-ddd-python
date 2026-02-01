@@ -1,7 +1,7 @@
 import typing
 from abc import ABCMeta, abstractmethod
 
-from ....specification.domain.interfaces import IEqualOperand
+from ascetic_ddd.specification.domain.interfaces import IEqualOperand
 
 __all__ = (
     "IVersionedAggregate",

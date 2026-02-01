@@ -28,7 +28,7 @@ from jsonpath2.expressions.some import SomeExpression
 from jsonpath2.nodes.current import CurrentNode
 from jsonpath2.nodes.root import RootNode
 
-from ..nodes import (
+from ascetic_ddd.specification.domain.nodes import (
     And,
     Equal,
     Field,
@@ -46,7 +46,7 @@ from ..nodes import (
     Visitable,
     Wildcard,
 )
-from ..evaluate_visitor import EvaluateVisitor
+from ascetic_ddd.specification.domain.evaluate_visitor import EvaluateVisitor
 
 
 class PlaceholderReference:

@@ -3,7 +3,7 @@ import uuid
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 
-from .causal_dependency import CausalDependency
+from ascetic_ddd.seedwork.domain.aggregate.causal_dependency import CausalDependency
 
 __all__ = (
     "EventMeta",

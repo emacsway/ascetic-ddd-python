@@ -2,8 +2,8 @@
 import unittest
 from typing import Any
 
-from ...jsonpath.jsonpath2_parser import parse
-from ...evaluate_visitor import CollectionContext
+from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import parse
+from ascetic_ddd.specification.domain.evaluate_visitor import CollectionContext
 
 
 class DictContext:

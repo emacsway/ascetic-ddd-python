@@ -3,9 +3,9 @@ import collections
 
 from collections.abc import Callable, Hashable
 
-from ..disposable import IDisposable
-from ..disposable.disposable import Disposable
-from .interfaces import IObservable
+from ascetic_ddd.disposable import IDisposable
+from ascetic_ddd.disposable.disposable import Disposable
+from ascetic_ddd.observable.interfaces import IObservable
 
 
 class Observable(IObservable):

@@ -4,7 +4,7 @@ Example usage of JSONPath to Raw SQL compiler.
 Demonstrates how to compile JSONPath expressions into raw SQL queries
 without ORM or Query Builder dependencies.
 """
-from ..infrastructure.jsonpath2_to_raw_sql import (
+from ascetic_ddd.jsonpath2_ext.infrastructure.jsonpath2_to_raw_sql import (
     JSONPathToRawSQLCompiler, SchemaDef, TableDef, ColumnDef,
     RelationshipDef, RelationType
 )

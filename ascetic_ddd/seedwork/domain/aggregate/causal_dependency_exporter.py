@@ -1,6 +1,6 @@
 import typing
 
-from .causal_dependency import ICausalDependencyExporter
+from ascetic_ddd.seedwork.domain.aggregate.causal_dependency import ICausalDependencyExporter
 
 __all__ = ("CausalDependencyExporter",)
 

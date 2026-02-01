@@ -5,7 +5,7 @@ import decimal
 import json
 import uuid
 
-from ...domain.values.json import Json
+from ascetic_ddd.faker.domain.values.json import Json
 
 __all__ = ("JSONEncoder",)
 

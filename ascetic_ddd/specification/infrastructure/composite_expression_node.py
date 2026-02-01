@@ -1,7 +1,7 @@
 """Composite expression node for handling composite keys."""
 from typing import Protocol
 
-from ..domain.nodes import (
+from ascetic_ddd.specification.domain.nodes import (
     Visitable,
     Visitor,
     And,

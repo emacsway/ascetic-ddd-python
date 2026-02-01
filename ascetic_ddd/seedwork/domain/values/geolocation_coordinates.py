@@ -7,7 +7,7 @@ try:
 except ImportError:
     geodesic = None
 
-from .point import Point
+from ascetic_ddd.seedwork.domain.values.point import Point
 
 __all__ = (
     "GeolocationCoordinates",

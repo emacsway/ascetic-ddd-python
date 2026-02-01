@@ -1,8 +1,8 @@
 from typing import Dict, Tuple
 
-from .currency import Currency
-from .expression import Expression
-from .money import Money
+from ascetic_ddd.seedwork.domain.values.money.currency import Currency
+from ascetic_ddd.seedwork.domain.values.money.expression import Expression
+from ascetic_ddd.seedwork.domain.values.money.money import Money
 
 
 class Bank:

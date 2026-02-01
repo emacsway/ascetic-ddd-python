@@ -1,10 +1,10 @@
 from typing import TYPE_CHECKING
 
-from .expression import Expression
+from ascetic_ddd.seedwork.domain.values.money.expression import Expression
 
 if TYPE_CHECKING:
-    from .bank import Bank
-    from .money import Money
+    from ascetic_ddd.seedwork.domain.values.money.bank import Bank
+    from ascetic_ddd.seedwork.domain.values.money.money import Money
 
 
 class Sum(Expression):
@@ -40,7 +40,7 @@ class Sum(Expression):
             Money object representing the sum in the target currency
         """
         amount = self.augend.reduce(bank, to).amount + self.addend.reduce(bank, to).amount
-        from .money import Money
+        from ascetic_ddd.seedwork.domain.values.money.money import Money
         return Money(amount, to)
 
     def plus(self, addend: Expression) -> Expression:

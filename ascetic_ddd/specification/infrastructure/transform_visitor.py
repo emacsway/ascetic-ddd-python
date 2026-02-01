@@ -1,13 +1,13 @@
 """Transform visitor for converting domain specifications to infrastructure specifications."""
 from typing import Any, List, Protocol
 
-from ..domain.nodes import (
+from ascetic_ddd.specification.domain.nodes import (
     Visitor, Collection, Field, GlobalScope, Infix, Item, Object, Prefix, Value, Visitable, And,
     extract_field_path, Infix, Not, Postfix,
 )
-from ..domain.constants import OPERATOR, OPERATOR_MAPPING
+from ascetic_ddd.specification.domain.constants import OPERATOR, OPERATOR_MAPPING
 
-from .composite_expression_node import CompositeExpression
+from ascetic_ddd.specification.infrastructure.composite_expression_node import CompositeExpression
 
 
 class CompositeExpressionsDifferentLengthError(Exception):

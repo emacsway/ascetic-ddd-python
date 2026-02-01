@@ -3,7 +3,7 @@ import re
 import collections.abc
 import typing
 
-from .exceptions import ValidationError, ChainValidationError, MappingValidationError
+from ascetic_ddd.validators.exceptions import ValidationError, ChainValidationError, MappingValidationError
 
 dummy_gettext = lambda v: v
 

@@ -1,7 +1,7 @@
 """PostgreSQL visitor for generating SQL from specification AST."""
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from ..domain.nodes import (
+from ascetic_ddd.specification.domain.nodes import (
     Visitor,
     Collection,
     Field,
@@ -16,9 +16,9 @@ from ..domain.nodes import (
     Visitable,
     extract_field_path,
 )
-from ..domain.constants import OPERATOR
+from ascetic_ddd.specification.domain.constants import OPERATOR
 
-from .transform_visitor import ITransformContext, TransformVisitor
+from ascetic_ddd.specification.infrastructure.transform_visitor import ITransformContext, TransformVisitor
 
 
 def compile_specification(
