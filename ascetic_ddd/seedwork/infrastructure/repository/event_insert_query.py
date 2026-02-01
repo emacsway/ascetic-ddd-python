@@ -9,7 +9,7 @@ from ...domain.aggregate import (
     PersistentDomainEvent,
 )
 from ..session import ISession
-from .json import JSONEncoder
+from ascetic_ddd.utils.json import JSONEncoder
 
 __all__ = ("EventInsertQuery", "IEventInsertQuery")
 
