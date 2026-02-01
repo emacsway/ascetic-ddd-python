@@ -45,13 +45,12 @@ class Outbox(IOutbox):
     ) -> None:
         """Store a message in the outbox within the current transaction."""
         sql = """
-            INSERT INTO %s (event_type, event_version, payload, metadata, transaction_id)
-            VALUES (%%(event_type)s, %%(event_version)s, %%(payload)s, %%(metadata)s, pg_current_xact_id())
+            INSERT INTO %s (uri, payload, metadata, transaction_id)
+            VALUES (%%(uri)s, %%(payload)s, %%(metadata)s, pg_current_xact_id())
         """ % (self._outbox_table,)
 
         params = {
-            'event_type': message.event_type,
-            'event_version': message.event_version,
+            'uri': message.uri,
             'payload': self._to_jsonb(message.payload),
             'metadata': self._to_jsonb(message.metadata),
         }
@@ -235,7 +234,7 @@ class Outbox(IOutbox):
                     WHERE consumer_group = %%(consumer_group)s
                     FOR UPDATE
                 )
-                SELECT "position", transaction_id, event_type, event_version, payload, metadata, created_at
+                SELECT "position", transaction_id, uri, payload, metadata, created_at
                 FROM %s
                 WHERE (
                     (transaction_id = (SELECT last_processed_transaction_id FROM last_processed)
@@ -281,12 +280,11 @@ class Outbox(IOutbox):
 
     def _row_to_message(self, row: tuple) -> 'OutboxMessage':
         """Convert database row to OutboxMessage."""
-        position, transaction_id, event_type, event_version, payload, metadata, created_at = row
+        position, transaction_id, uri, payload, metadata, created_at = row
         return OutboxMessage(
-            event_type=event_type,
+            uri=uri,
             payload=payload if isinstance(payload, dict) else {},
             metadata=metadata if isinstance(metadata, dict) else {},
-            event_version=event_version,
             created_at=str(created_at) if created_at else None,
             position=position,
             transaction_id=int(transaction_id) if transaction_id else None,
@@ -309,8 +307,7 @@ class Outbox(IOutbox):
         sql = """
             CREATE TABLE IF NOT EXISTS %s (
                 "position" BIGSERIAL,
-                "event_type" VARCHAR(255) NOT NULL,
-                "event_version" SMALLINT NOT NULL DEFAULT 1,
+                "uri" VARCHAR(255) NOT NULL,
                 "payload" JSONB NOT NULL,
                 "metadata" JSONB NOT NULL,
                 "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -328,9 +325,9 @@ class Outbox(IOutbox):
         async with session.connection.cursor() as cursor:
             await cursor.execute(sql)
 
-        # Index for event_type filtering
+        # Index for uri filtering
         sql = """
-            CREATE INDEX IF NOT EXISTS %s_event_type_idx ON %s ("event_type")
+            CREATE INDEX IF NOT EXISTS %s_uri_idx ON %s ("uri")
         """ % (self._outbox_table, self._outbox_table)
         async with session.connection.cursor() as cursor:
             await cursor.execute(sql)

@@ -129,10 +129,9 @@ class OutboxPublishTestCase(IsolatedAsyncioTestCase):
 
         outbox = Outbox(pool)
         message = OutboxMessage(
-            event_type="OrderCreated",
-            payload={"order_id": "123", "amount": 100},
+            uri="kafka://orders",
+            payload={"type": "OrderCreated", "order_id": "123", "amount": 100},
             metadata={"event_id": "uuid-123", "correlation_id": "corr-456"},
-            event_version=1,
         )
 
         await outbox.publish(session, message)
@@ -142,8 +141,7 @@ class OutboxPublishTestCase(IsolatedAsyncioTestCase):
         self.assertIn("pg_current_xact_id()", cursor.executed_sql[0])
 
         params = cursor.executed_params[0]
-        self.assertEqual(params["event_type"], "OrderCreated")
-        self.assertEqual(params["event_version"], 1)
+        self.assertEqual(params["uri"], "kafka://orders")
 
     async def test_publish_uses_custom_table_name(self):
         """publish() uses custom table name if provided."""
@@ -154,8 +152,8 @@ class OutboxPublishTestCase(IsolatedAsyncioTestCase):
 
         outbox = Outbox(pool, outbox_table="custom_outbox")
         message = OutboxMessage(
-            event_type="OrderCreated",
-            payload={"order_id": "123"},
+            uri="kafka://orders",
+            payload={"type": "OrderCreated", "order_id": "123"},
             metadata={"event_id": "uuid-123"},
         )
 
@@ -188,8 +186,8 @@ class OutboxDispatchTestCase(IsolatedAsyncioTestCase):
     async def test_dispatch_publishes_messages(self):
         """dispatch() calls publisher for each message."""
         rows = [
-            (1, 100, "OrderCreated", 1, {"order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
-            (2, 100, "OrderShipped", 1, {"order_id": "123"}, {"event_id": "uuid-2"}, "2024-01-01 00:00:01"),
+            (1, 100, "kafka://orders", {"type": "OrderCreated", "order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
+            (2, 100, "kafka://orders", {"type": "OrderShipped", "order_id": "123"}, {"event_id": "uuid-2"}, "2024-01-01 00:00:01"),
         ]
         cursor = MockCursor(rows=rows)
         connection = MockConnection(cursor)
@@ -206,13 +204,14 @@ class OutboxDispatchTestCase(IsolatedAsyncioTestCase):
 
         self.assertTrue(result)
         self.assertEqual(len(published), 2)
-        self.assertEqual(published[0].event_type, "OrderCreated")
-        self.assertEqual(published[1].event_type, "OrderShipped")
+        self.assertEqual(published[0].uri, "kafka://orders")
+        self.assertEqual(published[0].payload["type"], "OrderCreated")
+        self.assertEqual(published[1].payload["type"], "OrderShipped")
 
     async def test_dispatch_acknowledges_last_message(self):
         """dispatch() updates consumer position after publishing."""
         rows = [
-            (5, 100, "OrderCreated", 1, {"order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
+            (5, 100, "kafka://orders", {"type": "OrderCreated", "order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
         ]
         cursor = MockCursor(rows=rows)
         connection = MockConnection(cursor)
@@ -289,7 +288,7 @@ class OutboxRunTestCase(IsolatedAsyncioTestCase):
     async def test_run_with_single_worker(self):
         """run() with single worker processes messages."""
         rows = [
-            (1, 100, "OrderCreated", 1, {"order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
+            (1, 100, "kafka://orders", {"type": "OrderCreated", "order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
         ]
         cursor = MockCursor(rows=rows, consume_on_fetch=True)
         connection = MockConnection(cursor)
@@ -350,7 +349,7 @@ class OutboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
     async def test_aiter_yields_messages(self):
         """Async iterator yields OutboxMessage."""
         rows = [
-            (1, 100, "OrderCreated", 1, {"order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
+            (1, 100, "kafka://orders", {"type": "OrderCreated", "order_id": "123"}, {"event_id": "uuid-1"}, "2024-01-01 00:00:00"),
         ]
         cursor = MockCursor(rows=rows)
         connection = MockConnection(cursor)
@@ -362,7 +361,8 @@ class OutboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
         iterator = outbox.__aiter__()
         message = await iterator.__anext__()
 
-        self.assertEqual(message.event_type, "OrderCreated")
+        self.assertEqual(message.uri, "kafka://orders")
+        self.assertEqual(message.payload["type"], "OrderCreated")
         self.assertEqual(message.position, 1)
         self.assertEqual(message.transaction_id, 100)
 
@@ -375,31 +375,28 @@ class OutboxMessageTestCase(unittest.TestCase):
     def test_message_creation(self):
         """OutboxMessage is created with required fields."""
         message = OutboxMessage(
-            event_type="OrderCreated",
-            payload={"order_id": "123"},
+            uri="kafka://orders",
+            payload={"type": "OrderCreated", "order_id": "123"},
             metadata={"event_id": "uuid-123"},
         )
 
-        self.assertEqual(message.event_type, "OrderCreated")
-        self.assertEqual(message.payload, {"order_id": "123"})
+        self.assertEqual(message.uri, "kafka://orders")
+        self.assertEqual(message.payload, {"type": "OrderCreated", "order_id": "123"})
         self.assertEqual(message.metadata, {"event_id": "uuid-123"})
-        self.assertEqual(message.event_version, 1)
         self.assertIsNone(message.position)
         self.assertIsNone(message.transaction_id)
 
     def test_message_with_all_fields(self):
         """OutboxMessage is created with all fields."""
         message = OutboxMessage(
-            event_type="OrderCreated",
-            payload={"order_id": "123"},
+            uri="kafka://orders",
+            payload={"type": "OrderCreated", "order_id": "123"},
             metadata={"event_id": "uuid-123"},
-            event_version=2,
             created_at="2024-01-01 00:00:00",
             position=5,
             transaction_id=100,
         )
 
-        self.assertEqual(message.event_version, 2)
         self.assertEqual(message.created_at, "2024-01-01 00:00:00")
         self.assertEqual(message.position, 5)
         self.assertEqual(message.transaction_id, 100)
