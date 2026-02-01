@@ -2,13 +2,13 @@ import json
 import typing
 from abc import ABCMeta, abstractmethod
 
-from ...domain.aggregate import (
+from ascetic_ddd.seedwork.domain.aggregate import (
     EventMeta,
     EventMetaExporter,
     IPersistentDomainEventExporter,
     PersistentDomainEvent,
 )
-from ..session import ISession
+from ascetic_ddd.seedwork.domain.session import ISession
 from ascetic_ddd.utils.json import JSONEncoder
 
 __all__ = ("EventInsertQuery", "IEventInsertQuery")

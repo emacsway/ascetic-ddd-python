@@ -1,7 +1,7 @@
 import gc
 from unittest import TestCase
 
-from ...session import IdentityMap
+from ascetic_ddd.seedwork.infrastructure.session.identity_map import IdentityMap
 
 
 class Model:

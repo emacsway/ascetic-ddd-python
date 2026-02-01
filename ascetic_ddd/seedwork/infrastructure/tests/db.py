@@ -1,7 +1,9 @@
 import os
 from psycopg_pool import AsyncConnectionPool
 
-from ..session import PgSessionPool
+from ascetic_ddd.seedwork.infrastructure.session.pg_session import PgSessionPool
+
+__all__ = ('make_pg_session_pool',)
 
 
 async def make_pg_session_pool():

@@ -6,14 +6,14 @@ from abc import ABCMeta
 from psycopg.errors import UniqueViolation
 
 from ascetic_ddd.mediator.interfaces import IMediator
-from ...domain.aggregate import (
+from ascetic_ddd.seedwork.domain.aggregate import (
     ConcurrentUpdate,
     EventMeta,
     IDomainEventAccessor,
     PersistentDomainEvent,
 )
-from ..session import ISession
-from .event_insert_query import IEventInsertQuery
+from ascetic_ddd.seedwork.domain.session import ISession
+from ascetic_ddd.seedwork.infrastructure.repository.event_insert_query import IEventInsertQuery
 
 ___all__ = ("EventStore",)
 
