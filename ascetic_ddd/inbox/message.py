@@ -18,9 +18,8 @@ class InboxMessage:
         stream_type: Type of the event stream (e.g., aggregate type).
         stream_id: Identifier of the stream (e.g., aggregate ID).
         stream_position: Position in the stream (monotonically increasing).
-        event_type: Type of the event.
-        event_version: Version of the event schema.
-        payload: Event payload data.
+        uri: Routing URI (e.g., 'kafka://orders', 'amqp://exchange/key').
+        payload: Event payload data (must contain 'type' for deserialization).
         metadata: Optional event metadata (may contain event_id, causal_dependencies, etc.).
         received_position: Position when message was received (auto-assigned by DB).
         processed_position: Position when message was processed (None if not processed).
@@ -29,8 +28,7 @@ class InboxMessage:
     stream_type: str
     stream_id: dict[str, Any]
     stream_position: int
-    event_type: str
-    event_version: int
+    uri: str
     payload: dict[str, Any]
     metadata: dict[str, Any] | None = None
     received_position: int | None = None

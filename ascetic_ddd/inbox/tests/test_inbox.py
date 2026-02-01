@@ -113,9 +113,8 @@ class InboxReceiveTestCase(IsolatedAsyncioTestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
-            payload={"amount": 100},
+            uri="kafka://orders",
+            payload={"type": "OrderCreated", "amount": 100},
             metadata={"event_id": "uuid-123"},
         )
 
@@ -130,8 +129,7 @@ class InboxReceiveTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(params[1], "Order")
         self.assertEqual(params[2], '{"id": "order-123"}')
         self.assertEqual(params[3], 1)
-        self.assertEqual(params[4], "OrderCreated")
-        self.assertEqual(params[5], 1)
+        self.assertEqual(params[4], "kafka://orders")
 
 
 class InboxDispatchTestCase(IsolatedAsyncioTestCase):
@@ -157,9 +155,8 @@ class InboxDispatchTestCase(IsolatedAsyncioTestCase):
             "Order",  # stream_type
             {"id": "order-123"},  # stream_id
             1,  # stream_position
-            "OrderCreated",  # event_type
-            1,  # event_version
-            {"amount": 100},  # payload
+            "kafka://orders",  # uri
+            {"type": "OrderCreated", "amount": 100},  # payload
             None,  # metadata
             1,  # received_position
             None,  # processed_position
@@ -187,9 +184,8 @@ class InboxDependencyCheckTestCase(IsolatedAsyncioTestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
-            payload={},
+            uri="kafka://orders",
+            payload={"type": "OrderCreated"},
             metadata=None,
         )
 
@@ -270,9 +266,8 @@ class InboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
             "Order",
             {"id": "order-123"},
             1,
-            "OrderCreated",
-            1,
-            {"amount": 100},
+            "kafka://orders",
+            {"type": "OrderCreated", "amount": 100},
             None,
             1,
             None,
@@ -292,7 +287,7 @@ class InboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
 
         self.assertIsNotNone(session_result)
         self.assertEqual(message_result.tenant_id, "tenant1")
-        self.assertEqual(message_result.event_type, "OrderCreated")
+        self.assertEqual(message_result.uri, "kafka://orders")
 
     async def test_aiter_marks_message_as_processed(self):
         """Async iterator marks message as processed after yield."""
@@ -301,9 +296,8 @@ class InboxAsyncIteratorTestCase(IsolatedAsyncioTestCase):
             "Order",
             {"id": "order-123"},
             1,
-            "OrderCreated",
-            1,
-            {"amount": 100},
+            "kafka://orders",
+            {"type": "OrderCreated", "amount": 100},
             None,
             1,
             None,
@@ -337,9 +331,8 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
             "Order",
             {"id": "order-123"},
             1,
-            "OrderCreated",
-            1,
-            {"amount": 100},
+            "kafka://orders",
+            {"type": "OrderCreated", "amount": 100},
             None,
             1,
             None,
@@ -374,9 +367,8 @@ class InboxRunTestCase(IsolatedAsyncioTestCase):
                 "Order",
                 {"id": "order-%d" % i},
                 i,
-                "OrderCreated",
-                1,
-                {"amount": 100},
+                "kafka://orders",
+                {"type": "OrderCreated", "amount": 100},
                 None,
                 i,
                 None,

@@ -26,8 +26,7 @@ class IInbox(metaclass=ABCMeta):
     @abstractmethod
     def subscribe(
             self,
-            event_type: str,
-            event_version: int,
+            uri: str,
             handler: Optional[ISubscriber] = None
     ) -> Callable[[ISubscriber], ISubscriber] | None:
         raise NotImplementedError

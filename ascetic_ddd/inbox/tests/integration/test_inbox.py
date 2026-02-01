@@ -59,8 +59,7 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={"amount": 100},
             metadata={"event_id": "uuid-123"},
         )
@@ -80,8 +79,7 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={"amount": 100},
         )
 
@@ -104,8 +102,7 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=2,
-            event_type="OrderShipped",
-            event_version=1,
+            uri="kafka://shipments",
             payload={"tracking": "123"},
             metadata={
                 "causal_dependencies": [
@@ -132,8 +129,7 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stream_type="Order",
             stream_id={"id": "order-123"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={"amount": 100},
         )
         await self.inbox.publish(dependency_message)
@@ -141,12 +137,12 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         # Process dependency first
         result = await self.inbox.dispatch()
         self.assertTrue(result)
-        self.assertEqual(self.inbox.handled_messages[0].event_type, "OrderCreated")
+        self.assertEqual(self.inbox.handled_messages[0].uri, "kafka://orders")
 
         # Now dependent message can be processed
         result = await self.inbox.dispatch()
         self.assertTrue(result)
-        self.assertEqual(self.inbox.handled_messages[1].event_type, "OrderShipped")
+        self.assertEqual(self.inbox.handled_messages[1].uri, "kafka://shipments")
 
     async def test_ordering_by_received_position(self):
         """Messages are processed in order of arrival."""
@@ -156,9 +152,8 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
                 stream_type="Order",
                 stream_id={"id": "order-%d" % i},
                 stream_position=1,
-                event_type="OrderCreated",
-                event_version=1,
-                payload={"order": i},
+                uri="kafka://orders",
+                payload={"type": "OrderCreated", "order": i},
             )
             await self.inbox.publish(message)
 
@@ -174,13 +169,13 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         """@inbox.subscribe registers handlers."""
         handled_events = []
 
-        @self.inbox.subscribe("OrderCreated", event_version=1)
+        @self.inbox.subscribe("kafka://orders")
         async def handle_order_created(session, message):
-            handled_events.append(("created", message.stream_id))
+            handled_events.append(("orders", message.stream_id))
 
-        @self.inbox.subscribe("OrderShipped", event_version=1)
+        @self.inbox.subscribe("kafka://shipments")
         async def handle_order_shipped(session, message):
-            handled_events.append(("shipped", message.stream_id))
+            handled_events.append(("shipments", message.stream_id))
 
         # Publish messages
         await self.inbox.publish(InboxMessage(
@@ -188,18 +183,16 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stream_type="Order",
             stream_id={"id": "order-1"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
-            payload={},
+            uri="kafka://orders",
+            payload={"type": "OrderCreated"},
         ))
         await self.inbox.publish(InboxMessage(
             tenant_id="tenant1",
             stream_type="Order",
             stream_id={"id": "order-2"},
             stream_position=1,
-            event_type="OrderShipped",
-            event_version=1,
-            payload={},
+            uri="kafka://shipments",
+            payload={"type": "OrderShipped"},
         ))
 
         # Process messages
@@ -207,8 +200,8 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
         await self.inbox.dispatch()
 
         self.assertEqual(len(handled_events), 2)
-        self.assertEqual(handled_events[0], ("created", {"id": "order-1"}))
-        self.assertEqual(handled_events[1], ("shipped", {"id": "order-2"}))
+        self.assertEqual(handled_events[0], ("orders", {"id": "order-1"}))
+        self.assertEqual(handled_events[1], ("shipments", {"id": "order-2"}))
 
     async def test_async_iterator(self):
         """Async iterator yields messages."""
@@ -218,9 +211,8 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
                 stream_type="Order",
                 stream_id={"id": "order-%d" % i},
                 stream_position=1,
-                event_type="OrderCreated",
-                event_version=1,
-                payload={"order": i},
+                uri="kafka://orders",
+                payload={"type": "OrderCreated", "order": i},
             ))
 
         messages = []
@@ -248,9 +240,8 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
                 stream_type="Order",
                 stream_id={"id": "order-%d" % i},
                 stream_position=1,
-                event_type="OrderCreated",
-                event_version=1,
-                payload={"order": i},
+                uri="kafka://orders",
+                payload={"type": "OrderCreated", "order": i},
             ))
 
         # Run with graceful shutdown
@@ -275,9 +266,8 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
                 stream_type="Order",
                 stream_id={"id": "order-%d" % i},
                 stream_position=1,
-                event_type="OrderCreated",
-                event_version=1,
-                payload={"order": i},
+                uri="kafka://orders",
+                payload={"type": "OrderCreated", "order": i},
             ))
 
         # Run with multiple workers and graceful shutdown
@@ -303,8 +293,7 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
             stream_type="Order",
             stream_id={"id": "order-1"},
             stream_position=1,
-            event_type="OrderCreated",
-            event_version=1,
+            uri="kafka://orders",
             payload={},
         ))
 

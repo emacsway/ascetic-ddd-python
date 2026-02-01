@@ -27,7 +27,7 @@ class Inbox(IInbox):
 
     _table: str = 'inbox'
     _sequence: str = 'inbox_received_position_seq'
-    _subscribers: dict[tuple[str, int], list[ISubscriber]]
+    _subscribers: dict[str, list[ISubscriber]]
 
     def __init__(self, session_pool: ISessionPool):
         """Initialize Inbox.
@@ -40,13 +40,12 @@ class Inbox(IInbox):
 
     def subscribe(
             self,
-            event_type: str,  # topic_name?
-            event_version: int,
+            uri: str,
             handler: typing.Optional[ISubscriber] = None
     ) -> Callable[[ISubscriber], ISubscriber] | None:
 
         def deco(func: ISubscriber) -> ISubscriber:
-            self._subscribers[(event_type, event_version)].append(func)
+            self._subscribers[uri].append(func)
             return func
 
         if handler is not None:
@@ -79,9 +78,8 @@ class Inbox(IInbox):
     @abstractmethod
     async def do_handle(self, session: IPgSession, message: InboxMessage) -> None:
         """Process a single message. Override in subclasses."""
-        key = (message.event_type, message.event_version)
-        if key in self._subscribers:
-            for handler in self._subscribers[key]:
+        if message.uri in self._subscribers:
+            for handler in self._subscribers[message.uri]:
                 await handler(session, message)
         else:
             # Just watch for a message, mark it as processed.
@@ -181,9 +179,9 @@ class Inbox(IInbox):
         sql = """
             INSERT INTO %s (
                 tenant_id, stream_type, stream_id, stream_position,
-                event_type, event_version, payload, metadata
+                uri, payload, metadata
             ) VALUES (
-                %%s, %%s, %%s, %%s, %%s, %%s, %%s, %%s
+                %%s, %%s, %%s, %%s, %%s, %%s, %%s
             )
             ON CONFLICT (tenant_id, stream_type, stream_id, stream_position) DO NOTHING
         """ % self._table
@@ -196,8 +194,7 @@ class Inbox(IInbox):
                     message.stream_type,
                     json.dumps(message.stream_id),
                     message.stream_position,
-                    message.event_type,
-                    message.event_version,
+                    message.uri,
                     json.dumps(message.payload),
                     json.dumps(message.metadata) if message.metadata else None,
                 )
@@ -231,7 +228,7 @@ class Inbox(IInbox):
         sql = """
             SELECT
                 tenant_id, stream_type, stream_id, stream_position,
-                event_type, event_version, payload, metadata,
+                uri, payload, metadata,
                 received_position, processed_position
             FROM %s
             WHERE processed_position IS NULL
@@ -252,12 +249,11 @@ class Inbox(IInbox):
             stream_type=row[1],
             stream_id=row[2] if isinstance(row[2], dict) else json.loads(row[2]),
             stream_position=row[3],
-            event_type=row[4],
-            event_version=row[5],
-            payload=row[6] if isinstance(row[6], dict) else json.loads(row[6]),
-            metadata=row[7] if row[7] is None or isinstance(row[7], dict) else json.loads(row[7]),
-            received_position=row[8],
-            processed_position=row[9],
+            uri=row[4],
+            payload=row[5] if isinstance(row[5], dict) else json.loads(row[5]),
+            metadata=row[6] if row[6] is None or isinstance(row[6], dict) else json.loads(row[6]),
+            received_position=row[7],
+            processed_position=row[8],
         )
 
     async def _are_dependencies_satisfied(
@@ -345,8 +341,7 @@ class Inbox(IInbox):
                 stream_type varchar(128) NOT NULL,
                 stream_id jsonb NOT NULL,
                 stream_position integer NOT NULL,
-                event_type varchar(60) NOT NULL,
-                event_version smallint NOT NULL,
+                uri varchar(60) NOT NULL,
                 payload jsonb NOT NULL,
                 metadata jsonb NULL,
                 received_position bigint NOT NULL UNIQUE DEFAULT nextval('%s'),
