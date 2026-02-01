@@ -24,6 +24,10 @@ class InboxMessage:
         partition_key: Key for worker distribution (computed by strategy, auto-assigned).
         received_position: Position when message was received (auto-assigned by DB).
         processed_position: Position when message was processed (None if not processed).
+
+    TODO: Use abstract stream_id (stored as jsonb)
+    similar to ascetic_ddd.seedwork.infrastructure.repository.stream_id.StreamId
+    instead of three fields?
     """
     tenant_id: str
     stream_type: str
