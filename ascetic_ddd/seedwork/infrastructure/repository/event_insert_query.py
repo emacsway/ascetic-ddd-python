@@ -43,6 +43,7 @@ class EventInsertQuery(IEventInsertQuery, metaclass=ABCMeta):
     def __init__(self) -> None:
         self.data = {}
         self._params: list[typing.Any] = [None] * 8
+        self._params[0] = 1  # default tenant
         self._metadata = {}
         super().__init__()
 

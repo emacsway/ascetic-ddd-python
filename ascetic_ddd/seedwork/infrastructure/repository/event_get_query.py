@@ -48,7 +48,7 @@ class EventGetQuery(IEventGetQuery, metaclass=ABCMeta):
         FROM
             event_log
         WHERE
-            stream_type = %s AND stream_id = %s AND stream_position > %s
+            tenant_id=%s AND stream_type = %s AND stream_id = %s AND stream_position > %s
         ORDER BY
             stream_type, stream_id, stream_position
     """
@@ -59,7 +59,8 @@ class EventGetQuery(IEventGetQuery, metaclass=ABCMeta):
 
     async def evaluate(self, session: ISession) -> typing.Iterable[PersistentDomainEvent]:
         async with session.connection.cursor() as acursor:
-            params = [self._stream_id.stream_type, self._stream_id.stream_id, self._since_position]
+            params = [self._stream_id.tenant_id, self._stream_id.stream_type,
+                      self._stream_id.stream_id, self._since_position]
             await acursor.execute(self._sql, params)
             rows = await acursor.fetchall()
             return tuple(self._reconstitute_event(Row(*row)) for row in rows)
