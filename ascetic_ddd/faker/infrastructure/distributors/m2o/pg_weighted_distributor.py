@@ -22,7 +22,7 @@ from ascetic_ddd.faker.infrastructure.distributors.m2o.interfaces import IPgExte
 from ascetic_ddd.faker.infrastructure.session.pg_session import extract_internal_connection
 from ascetic_ddd.faker.infrastructure.specification.pg_specification_visitor import PgSpecificationVisitor
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
-from ascetic_ddd.seedwork.infrastructure.utils import serializer
+from ascetic_ddd.utils import serializer
 from ascetic_ddd.seedwork.infrastructure.utils.pg import escape
 
 
