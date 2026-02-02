@@ -1,4 +1,5 @@
 """Copied from https://github.com/django/django/blob/main/django/core/serializers/json.py."""
+import dataclasses
 import datetime
 import decimal
 import json
@@ -30,6 +31,8 @@ class JSONEncoder(json.JSONEncoder):
             return duration_iso_string(o)
         if isinstance(o, decimal.Decimal | uuid.UUID):
             return str(o)
+        if dataclasses.is_dataclass(o):
+            return dataclasses.asdict(o)
 
         return super().default(o)
 
