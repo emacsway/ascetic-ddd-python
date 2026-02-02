@@ -1,6 +1,9 @@
+import functools
 import json
 import typing
 from abc import ABCMeta, abstractmethod
+
+from psycopg.types.json import Jsonb
 
 from ascetic_ddd.seedwork.domain.aggregate import (
     EventMeta,
@@ -84,7 +87,9 @@ class EventInsertQuery(IEventInsertQuery, metaclass=ABCMeta):
         self._params[6] = self._encode(self.data)
         async with session.connection.cursor() as acursor:
             await acursor.execute(self._sql, self._params)
+        pass
 
     @staticmethod
     def _encode(obj):
-        return json.dumps(obj, cls=JSONEncoder)
+        dumps = functools.partial(json.dumps, cls=JSONEncoder)
+        return Jsonb(obj, dumps)

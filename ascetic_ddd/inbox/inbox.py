@@ -1,8 +1,11 @@
 """Inbox pattern implementation."""
 
 import asyncio
+import functools
 import json
 from typing import AsyncIterator, Any
+
+from psycopg.types.json import Jsonb
 
 from ascetic_ddd.inbox.interfaces import IInbox, ISubscriber
 from ascetic_ddd.inbox.message import InboxMessage
@@ -17,6 +20,8 @@ from ascetic_ddd.session.interfaces import IPgSession
 __all__ = (
     'Inbox',
 )
+
+from ascetic_ddd.utils.json import JSONEncoder
 
 
 class Inbox(IInbox):
@@ -189,11 +194,11 @@ class Inbox(IInbox):
                 (
                     message.tenant_id,
                     message.stream_type,
-                    json.dumps(message.stream_id),
+                    self._to_jsonb(message.stream_id),
                     message.stream_position,
                     message.uri,
-                    json.dumps(message.payload),
-                    json.dumps(message.metadata) if message.metadata else None,
+                    self._to_jsonb(message.payload),
+                    self._to_jsonb(message.metadata) if message.metadata else None,
                 )
             )
 
@@ -316,7 +321,7 @@ class Inbox(IInbox):
                 (
                     dependency['tenant_id'],
                     dependency['stream_type'],
-                    json.dumps(dependency['stream_id']),
+                    self._to_jsonb(dependency['stream_id']),
                     dependency['stream_position'],
                 )
             )
@@ -341,10 +346,16 @@ class Inbox(IInbox):
                 (
                     message.tenant_id,
                     message.stream_type,
-                    json.dumps(message.stream_id),
+                    self._to_jsonb(message.stream_id),
                     message.stream_position,
                 )
             )
+
+    @staticmethod
+    def _to_jsonb(obj: dict) -> Jsonb:
+        """Convert dict to Jsonb for psycopg."""
+        dumps = functools.partial(json.dumps, cls=JSONEncoder)
+        return Jsonb(obj, dumps)
 
     async def setup(self) -> None:
         """Create inbox table and sequence if they don't exist."""

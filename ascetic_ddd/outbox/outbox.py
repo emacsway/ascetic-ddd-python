@@ -1,6 +1,8 @@
 """PostgreSQL implementation of the Transactional Outbox pattern."""
 
 import asyncio
+import functools
+import json
 import typing
 
 from psycopg.types.json import Jsonb
@@ -9,6 +11,7 @@ from ascetic_ddd.outbox.interfaces import IOutbox, ISubscriber
 from ascetic_ddd.outbox.message import OutboxMessage
 from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool
 from ascetic_ddd.session.interfaces import IPgSession
+from ascetic_ddd.utils.json import JSONEncoder
 
 
 __all__ = ('Outbox',)
@@ -376,7 +379,8 @@ class Outbox(IOutbox):
     @staticmethod
     def _to_jsonb(obj: dict) -> Jsonb:
         """Convert dict to Jsonb for psycopg."""
-        return Jsonb(obj)
+        dumps = functools.partial(json.dumps, cls=JSONEncoder)
+        return Jsonb(obj, dumps)
 
     async def setup(self) -> None:
         """Initialize the outbox (create tables, sequences, indexes)."""

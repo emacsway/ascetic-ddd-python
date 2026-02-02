@@ -114,7 +114,7 @@ class InboxReceiveTestCase(IsolatedAsyncioTestCase):
         params = cursor.executed_params[0]
         self.assertEqual(params[0], "tenant1")
         self.assertEqual(params[1], "Order")
-        self.assertEqual(params[2], '{"id": "order-123"}')
+        self.assertEqual(params[2].obj, {"id": "order-123"})
         self.assertEqual(params[3], 1)
         self.assertEqual(params[4], "kafka://orders")
 
