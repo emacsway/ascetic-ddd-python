@@ -6,7 +6,7 @@ from unittest import IsolatedAsyncioTestCase
 
 from ascetic_ddd.outbox.message import OutboxMessage
 from ascetic_ddd.outbox.outbox import Outbox
-from ascetic_ddd.outbox.tests.integration.db import make_pg_session_pool
+from ascetic_ddd.utils.tests.db import make_pg_session_pool
 
 
 class OutboxIntegrationTestCase(IsolatedAsyncioTestCase):

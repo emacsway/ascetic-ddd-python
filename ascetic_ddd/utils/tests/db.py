@@ -1,14 +1,23 @@
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 from psycopg_pool import AsyncConnectionPool
 
 from ascetic_ddd.session.pg_session import PgSessionPool
+
+# Load environment variables from config/.env
+_config_env = Path(__file__).parents[3] / 'config' / '.env'
+load_dotenv(_config_env)
+
 
 __all__ = ('make_pg_session_pool',)
 
 
 async def make_pg_session_pool():
+    """Create PostgreSQL session pool for testing."""
     postgresql_url = os.environ.get(
-        'TEST_POSTGRESQL_URL',
+        'TEST_INTERNAL_POSTGRESQL_URL',
         ''
     )
     pool = AsyncConnectionPool(postgresql_url, open=False)

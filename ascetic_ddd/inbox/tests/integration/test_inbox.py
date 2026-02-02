@@ -6,7 +6,7 @@ from unittest import IsolatedAsyncioTestCase
 
 from ascetic_ddd.inbox.inbox import Inbox
 from ascetic_ddd.inbox.message import InboxMessage
-from ascetic_ddd.inbox.tests.integration.db import make_pg_session_pool
+from ascetic_ddd.utils.tests.db import make_pg_session_pool
 
 
 class TestInbox(Inbox):
