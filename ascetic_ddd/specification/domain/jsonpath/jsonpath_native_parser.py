@@ -160,11 +160,14 @@ class NativeParametrizedSpecification:
             )
             position += 1
 
-    def _parse_expression(
+    def _parse_primary(
         self, tokens: list[Token], start: int = 0
     ) -> tuple[Visitable, int]:
         """
-        Parse a filter expression from tokens.
+        Parse a primary expression (comparison, NOT, or parenthesized expression).
+
+        Does NOT handle AND/OR operators - those are handled by _parse_expression
+        to ensure left-associativity.
 
         Args:
             tokens: List of tokens
@@ -192,7 +195,7 @@ class NativeParametrizedSpecification:
         # Skip opening parenthesis if present
         if i < len(tokens) and tokens[i].type == "LPAREN":
             i += 1
-            # Recursively parse expression inside parentheses
+            # Recursively parse FULL expression inside parentheses (can have && and ||)
             node, i = self._parse_expression(tokens, i)
             # Skip closing parenthesis
             if i < len(tokens) and tokens[i].type == "RPAREN":
@@ -208,6 +211,8 @@ class NativeParametrizedSpecification:
             else:
                 # Parse operator
                 if i >= len(tokens):
+                    if has_not:
+                        return Not(left_node), i
                     return left_node, i
 
                 op_token = tokens[i]
@@ -240,15 +245,64 @@ class NativeParametrizedSpecification:
         if has_not:
             node = Not(node)
 
-        # Check for AND/OR (RFC 9535: && and ||)
-        if i < len(tokens) and tokens[i].type in ("AND", "OR"):
-            op = tokens[i].type
+        return node, i
+
+    def _parse_and_expression(
+        self, tokens: list[Token], start: int = 0
+    ) -> tuple[Visitable, int]:
+        """
+        Parse AND expressions with left-associativity.
+
+        AND (&&) has higher precedence than OR (||), so it binds tighter.
+        `a && b && c` becomes `And(And(a, b), c)`.
+
+        Args:
+            tokens: List of tokens
+            start: Starting position
+
+        Returns:
+            (Visitable node, next position)
+        """
+        # Parse first primary expression
+        node, i = self._parse_primary(tokens, start)
+
+        # Handle && with left associativity
+        while i < len(tokens) and tokens[i].type == "AND":
             i += 1
-            right_expr, i = self._parse_expression(tokens, i)
-            if op == "AND":
-                node = And(node, right_expr)
-            else:
-                node = Or(node, right_expr)
+            right_node, i = self._parse_primary(tokens, i)
+            node = And(node, right_node)
+
+        return node, i
+
+    def _parse_expression(
+        self, tokens: list[Token], start: int = 0
+    ) -> tuple[Visitable, int]:
+        """
+        Parse OR expressions with left-associativity (lowest precedence).
+
+        Operator precedence (highest to lowest):
+        1. Comparisons (==, !=, <, >, <=, >=)
+        2. NOT (!)
+        3. AND (&&)
+        4. OR (||)
+
+        This ensures `a || b && c` is parsed as `Or(a, And(b, c))`.
+
+        Args:
+            tokens: List of tokens
+            start: Starting position
+
+        Returns:
+            (Visitable node, next position)
+        """
+        # Parse first AND expression (higher precedence)
+        node, i = self._parse_and_expression(tokens, start)
+
+        # Handle || with left associativity
+        while i < len(tokens) and tokens[i].type == "OR":
+            i += 1
+            right_node, i = self._parse_and_expression(tokens, i)
+            node = Or(node, right_node)
 
         return node, i
 
