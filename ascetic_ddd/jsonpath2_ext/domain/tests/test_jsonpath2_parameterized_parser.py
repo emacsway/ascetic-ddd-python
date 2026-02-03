@@ -1,6 +1,9 @@
 """Unit tests for jsonpath_parser with C-style placeholders."""
 import unittest
-from ascetic_ddd.jsonpath2_ext.domain.jsonpath2_parameterized_parser import parse
+from ascetic_ddd.jsonpath2_ext.domain.jsonpath2_parameterized_parser import (
+    parse,
+    MissingParameterError,
+)
 
 
 class TestPositionalPlaceholders(unittest.TestCase):
@@ -10,20 +13,20 @@ class TestPositionalPlaceholders(unittest.TestCase):
         """Test parsing with %d placeholder."""
         path = parse("$[*][?(@.age > %d)]")
         self.assertEqual(len(path.placeholders), 1)
-        self.assertEqual(path.placeholders[0]['format_type'], 'd')
-        self.assertTrue(path.placeholders[0]['positional'])
+        self.assertEqual(path.placeholders[0].format_type, 'd')
+        self.assertTrue(path.placeholders[0].positional)
 
     def test_parse_string_placeholder(self):
         """Test parsing with %s placeholder."""
         path = parse("$[*][?(@.name = %s)]")
         self.assertEqual(len(path.placeholders), 1)
-        self.assertEqual(path.placeholders[0]['format_type'], 's')
+        self.assertEqual(path.placeholders[0].format_type, 's')
 
     def test_parse_float_placeholder(self):
         """Test parsing with %f placeholder."""
         path = parse("$[*][?(@.price > %f)]")
         self.assertEqual(len(path.placeholders), 1)
-        self.assertEqual(path.placeholders[0]['format_type'], 'f')
+        self.assertEqual(path.placeholders[0].format_type, 'f')
 
     def test_execute_with_integer(self):
         """Test execution with integer parameter."""
@@ -89,16 +92,16 @@ class TestNamedPlaceholders(unittest.TestCase):
         """Test parsing with %(name)d placeholder."""
         path = parse("$[*][?(@.age > %(min_age)d)]")
         self.assertEqual(len(path.placeholders), 1)
-        self.assertEqual(path.placeholders[0]['name'], 'min_age')
-        self.assertEqual(path.placeholders[0]['format_type'], 'd')
-        self.assertFalse(path.placeholders[0]['positional'])
+        self.assertEqual(path.placeholders[0].name, 'min_age')
+        self.assertEqual(path.placeholders[0].format_type, 'd')
+        self.assertFalse(path.placeholders[0].positional)
 
     def test_parse_named_string(self):
         """Test parsing with %(name)s placeholder."""
         path = parse("$[*][?(@.name = %(username)s)]")
         self.assertEqual(len(path.placeholders), 1)
-        self.assertEqual(path.placeholders[0]['name'], 'username')
-        self.assertEqual(path.placeholders[0]['format_type'], 's')
+        self.assertEqual(path.placeholders[0].name, 'username')
+        self.assertEqual(path.placeholders[0].format_type, 's')
 
     def test_execute_with_named_integer(self):
         """Test execution with named integer parameter."""
@@ -328,46 +331,52 @@ class TestErrorCases(unittest.TestCase):
         """Test error when positional parameter is missing."""
         path = parse("$[*][?(@.age > %d)]")
 
-        with self.assertRaisesRegex(ValueError, "Missing positional parameter"):
+        with self.assertRaises(MissingParameterError) as ctx:
             path.find([{"age": 30}], ())  # Empty tuple
+        self.assertEqual(ctx.exception.param_index, 0)
 
     def test_missing_named_parameter(self):
         """Test error when named parameter is missing."""
         path = parse("$[*][?(@.age > %(min_age)d)]")
 
-        with self.assertRaisesRegex(ValueError, "Missing named parameter"):
+        with self.assertRaises(MissingParameterError) as ctx:
             path.find([{"age": 30}], {})  # Empty dict
+        self.assertEqual(ctx.exception.param_name, 'min_age')
 
     def test_wrong_parameter_name(self):
         """Test error when wrong named parameter provided."""
         path = parse("$[*][?(@.age > %(min_age)d)]")
 
-        with self.assertRaisesRegex(ValueError, "Missing named parameter"):
+        with self.assertRaises(MissingParameterError) as ctx:
             path.find([{"age": 30}], {"max_age": 25})  # Wrong name
+        self.assertEqual(ctx.exception.param_name, 'min_age')
 
     def test_too_few_positional_parameters(self):
         """Test error when providing fewer positional parameters than needed."""
         # Even though we only have one placeholder, test with empty tuple
         path = parse("$[*][?(@.age > %d)]")
 
-        with self.assertRaisesRegex(ValueError, "Missing positional parameter"):
+        with self.assertRaises(MissingParameterError) as ctx:
             path.find([{"age": 30}], ())
+        self.assertEqual(ctx.exception.param_index, 0)
 
     def test_wrong_parameter_type_for_named(self):
         """Test with dict instead of tuple for positional placeholders."""
         path = parse("$[*][?(@.age > %d)]")
 
         # This should raise an error because we're using dict for positional
-        with self.assertRaises((ValueError, TypeError, KeyError)):
+        with self.assertRaises(MissingParameterError) as ctx:
             path.find([{"age": 30}], {"age": 25})
+        self.assertEqual(ctx.exception.param_index, 0)
 
     def test_wrong_parameter_type_for_positional(self):
         """Test with tuple instead of dict for named placeholders."""
         path = parse("$[*][?(@.age > %(min_age)d)]")
 
         # This should raise an error because we're using tuple for named
-        with self.assertRaises((ValueError, TypeError, AttributeError)):
+        with self.assertRaises(MissingParameterError) as ctx:
             path.find([{"age": 30}], (25,))
+        self.assertEqual(ctx.exception.param_name, 'min_age')
 
 
 class TestFilterFix(unittest.TestCase):
