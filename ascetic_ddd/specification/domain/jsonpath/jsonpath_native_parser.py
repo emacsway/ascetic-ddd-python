@@ -11,8 +11,70 @@ RFC 9535 Compliance:
 - Uses ! for logical NOT (exclamation mark)
 """
 from dataclasses import dataclass, field
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 import re
+
+
+class JSONPathError(Exception):
+    """Base exception for JSONPath parsing and evaluation errors."""
+    pass
+
+
+class JSONPathSyntaxError(JSONPathError):
+    """
+    Raised when JSONPath expression has invalid syntax.
+
+    Attributes:
+        message: Human-readable error description
+        position: Character position where error occurred (0-indexed)
+        expression: The JSONPath expression being parsed
+        context: Additional context about what was expected
+    """
+
+    def __init__(
+        self,
+        message: str,
+        position: Optional[int] = None,
+        expression: Optional[str] = None,
+        context: Optional[str] = None,
+    ):
+        self.message = message
+        self.position = position
+        self.expression = expression
+        self.context = context
+        super().__init__(self._format_message())
+
+    def _format_message(self) -> str:
+        parts = [self.message]
+
+        if self.position is not None:
+            parts.append(f" at position {self.position}")
+
+        if self.context:
+            parts.append(f" ({self.context})")
+
+        if self.expression and self.position is not None:
+            # Show the expression with a pointer to the error position
+            parts.append(f"\n  {self.expression}")
+            parts.append(f"\n  {' ' * self.position}^")
+
+        return "".join(parts)
+
+
+class JSONPathTypeError(JSONPathError):
+    """Raised when data doesn't conform to expected type/protocol."""
+
+    def __init__(self, message: str, expected: Optional[str] = None, got: Optional[str] = None):
+        self.message = message
+        self.expected = expected
+        self.got = got
+        super().__init__(self._format_message())
+
+    def _format_message(self) -> str:
+        parts = [self.message]
+        if self.expected and self.got:
+            parts.append(f": expected {self.expected}, got {self.got}")
+        return "".join(parts)
 
 
 @dataclass
@@ -112,9 +174,11 @@ class Lexer:
                     break
 
             if not matched:
-                raise SyntaxError(
-                    f"Unexpected character at position {self.position}: "
-                    f"{self.text[self.position]}"
+                raise JSONPathSyntaxError(
+                    f"Unexpected character '{self.text[self.position]}'",
+                    position=self.position,
+                    expression=self.text,
+                    context="expected valid token",
                 )
 
         return self.tokens
@@ -254,7 +318,12 @@ class NativeParametrizedSpecification:
                 elif op_token.type == "LTE":
                     node = LessThanEqual(left_node, right_node)
                 else:
-                    raise SyntaxError(f"Unexpected operator: {op_token.type}")
+                    raise JSONPathSyntaxError(
+                        f"Unexpected operator '{op_token.value}'",
+                        position=op_token.position,
+                        expression=self.template,
+                        context="expected comparison operator (==, !=, <, >, <=, >=)",
+                    )
 
             # Skip closing parenthesis if present (from earlier opening)
             if i < len(tokens) and tokens[i].type == "RPAREN":
@@ -327,6 +396,78 @@ class NativeParametrizedSpecification:
 
         return node, i
 
+    def _parse_identifier_chain(
+        self, tokens: list[Token], start: int
+    ) -> tuple[list[str], int]:
+        """
+        Parse a chain of dot-separated identifiers.
+
+        Examples: "a", "a.b", "a.b.c"
+
+        Args:
+            tokens: List of tokens
+            start: Starting position
+
+        Returns:
+            (list of identifier names, next position)
+        """
+        i = start
+        chain: list[str] = []
+
+        while i < len(tokens) and tokens[i].type == "IDENTIFIER":
+            chain.append(tokens[i].value)
+            i += 1
+
+            # Check for dot followed by identifier
+            if (
+                i < len(tokens)
+                and tokens[i].type == "DOT"
+                and i + 1 < len(tokens)
+                and tokens[i + 1].type == "IDENTIFIER"
+            ):
+                i += 1  # Skip dot, continue to next identifier
+            else:
+                break
+
+        return chain, i
+
+    def _build_object_chain(self, parent: Visitable, names: list[str]) -> Visitable:
+        """
+        Build a chain of Object nodes from a list of field names.
+
+        Example: ["a", "b", "c"] with GlobalScope() parent becomes:
+            Object(Object(Object(GlobalScope(), "a"), "b"), "c")
+
+        Args:
+            parent: Starting parent node
+            names: List of field names
+
+        Returns:
+            Nested Object node
+        """
+        result = parent
+        for name in names:
+            result = Object(result, name)
+        return result
+
+    def _is_wildcard_pattern(self, tokens: list[Token], start: int) -> bool:
+        """
+        Check if tokens at position form a wildcard pattern [*].
+
+        Args:
+            tokens: List of tokens
+            start: Starting position
+
+        Returns:
+            True if [*] pattern found
+        """
+        return (
+            start + 2 < len(tokens)
+            and tokens[start].type == "LBRACKET"
+            and tokens[start + 1].type == "WILDCARD"
+            and tokens[start + 2].type == "RBRACKET"
+        )
+
     def _parse_field_access(
         self, tokens: list[Token], ctx: _ParseContext, start: int
     ) -> tuple[Visitable, int]:
@@ -361,45 +502,27 @@ class NativeParametrizedSpecification:
             i += 1
 
         # Parse field path chain (e.g., a.b.c)
-        field_chain = []
-        while i < len(tokens) and tokens[i].type == "IDENTIFIER":
-            field_chain.append(tokens[i].value)
-            i += 1
-
-            # Check for dot (continues path)
-            if i < len(tokens) and tokens[i].type == "DOT":
-                # Check if next token is also an identifier
-                if i + 1 < len(tokens) and tokens[i + 1].type == "IDENTIFIER":
-                    i += 1  # Skip dot
-                    continue
-                else:
-                    # Dot but no identifier after - break
-                    break
-            else:
-                # No dot, break
-                break
+        field_chain, i = self._parse_identifier_chain(tokens, i)
 
         if not field_chain:
-            raise SyntaxError(f"Expected field name at position {i}")
+            pos = tokens[i].position if i < len(tokens) else len(self.template)
+            raise JSONPathSyntaxError(
+                "Expected field name",
+                position=pos,
+                expression=self.template,
+                context="after '@.' or '.'",
+            )
 
         # Check for nested wildcard on last field: field[*][?...]
-        if len(field_chain) > 0 and self._check_nested_wildcard(tokens, i):
+        if self._check_nested_wildcard(tokens, i):
             # Build parent chain for all fields except the last
-            for field in field_chain[:-1]:
-                parent = Object(parent, field)
-
-            # Last field is the collection for the wildcard
+            parent = self._build_object_chain(parent, field_chain[:-1])
             collection_name = field_chain[-1]
             return self._parse_nested_wildcard(tokens, ctx, i, parent, collection_name)
 
-        # Build nested Field structure
-        # e.g., ["a", "b", "c"] -> Field(Object(Object(parent, "a"), "b"), "c")
-        for field in field_chain[:-1]:
-            parent = Object(parent, field)
-
-        # Last field
-        field_name = field_chain[-1]
-        return Field(parent, field_name), i
+        # Build nested Field structure: a.b.c -> Field(Object(Object(parent, "a"), "b"), "c")
+        parent = self._build_object_chain(parent, field_chain[:-1])
+        return Field(parent, field_chain[-1]), i
 
     def _check_nested_wildcard(self, tokens: list[Token], start: int) -> bool:
         """
@@ -414,23 +537,12 @@ class NativeParametrizedSpecification:
         Returns:
             True if nested wildcard pattern detected
         """
-        i = start
-
-        # Check for [*]
-        if (
-            i + 2 < len(tokens)
-            and tokens[i].type == "LBRACKET"
-            and tokens[i + 1].type == "WILDCARD"
-            and tokens[i + 2].type == "RBRACKET"
-        ):
-            # Check if followed by [?...]
-            if (
-                i + 3 < len(tokens)
-                and tokens[i + 3].type == "LBRACKET"
-            ):
-                return True
-
-        return False
+        # Check for [*] followed by [?...]
+        return (
+            self._is_wildcard_pattern(tokens, start)
+            and start + 3 < len(tokens)
+            and tokens[start + 3].type == "LBRACKET"
+        )
 
     def _parse_nested_wildcard(
         self, tokens: list[Token], ctx: _ParseContext, start: int,
@@ -452,15 +564,16 @@ class NativeParametrizedSpecification:
         i = start
 
         # Skip [*]
-        if (
-            i + 2 < len(tokens)
-            and tokens[i].type == "LBRACKET"
-            and tokens[i + 1].type == "WILDCARD"
-            and tokens[i + 2].type == "RBRACKET"
-        ):
+        if self._is_wildcard_pattern(tokens, i):
             i += 3
         else:
-            raise SyntaxError(f"Expected [*] at position {i}")
+            pos = tokens[i].position if i < len(tokens) else len(self.template)
+            raise JSONPathSyntaxError(
+                "Expected wildcard '[*]'",
+                position=pos,
+                expression=self.template,
+                context="in nested wildcard pattern",
+            )
 
         # Parse filter expression [?...]
         if i < len(tokens) and tokens[i].type == "LBRACKET":
@@ -478,7 +591,13 @@ class NativeParametrizedSpecification:
             collection_obj = Object(parent, collection_name)
             return Wildcard(collection_obj, predicate), i
 
-        raise SyntaxError(f"Expected filter expression at position {i}")
+        pos = tokens[i].position if i < len(tokens) else len(self.template)
+        raise JSONPathSyntaxError(
+            "Expected filter expression '[?...]'",
+            position=pos,
+            expression=self.template,
+            context="after wildcard '[*]'",
+        )
 
     def _parse_value(
         self, tokens: list[Token], ctx: _ParseContext, start: int
@@ -497,7 +616,12 @@ class NativeParametrizedSpecification:
         i = start
 
         if i >= len(tokens):
-            raise SyntaxError("Expected value but reached end of tokens")
+            raise JSONPathSyntaxError(
+                "Unexpected end of expression",
+                position=len(self.template),
+                expression=self.template,
+                context="expected value (number, string, boolean, or placeholder)",
+            )
 
         token = tokens[i]
 
@@ -526,7 +650,12 @@ class NativeParametrizedSpecification:
             elif token.value.lower() == "null":
                 return Value(None), i + 1
 
-        raise SyntaxError(f"Unexpected token in value position: {token}")
+        raise JSONPathSyntaxError(
+            f"Unexpected token '{token.value}'",
+            position=token.position,
+            expression=self.template,
+            context="expected value (number, string, boolean, or placeholder)",
+        )
 
     def _create_placeholder_value(self, ctx: _ParseContext) -> Value:
         """
@@ -572,18 +701,7 @@ class NativeParametrizedSpecification:
             i += 1
 
         # Parse path chain (e.g., a.b.c)
-        path_chain = []
-        while i < len(tokens) and tokens[i].type == "IDENTIFIER":
-            path_chain.append(tokens[i].value)
-            i += 1
-
-            # Check for dot (continues path)
-            if i < len(tokens) and tokens[i].type == "DOT":
-                i += 1
-                # Continue to next identifier
-            else:
-                # No more dots, break
-                break
+        path_chain, i = self._parse_identifier_chain(tokens, i)
 
         if not path_chain:
             # No path found, check if it's just a filter without path
@@ -593,26 +711,21 @@ class NativeParametrizedSpecification:
                 ctx.is_wildcard_context = False
                 predicate, _ = self._parse_expression(tokens, ctx, i)
                 return predicate, False
-            raise SyntaxError("Expected path or filter expression")
+            pos = tokens[i].position if i < len(tokens) else len(self.template)
+            raise JSONPathSyntaxError(
+                "Expected path or filter expression",
+                position=pos,
+                expression=self.template,
+                context="after '$'",
+            )
 
-        # Build nested Object structure from path chain
-        # e.g., ["a", "b", "c"] -> Object(Object(Object(GlobalScope(), "a"), "b"), "c")
-        parent = GlobalScope()
-        for path_element in path_chain[:-1]:
-            parent = Object(parent, path_element)
-
-        # Last element in path is the collection name
+        # Build parent chain and get collection name
+        parent = self._build_object_chain(GlobalScope(), path_chain[:-1])
         collection_name = path_chain[-1]
 
         # Check for wildcard [*]
-        is_wildcard = False
-        if (
-            i + 2 < len(tokens)
-            and tokens[i].type == "LBRACKET"
-            and tokens[i + 1].type == "WILDCARD"
-            and tokens[i + 2].type == "RBRACKET"
-        ):
-            is_wildcard = True
+        is_wildcard = self._is_wildcard_pattern(tokens, i)
+        if is_wildcard:
             i += 3
 
         # Parse filter expression
@@ -632,7 +745,13 @@ class NativeParametrizedSpecification:
                 predicate, _ = self._parse_expression(tokens, ctx, i)
                 return predicate, False
 
-        raise SyntaxError("Expected filter expression")
+        pos = tokens[i].position if i < len(tokens) else len(self.template)
+        raise JSONPathSyntaxError(
+            "Expected filter expression '[?...]'",
+            position=pos,
+            expression=self.template,
+            context="after path",
+        )
 
     def _bind_placeholder(
         self, value: Any, params: Union[Tuple[Any, ...], Dict[str, Any]]
@@ -729,9 +848,10 @@ class NativeParametrizedSpecification:
         """
         # Check if data implements Context protocol (has 'get' method)
         if not hasattr(data, "get") or not callable(getattr(data, "get")):
-            raise TypeError(
-                f"Data must implement Context protocol (have a 'get' method), "
-                f"got {type(data).__name__}"
+            raise JSONPathTypeError(
+                "Data must implement Context protocol",
+                expected="object with 'get' method",
+                got=type(data).__name__,
             )
 
         # Bind placeholder values to cached AST

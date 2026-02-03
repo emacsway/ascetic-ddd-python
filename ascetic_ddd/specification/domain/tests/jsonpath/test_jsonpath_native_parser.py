@@ -2,8 +2,11 @@
 import unittest
 from typing import Any
 
-from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import Lexer
-from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import parse
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import (
+    Lexer,
+    parse,
+    JSONPathTypeError,
+)
 from ascetic_ddd.specification.domain.evaluate_visitor import CollectionContext
 
 
@@ -183,7 +186,7 @@ class TestNativeParser(unittest.TestCase):
 
         invalid_data = NoGetMethod()
 
-        with self.assertRaises(TypeError):
+        with self.assertRaises(JSONPathTypeError):
             spec.match(invalid_data, (25,))
 
     def test_error_on_missing_field(self):
