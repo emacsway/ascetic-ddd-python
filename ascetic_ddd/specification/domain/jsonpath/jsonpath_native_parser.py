@@ -10,8 +10,21 @@ RFC 9535 Compliance:
 - Uses || for logical OR (double pipe)
 - Uses ! for logical NOT (exclamation mark)
 """
+from dataclasses import dataclass, field
 from typing import Any, Dict, Tuple, Union
 import re
+
+
+@dataclass
+class _ParseContext:
+    """
+    Mutable parsing context passed through parser methods.
+
+    Using a context object instead of instance variables makes the parser
+    thread-safe and enables concurrent parsing of different templates.
+    """
+    placeholder_bind_index: int = field(default=0)
+    is_wildcard_context: bool = field(default=False)
 
 from ascetic_ddd.specification.domain.nodes import (
     And,
@@ -122,13 +135,17 @@ class NativeParametrizedSpecification:
             template: JSONPath with %s, %d, %f or %(name)s placeholders
         """
         self.template = template
-        self._placeholder_info = []
-        self._placeholder_refs = []
-        self._placeholder_bind_index = 0
-        self._is_wildcard_context = False  # Track if we're in wildcard context
+        self._placeholder_info: list[dict] = []
 
         # Extract placeholders before tokenization
         self._extract_placeholders()
+
+        # Parse AST once at initialization (cached for all match() calls)
+        # Context is created locally - no mutable instance state
+        lexer = Lexer(template)
+        tokens = lexer.tokenize()
+        ctx = _ParseContext()
+        self._ast, self._is_wildcard = self._parse_path(tokens, ctx)
 
     def _extract_placeholders(self):
         """Extract placeholder information from template."""
@@ -162,7 +179,7 @@ class NativeParametrizedSpecification:
             position += 1
 
     def _parse_primary(
-        self, tokens: list[Token], start: int = 0
+        self, tokens: list[Token], ctx: _ParseContext, start: int = 0
     ) -> tuple[Visitable, int]:
         """
         Parse a primary expression (comparison, NOT, or parenthesized expression).
@@ -172,6 +189,7 @@ class NativeParametrizedSpecification:
 
         Args:
             tokens: List of tokens
+            ctx: Parse context (mutable state)
             start: Starting position
 
         Returns:
@@ -197,13 +215,13 @@ class NativeParametrizedSpecification:
         if i < len(tokens) and tokens[i].type == "LPAREN":
             i += 1
             # Recursively parse FULL expression inside parentheses (can have && and ||)
-            node, i = self._parse_expression(tokens, i)
+            node, i = self._parse_expression(tokens, ctx, i)
             # Skip closing parenthesis
             if i < len(tokens) and tokens[i].type == "RPAREN":
                 i += 1
         else:
             # Parse left side (field access or nested wildcard)
-            left_node, i = self._parse_field_access(tokens, i)
+            left_node, i = self._parse_field_access(tokens, ctx, i)
 
             # Check if left_node is a Wildcard (nested wildcard case)
             if isinstance(left_node, Wildcard):
@@ -220,7 +238,7 @@ class NativeParametrizedSpecification:
                 i += 1
 
                 # Parse right side (value)
-                right_node, i = self._parse_value(tokens, i)
+                right_node, i = self._parse_value(tokens, ctx, i)
 
                 # Create comparison node
                 if op_token.type == "EQ":
@@ -249,7 +267,7 @@ class NativeParametrizedSpecification:
         return node, i
 
     def _parse_and_expression(
-        self, tokens: list[Token], start: int = 0
+        self, tokens: list[Token], ctx: _ParseContext, start: int = 0
     ) -> tuple[Visitable, int]:
         """
         Parse AND expressions with left-associativity.
@@ -259,24 +277,25 @@ class NativeParametrizedSpecification:
 
         Args:
             tokens: List of tokens
+            ctx: Parse context (mutable state)
             start: Starting position
 
         Returns:
             (Visitable node, next position)
         """
         # Parse first primary expression
-        node, i = self._parse_primary(tokens, start)
+        node, i = self._parse_primary(tokens, ctx, start)
 
         # Handle && with left associativity
         while i < len(tokens) and tokens[i].type == "AND":
             i += 1
-            right_node, i = self._parse_primary(tokens, i)
+            right_node, i = self._parse_primary(tokens, ctx, i)
             node = And(node, right_node)
 
         return node, i
 
     def _parse_expression(
-        self, tokens: list[Token], start: int = 0
+        self, tokens: list[Token], ctx: _ParseContext, start: int = 0
     ) -> tuple[Visitable, int]:
         """
         Parse OR expressions with left-associativity (lowest precedence).
@@ -291,24 +310,25 @@ class NativeParametrizedSpecification:
 
         Args:
             tokens: List of tokens
+            ctx: Parse context (mutable state)
             start: Starting position
 
         Returns:
             (Visitable node, next position)
         """
         # Parse first AND expression (higher precedence)
-        node, i = self._parse_and_expression(tokens, start)
+        node, i = self._parse_and_expression(tokens, ctx, start)
 
         # Handle || with left associativity
         while i < len(tokens) and tokens[i].type == "OR":
             i += 1
-            right_node, i = self._parse_and_expression(tokens, i)
+            right_node, i = self._parse_and_expression(tokens, ctx, i)
             node = Or(node, right_node)
 
         return node, i
 
     def _parse_field_access(
-        self, tokens: list[Token], start: int
+        self, tokens: list[Token], ctx: _ParseContext, start: int
     ) -> tuple[Visitable, int]:
         """
         Parse field access expression (including nested paths and wildcards).
@@ -320,6 +340,7 @@ class NativeParametrizedSpecification:
 
         Args:
             tokens: List of tokens
+            ctx: Parse context (mutable state)
             start: Starting position
 
         Returns:
@@ -331,7 +352,7 @@ class NativeParametrizedSpecification:
         if i < len(tokens) and tokens[i].type == "AT":
             i += 1
             # Use Item() only in wildcard context, otherwise GlobalScope()
-            parent = Item() if self._is_wildcard_context else GlobalScope()
+            parent = Item() if ctx.is_wildcard_context else GlobalScope()
         else:
             parent = GlobalScope()
 
@@ -369,7 +390,7 @@ class NativeParametrizedSpecification:
 
             # Last field is the collection for the wildcard
             collection_name = field_chain[-1]
-            return self._parse_nested_wildcard(tokens, i, parent, collection_name)
+            return self._parse_nested_wildcard(tokens, ctx, i, parent, collection_name)
 
         # Build nested Field structure
         # e.g., ["a", "b", "c"] -> Field(Object(Object(parent, "a"), "b"), "c")
@@ -412,13 +433,15 @@ class NativeParametrizedSpecification:
         return False
 
     def _parse_nested_wildcard(
-        self, tokens: list[Token], start: int, parent: Visitable, collection_name: str
+        self, tokens: list[Token], ctx: _ParseContext, start: int,
+        parent: Visitable, collection_name: str
     ) -> tuple[Wildcard, int]:
         """
         Parse nested wildcard pattern: collection[*][?predicate]
 
         Args:
             tokens: List of tokens
+            ctx: Parse context (mutable state)
             start: Position after collection name
             parent: Parent node (Item or GlobalScope)
             collection_name: Name of the collection field
@@ -442,14 +465,14 @@ class NativeParametrizedSpecification:
         # Parse filter expression [?...]
         if i < len(tokens) and tokens[i].type == "LBRACKET":
             # Save current wildcard context
-            old_context = self._is_wildcard_context
+            old_context = ctx.is_wildcard_context
 
             # Set wildcard context to True for nested predicate
-            self._is_wildcard_context = True
-            predicate, i = self._parse_expression(tokens, i)
+            ctx.is_wildcard_context = True
+            predicate, i = self._parse_expression(tokens, ctx, i)
 
             # Restore previous context
-            self._is_wildcard_context = old_context
+            ctx.is_wildcard_context = old_context
 
             # Create Wildcard node
             collection_obj = Object(parent, collection_name)
@@ -457,12 +480,15 @@ class NativeParametrizedSpecification:
 
         raise SyntaxError(f"Expected filter expression at position {i}")
 
-    def _parse_value(self, tokens: list[Token], start: int) -> tuple[Value, int]:
+    def _parse_value(
+        self, tokens: list[Token], ctx: _ParseContext, start: int
+    ) -> tuple[Value, int]:
         """
         Parse a value (literal or placeholder).
 
         Args:
             tokens: List of tokens
+            ctx: Parse context (mutable state)
             start: Starting position
 
         Returns:
@@ -488,7 +514,7 @@ class NativeParametrizedSpecification:
         elif token.type == "PLACEHOLDER":
             # This is a placeholder - will be bound later
             # Return a special marker value
-            value_node = self._create_placeholder_value(token.value)
+            value_node = self._create_placeholder_value(ctx)
             return value_node, i + 1
 
         elif token.type == "IDENTIFIER":
@@ -502,22 +528,24 @@ class NativeParametrizedSpecification:
 
         raise SyntaxError(f"Unexpected token in value position: {token}")
 
-    def _create_placeholder_value(self, placeholder_str: str) -> Value:
+    def _create_placeholder_value(self, ctx: _ParseContext) -> Value:
         """
         Create a placeholder value that will be bound later.
 
         Args:
-            placeholder_str: Placeholder string (e.g., %d, %(name)s)
+            ctx: Parse context (mutable state)
 
         Returns:
             Value node with placeholder marker
         """
         # We'll store a special marker that we'll replace during match()
-        value = Value(("__PLACEHOLDER__", self._placeholder_bind_index))
-        self._placeholder_bind_index += 1
+        value = Value(("__PLACEHOLDER__", ctx.placeholder_bind_index))
+        ctx.placeholder_bind_index += 1
         return value
 
-    def _parse_path(self, tokens: list[Token]) -> tuple[Visitable, bool]:
+    def _parse_path(
+        self, tokens: list[Token], ctx: _ParseContext
+    ) -> tuple[Visitable, bool]:
         """
         Parse the full JSONPath expression (supports nested paths).
 
@@ -528,6 +556,7 @@ class NativeParametrizedSpecification:
 
         Args:
             tokens: List of tokens
+            ctx: Parse context (mutable state)
 
         Returns:
             (Visitable node, is_wildcard)
@@ -561,8 +590,8 @@ class NativeParametrizedSpecification:
             # e.g., $[?@.age > 25]
             if i < len(tokens) and tokens[i].type == "LBRACKET":
                 # Simple filter without path
-                self._is_wildcard_context = False
-                predicate, _ = self._parse_expression(tokens, i)
+                ctx.is_wildcard_context = False
+                predicate, _ = self._parse_expression(tokens, ctx, i)
                 return predicate, False
             raise SyntaxError("Expected path or filter expression")
 
@@ -590,17 +619,17 @@ class NativeParametrizedSpecification:
         if i < len(tokens) and tokens[i].type == "LBRACKET":
             if is_wildcard:
                 # Wildcard with filter
-                self._is_wildcard_context = True
-                predicate, _ = self._parse_expression(tokens, i)
-                self._is_wildcard_context = False
+                ctx.is_wildcard_context = True
+                predicate, _ = self._parse_expression(tokens, ctx, i)
+                ctx.is_wildcard_context = False
 
                 # Create Wildcard node
                 collection_obj = Object(parent, collection_name)
                 return Wildcard(collection_obj, predicate), True
             else:
                 # Simple filter without wildcard
-                self._is_wildcard_context = False
-                predicate, _ = self._parse_expression(tokens, i)
+                ctx.is_wildcard_context = False
+                predicate, _ = self._parse_expression(tokens, ctx, i)
                 return predicate, False
 
         raise SyntaxError("Expected filter expression")
@@ -705,18 +734,8 @@ class NativeParametrizedSpecification:
                 f"got {type(data).__name__}"
             )
 
-        # Reset placeholder binding index
-        self._placeholder_bind_index = 0
-
-        # Tokenize
-        lexer = Lexer(self.template)
-        tokens = lexer.tokenize()
-
-        # Parse to AST
-        spec_ast, is_wildcard = self._parse_path(tokens)
-
-        # Bind placeholder values
-        bound_ast = self._bind_values_in_ast(spec_ast, params)
+        # Bind placeholder values to cached AST
+        bound_ast = self._bind_values_in_ast(self._ast, params)
 
         # Evaluate using EvaluateVisitor
         visitor = EvaluateVisitor(data)
