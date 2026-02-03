@@ -32,14 +32,15 @@ class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
 
     queries = Queries()
 
-    _session: ISession
     _stream_type: str
     mediator: IMediator
 
-    def __init__(self, session: ISession):
-        self._session = session
-
-    async def _save(self, agg: IDomainEventAccessor[IPDE], event_meta: EventMeta) -> None:
+    async def _save(
+        self,
+        session: ISession,
+        agg: IDomainEventAccessor[IPDE],
+        event_meta: EventMeta,
+    ) -> None:
         events = []
         pending_events = agg.pending_domain_events
         del agg.pending_domain_events
@@ -55,13 +56,13 @@ class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
             query = self._do_make_event_query(event)
             query.set_stream_type(self._stream_type)
             try:
-                await query.evaluate(self._session)
+                await query.evaluate(session)
             except UniqueViolation as e:
                 raise ConcurrentUpdate(query) from e
             events.append(event)
 
         for event in events:
-            await self.mediator.publish(event, self._session)
+            await self.mediator.publish(event, session)
 
     def _do_make_event_query(self, event: IPDE) -> IEventInsertQuery:
         return self.queries[(event.event_type, event.event_version)].make(event)
