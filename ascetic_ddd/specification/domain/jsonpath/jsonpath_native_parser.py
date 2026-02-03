@@ -49,30 +49,32 @@ class Token:
 class Lexer:
     """Tokenizes JSONPath expressions."""
 
+    # Pre-compiled token patterns for performance.
+    # Patterns are compiled once at class definition time, not on each tokenize() call.
     TOKEN_PATTERNS = [
-        ("LBRACKET", r"\["),
-        ("RBRACKET", r"\]"),
-        ("LPAREN", r"\("),
-        ("RPAREN", r"\)"),
-        ("DOT", r"\."),
-        ("DOLLAR", r"\$"),
-        ("AT", r"@"),
-        ("QUESTION", r"\?"),
-        ("WILDCARD", r"\*"),
-        ("AND", r"&&"),  # RFC 9535: double ampersand
-        ("OR", r"\|\|"),  # RFC 9535: double pipe
-        ("EQ", r"=="),  # RFC 9535: double equals (must be before single =)
-        ("NE", r"!="),  # Must be before NOT to match != as one token
-        ("GTE", r">="),
-        ("LTE", r"<="),
-        ("GT", r">"),
-        ("LT", r"<"),
-        ("NOT", r"!"),  # RFC 9535: exclamation mark (after !=)
-        ("NUMBER", r"-?\d+\.?\d*"),
-        ("STRING", r"'[^']*'|\"[^\"]*\""),
-        ("PLACEHOLDER", r"%\(\w+\)[sdf]|%[sdf]"),
-        ("IDENTIFIER", r"[a-zA-Z_][a-zA-Z0-9_]*"),
-        ("WHITESPACE", r"\s+"),
+        ("LBRACKET", re.compile(r"\[")),
+        ("RBRACKET", re.compile(r"\]")),
+        ("LPAREN", re.compile(r"\(")),
+        ("RPAREN", re.compile(r"\)")),
+        ("DOT", re.compile(r"\.")),
+        ("DOLLAR", re.compile(r"\$")),
+        ("AT", re.compile(r"@")),
+        ("QUESTION", re.compile(r"\?")),
+        ("WILDCARD", re.compile(r"\*")),
+        ("AND", re.compile(r"&&")),  # RFC 9535: double ampersand
+        ("OR", re.compile(r"\|\|")),  # RFC 9535: double pipe
+        ("EQ", re.compile(r"==")),  # RFC 9535: double equals (must be before single =)
+        ("NE", re.compile(r"!=")),  # Must be before NOT to match != as one token
+        ("GTE", re.compile(r">=")),
+        ("LTE", re.compile(r"<=")),
+        ("GT", re.compile(r">")),
+        ("LT", re.compile(r"<")),
+        ("NOT", re.compile(r"!")),  # RFC 9535: exclamation mark (after !=)
+        ("NUMBER", re.compile(r"-?\d+\.?\d*")),
+        ("STRING", re.compile(r"'[^']*'|\"[^\"]*\"")),
+        ("PLACEHOLDER", re.compile(r"%\(\w+\)[sdf]|%[sdf]")),
+        ("IDENTIFIER", re.compile(r"[a-zA-Z_][a-zA-Z0-9_]*")),
+        ("WHITESPACE", re.compile(r"\s+")),
     ]
 
     def __init__(self, text: str):
@@ -85,8 +87,7 @@ class Lexer:
         while self.position < len(self.text):
             matched = False
 
-            for token_type, pattern in self.TOKEN_PATTERNS:
-                regex = re.compile(pattern)
+            for token_type, regex in self.TOKEN_PATTERNS:
                 match = regex.match(self.text, self.position)
 
                 if match:
