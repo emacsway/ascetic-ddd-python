@@ -4,10 +4,37 @@ JSONPath parser for Specification Pattern using jsonpath-rfc9535 library.
 Parses RFC 9535 compliant JSONPath expressions with C-style placeholders
 (%s, %d, %f, %(name)s) and converts them to Specification AST nodes.
 """
-from typing import Any, Dict, Tuple, Union
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple, Union
 import re
 
 from jsonpath_rfc9535 import JSONPathEnvironment
+
+# Import shared exceptions from native parser
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import (
+    JSONPathError,
+    JSONPathSyntaxError,
+    JSONPathTypeError,
+)
+
+
+# Placeholder marker constants to avoid magic numbers
+# Using unlikely values within safe integer range for JSON (2^53 - 1)
+PLACEHOLDER_MARKER_INT = -8765432109876
+PLACEHOLDER_MARKER_FLOAT = -8765432109876.5
+PLACEHOLDER_MARKER_STR = "__JSONPATH_PLACEHOLDER_a1b2c3d4__"
+
+
+@dataclass
+class _ConvertContext:
+    """
+    Mutable context for AST conversion.
+
+    Using a context object instead of instance variables makes the converter
+    thread-safe and enables concurrent conversion of different expressions.
+    """
+    placeholder_bind_index: int = field(default=0)
+    in_item_context: bool = field(default=False)
 from jsonpath_rfc9535.selectors import NameSelector, WildcardSelector, FilterSelector
 from jsonpath_rfc9535.filter_expressions import (
     ComparisonExpression,
@@ -46,7 +73,8 @@ class ParametrizedSpecificationRFC9535:
     """
     JSONPath specification parser using jsonpath-rfc9535 library (RFC 9535 compliant).
 
-    Parses template once, binds different values at execution time.
+    Parses template once at initialization, binds different values at execution time.
+    Thread-safe: all mutable state is passed through context objects.
     """
 
     def __init__(self, template: str):
@@ -55,15 +83,29 @@ class ParametrizedSpecificationRFC9535:
 
         Args:
             template: JSONPath with %s, %d, %f or %(name)s placeholders
+
+        Raises:
+            JSONPathSyntaxError: If template has invalid syntax
         """
         self.template = template
-        self._placeholder_info = []
-        self._placeholder_bind_index = 0
-        self._in_item_context = False
-        self.env = JSONPathEnvironment()
+        self._placeholder_info: List[dict] = []
+        self._env = JSONPathEnvironment()
 
         # Extract placeholders before parsing
         self._extract_placeholders()
+
+        # Parse and cache query at initialization (not on every match() call)
+        processed_template = self._preprocess_template()
+        try:
+            self._query = self._env.compile(processed_template)
+        except Exception as e:
+            raise JSONPathSyntaxError(
+                f"Failed to parse JSONPath template: {e}",
+                expression=template,
+            ) from e
+
+        # Cache whether query contains wildcard
+        self._has_wildcard = self._contains_wildcard(self._query)
 
     def _extract_placeholders(self):
         """Extract placeholder information from template."""
@@ -100,42 +142,34 @@ class ParametrizedSpecificationRFC9535:
         """
         Replace placeholders with temporary markers.
 
+        Uses unique marker values that are unlikely to appear in real data
+        to avoid collisions.
+
         Returns:
             Processed template string
         """
         processed = self.template
 
-        # Replace named placeholders
+        # Replacement values based on type
+        replacements = {
+            "s": f'"{PLACEHOLDER_MARKER_STR}"',
+            "d": str(PLACEHOLDER_MARKER_INT),
+            "f": str(PLACEHOLDER_MARKER_FLOAT),
+        }
+
+        # Replace named placeholders: %(name)s, %(age)d, %(price)f
         named_pattern = r"%\((\w+)\)([sdf])"
         for match in re.finditer(named_pattern, processed):
             placeholder_str = match.group(0)
             format_type = match.group(2)
+            processed = processed.replace(placeholder_str, replacements[format_type], 1)
 
-            # Replace with valid literal based on type
-            if format_type == "s":
-                replacement = '"__PLACEHOLDER__"'
-            elif format_type == "d":
-                replacement = "999999"
-            elif format_type == "f":
-                replacement = "999999.0"
-
-            processed = processed.replace(placeholder_str, replacement, 1)
-
-        # Replace positional placeholders
+        # Replace positional placeholders: %s, %d, %f
         positional_pattern = r"%([sdf])"
         for match in re.finditer(positional_pattern, processed):
             placeholder_str = match.group(0)
             format_type = match.group(1)
-
-            # Replace with valid literal
-            if format_type == "s":
-                replacement = '"__PLACEHOLDER__"'
-            elif format_type == "d":
-                replacement = "999999"
-            elif format_type == "f":
-                replacement = "999999.0"
-
-            processed = processed.replace(placeholder_str, replacement, 1)
+            processed = processed.replace(placeholder_str, replacements[format_type], 1)
 
         return processed
 
@@ -148,24 +182,25 @@ class ParametrizedSpecificationRFC9535:
         return False
 
     def _extract_filter_expression(
-        self, query, params: Union[Tuple[Any, ...], Dict[str, Any]]
+        self,
+        query,
+        ctx: _ConvertContext,
+        params: Union[Tuple[Any, ...], Dict[str, Any]],
     ) -> Visitable:
         """
         Extract and convert filter expression from JSONPath to Specification AST.
 
         Args:
             query: Parsed JSONPath query
+            ctx: Conversion context (mutable state)
             params: Parameter values
 
         Returns:
             Specification AST node
+
+        Raises:
+            JSONPathSyntaxError: If no filter expression found
         """
-        # Reset placeholder binding index
-        self._placeholder_bind_index = 0
-
-        # Check for wildcard
-        has_wildcard = self._contains_wildcard(query)
-
         # Traverse segments to find collection name and filter
         collection_name = None
 
@@ -177,19 +212,27 @@ class ParametrizedSpecificationRFC9535:
                 elif isinstance(selector, FilterSelector):
                     # Found filter expression
                     filter_expr = selector.expression.expression
-                    if has_wildcard and collection_name:
+                    if self._has_wildcard and collection_name:
                         return self._create_wildcard_spec(
-                            filter_expr, collection_name, params
+                            filter_expr, collection_name, ctx, params
                         )
                     else:
                         return self._convert_expression_to_spec(
-                            filter_expr, params, False
+                            filter_expr, ctx, params, in_item_context=False
                         )
 
-        raise ValueError("No filter expression found in JSONPath")
+        raise JSONPathSyntaxError(
+            "No filter expression found in JSONPath",
+            expression=self.template,
+            context="expected [?...] filter",
+        )
 
     def _create_wildcard_spec(
-        self, expression, collection_name: str, params
+        self,
+        expression,
+        collection_name: str,
+        ctx: _ConvertContext,
+        params: Union[Tuple[Any, ...], Dict[str, Any]],
     ) -> Wildcard:
         """
         Create a Wildcard specification for collection filtering.
@@ -197,21 +240,28 @@ class ParametrizedSpecificationRFC9535:
         Args:
             expression: Filter expression
             collection_name: Name of the collection field
+            ctx: Conversion context (mutable state)
             params: Parameter values
 
         Returns:
             Wildcard specification node
         """
         # Convert filter with Item context
-        predicate = self._convert_expression_to_spec(expression, params, True)
+        predicate = self._convert_expression_to_spec(
+            expression, ctx, params, in_item_context=True
+        )
 
         # Create Wildcard node
         parent = Object(GlobalScope(), collection_name)
         return Wildcard(parent, predicate)
 
     def _convert_relative_query_to_wildcard(
-        self, rel_query: RelativeFilterQuery, params, in_item_context: bool
-    ) -> Wildcard:
+        self,
+        rel_query: RelativeFilterQuery,
+        ctx: _ConvertContext,
+        params: Union[Tuple[Any, ...], Dict[str, Any]],
+        in_item_context: bool,
+    ) -> Visitable:
         """
         Convert RelativeFilterQuery to nested Wildcard.
 
@@ -220,11 +270,15 @@ class ParametrizedSpecificationRFC9535:
 
         Args:
             rel_query: RelativeFilterQuery from jsonpath-rfc9535
+            ctx: Conversion context (mutable state)
             params: Parameter values
             in_item_context: Whether we're already in a wildcard context
 
         Returns:
-            Wildcard node representing the nested filter
+            Wildcard node representing the nested filter, or Field for simple access
+
+        Raises:
+            JSONPathSyntaxError: If query structure is invalid
         """
         query = rel_query.query
 
@@ -243,221 +297,370 @@ class ParametrizedSpecificationRFC9535:
                     filter_expression = selector.expression.expression
 
         if not collection_name:
-            raise ValueError(f"No collection name found in RelativeFilterQuery: {rel_query}")
+            raise JSONPathSyntaxError(
+                "No collection name found in relative query",
+                expression=self.template,
+                context=f"in expression: {rel_query}",
+            )
 
         if not has_wildcard:
             # No wildcard - just a simple field access
-            # This shouldn't happen in a filter expression context, but handle it
             parent = Item() if in_item_context else GlobalScope()
             return Field(parent, collection_name)
 
         # We have a wildcard - create nested Wildcard
-        # Parent should be Item() if we're in nested context
         parent_obj = Item() if in_item_context else GlobalScope()
         collection_obj = Object(parent_obj, collection_name)
 
         # Convert the filter expression (if any)
         if filter_expression:
-            # Set item context to True for nested wildcard predicate
-            predicate = self._convert_expression_to_spec(filter_expression, params, True)
+            predicate = self._convert_expression_to_spec(
+                filter_expression, ctx, params, in_item_context=True
+            )
         else:
-            # No filter - matches all items (this is unusual but possible)
-            # We could use AlwaysTrue specification if we had one
-            raise ValueError("Wildcard without filter expression is not supported")
+            raise JSONPathSyntaxError(
+                "Wildcard without filter expression is not supported",
+                expression=self.template,
+                context="expected [*][?...] pattern",
+            )
 
         return Wildcard(collection_obj, predicate)
 
     def _convert_expression_to_spec(
-        self, expression, params, in_item_context: bool
+        self,
+        expression,
+        ctx: _ConvertContext,
+        params: Union[Tuple[Any, ...], Dict[str, Any]],
+        in_item_context: bool,
     ) -> Visitable:
         """
         Convert jsonpath-rfc9535 expression to Specification AST.
 
         Args:
             expression: JSONPath expression node
+            ctx: Conversion context (mutable state)
             params: Parameter values
             in_item_context: Whether we're in a wildcard/item context
 
         Returns:
             Specification AST node
+
+        Raises:
+            JSONPathSyntaxError: If expression type is not supported
         """
-        self._in_item_context = in_item_context
+        ctx.in_item_context = in_item_context
 
         # Handle unary NOT operator (prefix expression)
         if isinstance(expression, PrefixExpression):
             if expression.operator == '!':
-                # Get the operand expression
                 operand = self._convert_expression_to_spec(
-                    expression.right, params, in_item_context
+                    expression.right, ctx, params, in_item_context
                 )
                 return Not(operand)
             else:
-                raise ValueError(f"Unsupported prefix operator: {expression.operator}")
+                raise JSONPathSyntaxError(
+                    f"Unsupported prefix operator: {expression.operator}",
+                    expression=self.template,
+                )
 
         # Handle logical operators (AND, OR)
         if isinstance(expression, LogicalExpression):
-            # Get left and right operands
             left = self._convert_expression_to_spec(
-                expression.left, params, in_item_context
+                expression.left, ctx, params, in_item_context
             )
             right = self._convert_expression_to_spec(
-                expression.right, params, in_item_context
+                expression.right, ctx, params, in_item_context
             )
 
-            # Determine operator type
-            expr_str = str(expression)
-            if '&&' in expr_str or ' and ' in expr_str.lower():
+            # Use operator attribute if available, fallback to string parsing
+            operator = getattr(expression, 'operator', None)
+            if operator is None:
+                # Fallback: parse from string representation
+                expr_str = str(expression)
+                if '&&' in expr_str:
+                    operator = '&&'
+                elif '||' in expr_str:
+                    operator = '||'
+
+            if operator == '&&' or operator == 'and':
                 return And(left, right)
-            elif '||' in expr_str or ' or ' in expr_str.lower():
+            elif operator == '||' or operator == 'or':
                 return Or(left, right)
             else:
-                # Fallback: assume AND
-                return And(left, right)
+                raise JSONPathSyntaxError(
+                    f"Unknown logical operator in expression: {expression}",
+                    expression=self.template,
+                    context="expected && or ||",
+                )
 
         # Handle comparison operators
         if isinstance(expression, ComparisonExpression):
-            # Get left and right operands
-            left = self._convert_operand_to_spec(expression.left, params)
-            right = self._convert_operand_to_spec(expression.right, params)
+            left = self._convert_operand_to_spec(expression.left, ctx, params)
+            right = self._convert_operand_to_spec(expression.right, ctx, params)
 
-            # Map operator to Specification node
-            if expression.operator == '==':
-                return Equal(left, right)
-            elif expression.operator == '!=':
-                return NotEqual(left, right)
-            elif expression.operator == '>':
-                return GreaterThan(left, right)
-            elif expression.operator == '<':
-                return LessThan(left, right)
-            elif expression.operator == '>=':
-                return GreaterThanEqual(left, right)
-            elif expression.operator == '<=':
-                return LessThanEqual(left, right)
+            operator_map = {
+                '==': Equal,
+                '!=': NotEqual,
+                '>': GreaterThan,
+                '<': LessThan,
+                '>=': GreaterThanEqual,
+                '<=': LessThanEqual,
+            }
+
+            node_class = operator_map.get(expression.operator)
+            if node_class:
+                return node_class(left, right)
             else:
-                raise ValueError(f"Unsupported comparison operator: {expression.operator}")
+                raise JSONPathSyntaxError(
+                    f"Unsupported comparison operator: {expression.operator}",
+                    expression=self.template,
+                )
 
         # Handle nested wildcard (RelativeFilterQuery as expression)
         if isinstance(expression, RelativeFilterQuery):
-            return self._convert_relative_query_to_wildcard(expression, params, in_item_context)
+            return self._convert_relative_query_to_wildcard(
+                expression, ctx, params, in_item_context
+            )
 
-        raise ValueError(f"Unsupported expression type: {type(expression)}")
+        raise JSONPathSyntaxError(
+            f"Unsupported expression type: {type(expression).__name__}",
+            expression=self.template,
+        )
 
-    def _convert_operand_to_spec(self, operand, params) -> Visitable:
+    def _convert_operand_to_spec(
+        self,
+        operand,
+        ctx: _ConvertContext,
+        params: Union[Tuple[Any, ...], Dict[str, Any]],
+    ) -> Visitable:
         """
         Convert jsonpath-rfc9535 operand to Specification AST.
 
         Args:
             operand: JSONPath operand (literal or query)
+            ctx: Conversion context (mutable state)
             params: Parameter values
 
         Returns:
             Specification AST node
+
+        Raises:
+            JSONPathSyntaxError: If operand type is not supported
         """
-        # Handle literals
+        # Handle integer literals
         if isinstance(operand, IntegerLiteral):
             value = operand.value
             # Check if it's a placeholder marker
-            if value == 999999 and self._placeholder_bind_index < len(self._placeholder_info):
-                ph = self._placeholder_info[self._placeholder_bind_index]
-                if ph["format_type"] in ("d", "f"):
-                    return self._get_placeholder_value(ph, params)
+            if value == PLACEHOLDER_MARKER_INT:
+                return self._try_bind_placeholder(ctx, params, ("d", "f"))
             return Value(value)
 
-        elif isinstance(operand, FloatLiteral):
+        # Handle float literals
+        if isinstance(operand, FloatLiteral):
             value = operand.value
             # Check if it's a placeholder marker
-            if value == 999999.0 and self._placeholder_bind_index < len(self._placeholder_info):
-                ph = self._placeholder_info[self._placeholder_bind_index]
-                if ph["format_type"] == "f":
-                    return self._get_placeholder_value(ph, params)
+            if value == PLACEHOLDER_MARKER_FLOAT:
+                return self._try_bind_placeholder(ctx, params, ("f",))
             return Value(value)
 
-        elif isinstance(operand, StringLiteral):
+        # Handle string literals
+        if isinstance(operand, StringLiteral):
             value = operand.value
             # Check if it's a placeholder marker
-            if value == "__PLACEHOLDER__" and self._placeholder_bind_index < len(self._placeholder_info):
-                ph = self._placeholder_info[self._placeholder_bind_index]
-                if ph["format_type"] == "s":
-                    return self._get_placeholder_value(ph, params)
+            if value == PLACEHOLDER_MARKER_STR:
+                return self._try_bind_placeholder(ctx, params, ("s",))
             return Value(value)
 
-        elif isinstance(operand, BooleanLiteral):
+        # Handle boolean and null literals
+        if isinstance(operand, BooleanLiteral):
             return Value(operand.value)
 
-        elif isinstance(operand, NullLiteral):
+        if isinstance(operand, NullLiteral):
             return Value(None)
 
         # Handle relative filter query (@.field or @.items[*][?...])
-        elif isinstance(operand, RelativeFilterQuery):
-            query = operand.query
-
-            # Check if this is a simple field access or a nested wildcard
-            has_wildcard = False
-            has_filter = False
-
-            for segment in query.segments:
-                for selector in segment.selectors:
-                    if isinstance(selector, WildcardSelector):
-                        has_wildcard = True
-                    elif isinstance(selector, FilterSelector):
-                        has_filter = True
-
-            # If it has wildcard or filter, treat it as a nested wildcard
-            if has_wildcard or has_filter:
-                return self._convert_relative_query_to_wildcard(operand, params, self._in_item_context)
-
-            # Field access (simple or nested): @.field or @.profile.age
-            if query.segments and len(query.segments) > 0:
-                # Collect all field names from segments
-                field_chain = []
-                for segment in query.segments:
-                    if segment.selectors and len(segment.selectors) > 0:
-                        selector = segment.selectors[0]
-                        if isinstance(selector, NameSelector):
-                            field_chain.append(selector.name)
-                        else:
-                            raise ValueError(f"Unsupported selector in nested path: {type(selector).__name__}")
-
-                if not field_chain:
-                    raise ValueError(f"No field names found in filter query: {operand}")
-
-                # Build nested Field structure for nested paths
-                # e.g., ["profile", "age"] -> Field(Object(parent, "profile"), "age")
-                parent = Item() if self._in_item_context else GlobalScope()
-
-                # Build Object chain for all fields except the last
-                for field in field_chain[:-1]:
-                    parent = Object(parent, field)
-
-                # Last field
-                field_name = field_chain[-1]
-                return Field(parent, field_name)
-
-            raise ValueError(f"Unsupported filter query: {operand}")
+        if isinstance(operand, RelativeFilterQuery):
+            return self._convert_relative_query_operand(operand, ctx, params)
 
         # Handle nested expressions
         if isinstance(operand, (ComparisonExpression, LogicalExpression, PrefixExpression)):
-            return self._convert_expression_to_spec(operand, params, self._in_item_context)
+            return self._convert_expression_to_spec(
+                operand, ctx, params, ctx.in_item_context
+            )
 
-        raise ValueError(f"Unsupported operand type: {type(operand)}")
+        raise JSONPathSyntaxError(
+            f"Unsupported operand type: {type(operand).__name__}",
+            expression=self.template,
+        )
 
-    def _get_placeholder_value(self, ph, params) -> Value:
-        """Get actual value from parameters for a placeholder."""
+    def _try_bind_placeholder(
+        self,
+        ctx: _ConvertContext,
+        params: Union[Tuple[Any, ...], Dict[str, Any]],
+        allowed_types: tuple,
+    ) -> Value:
+        """
+        Try to bind a placeholder value from params.
+
+        Args:
+            ctx: Conversion context
+            params: Parameter values
+            allowed_types: Tuple of allowed format types (e.g., ("d", "f"))
+
+        Returns:
+            Value node with bound parameter
+        """
+        if ctx.placeholder_bind_index < len(self._placeholder_info):
+            ph = self._placeholder_info[ctx.placeholder_bind_index]
+            if ph["format_type"] in allowed_types:
+                return self._get_placeholder_value(ctx, ph, params)
+        # If not a placeholder, this shouldn't happen with marker values
+        raise JSONPathSyntaxError(
+            "Unexpected placeholder marker value",
+            expression=self.template,
+        )
+
+    def _convert_relative_query_operand(
+        self,
+        operand: RelativeFilterQuery,
+        ctx: _ConvertContext,
+        params: Union[Tuple[Any, ...], Dict[str, Any]],
+    ) -> Visitable:
+        """
+        Convert RelativeFilterQuery operand to AST node.
+
+        Handles both simple field access (@.field) and nested wildcards (@.items[*][?...]).
+
+        Args:
+            operand: RelativeFilterQuery from jsonpath-rfc9535
+            ctx: Conversion context
+            params: Parameter values
+
+        Returns:
+            Field or Wildcard node
+        """
+        query = operand.query
+
+        # Check if this is a simple field access or a nested wildcard
+        has_wildcard = False
+        has_filter = False
+
+        for segment in query.segments:
+            for selector in segment.selectors:
+                if isinstance(selector, WildcardSelector):
+                    has_wildcard = True
+                elif isinstance(selector, FilterSelector):
+                    has_filter = True
+
+        # If it has wildcard or filter, treat it as a nested wildcard
+        if has_wildcard or has_filter:
+            return self._convert_relative_query_to_wildcard(
+                operand, ctx, params, ctx.in_item_context
+            )
+
+        # Simple field access: @.field or @.profile.age
+        return self._convert_field_access(query, ctx.in_item_context)
+
+    def _convert_field_access(self, query, in_item_context: bool) -> Field:
+        """
+        Convert query segments to Field node with proper nesting.
+
+        Args:
+            query: Parsed query with segments
+            in_item_context: Whether we're in wildcard context
+
+        Returns:
+            Field node (possibly nested via Object chain)
+
+        Raises:
+            JSONPathSyntaxError: If field names cannot be extracted
+        """
+        if not query.segments:
+            raise JSONPathSyntaxError(
+                "Empty field access query",
+                expression=self.template,
+            )
+
+        # Collect all field names from segments
+        field_chain: List[str] = []
+        for segment in query.segments:
+            if segment.selectors:
+                selector = segment.selectors[0]
+                if isinstance(selector, NameSelector):
+                    field_chain.append(selector.name)
+                else:
+                    raise JSONPathSyntaxError(
+                        f"Unsupported selector in field path: {type(selector).__name__}",
+                        expression=self.template,
+                    )
+
+        if not field_chain:
+            raise JSONPathSyntaxError(
+                "No field names found in query",
+                expression=self.template,
+            )
+
+        # Build nested Field structure
+        parent: Visitable = Item() if in_item_context else GlobalScope()
+        parent = self._build_object_chain(parent, field_chain[:-1])
+        return Field(parent, field_chain[-1])
+
+    def _build_object_chain(self, parent: Visitable, names: List[str]) -> Visitable:
+        """
+        Build a chain of Object nodes from a list of field names.
+
+        Args:
+            parent: Starting parent node
+            names: List of field names
+
+        Returns:
+            Nested Object node (or parent if names is empty)
+        """
+        result = parent
+        for name in names:
+            result = Object(result, name)
+        return result
+
+    def _get_placeholder_value(
+        self,
+        ctx: _ConvertContext,
+        ph: dict,
+        params: Union[Tuple[Any, ...], Dict[str, Any]],
+    ) -> Value:
+        """
+        Get actual value from parameters for a placeholder.
+
+        Args:
+            ctx: Conversion context (mutable state)
+            ph: Placeholder info dict
+            params: Parameter values
+
+        Returns:
+            Value node with bound parameter
+
+        Raises:
+            JSONPathSyntaxError: If required parameter is missing
+        """
         if ph["positional"]:
             param_idx = int(ph["name"])
-            if param_idx < len(params):
+            if isinstance(params, (list, tuple)) and param_idx < len(params):
                 actual_value = params[param_idx]
             else:
-                raise ValueError(
-                    f"Missing positional parameter at index {param_idx}"
+                raise JSONPathSyntaxError(
+                    f"Missing positional parameter at index {param_idx}",
+                    expression=self.template,
+                    context=f"expected {len(self._placeholder_info)} parameters",
                 )
         else:
-            if ph["name"] in params:
+            if isinstance(params, dict) and ph["name"] in params:
                 actual_value = params[ph["name"]]
             else:
-                raise ValueError(f"Missing named parameter: {ph['name']}")
+                raise JSONPathSyntaxError(
+                    f"Missing named parameter: {ph['name']}",
+                    expression=self.template,
+                )
 
-        self._placeholder_bind_index += 1
+        ctx.placeholder_bind_index += 1
         return Value(actual_value)
 
     def match(
@@ -466,12 +669,18 @@ class ParametrizedSpecificationRFC9535:
         """
         Check if data matches the specification with given parameters.
 
+        This method is thread-safe: it uses a local context object for all
+        mutable state during conversion.
+
         Args:
             data: The data object to check (must implement Context protocol)
             params: Parameter values (tuple for positional, dict for named)
 
         Returns:
             True if data matches the specification, False otherwise
+
+        Raises:
+            JSONPathTypeError: If data doesn't implement Context protocol
 
         Examples:
             >>> spec = parse("$[?@.age > %d]")
@@ -481,22 +690,17 @@ class ParametrizedSpecificationRFC9535:
         """
         # Check if data implements Context protocol (has 'get' method)
         if not hasattr(data, "get") or not callable(getattr(data, "get")):
-            raise TypeError(
-                f"Data must implement Context protocol (have a 'get' method), "
-                f"got {type(data).__name__}"
+            raise JSONPathTypeError(
+                "Data must implement Context protocol",
+                expected="object with 'get' method",
+                got=type(data).__name__,
             )
 
-        # Reset placeholder binding index
-        self._placeholder_bind_index = 0
+        # Create local context for thread-safety
+        ctx = _ConvertContext()
 
-        # Preprocess template
-        processed_template = self._preprocess_template()
-
-        # Parse with jsonpath-rfc9535
-        query = self.env.compile(processed_template)
-
-        # Extract filter expression and convert to Specification AST
-        spec_ast = self._extract_filter_expression(query, params)
+        # Convert cached query to Specification AST (binds params)
+        spec_ast = self._extract_filter_expression(self._query, ctx, params)
 
         # Evaluate using EvaluateVisitor
         visitor = EvaluateVisitor(data)

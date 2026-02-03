@@ -3,6 +3,10 @@ import unittest
 from typing import Any
 
 from ascetic_ddd.specification.domain.jsonpath.jsonpath_rfc9535_parser import parse
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import (
+    JSONPathError,
+    JSONPathSyntaxError,
+)
 
 
 class DictContext:
@@ -245,7 +249,7 @@ class TestJsonPathRFC9535Parser(unittest.TestCase):
         spec = parse("$[?@.age > %d && @.active == %s]")
         user = DictContext({"age": 30, "active": True})
 
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(JSONPathSyntaxError) as cm:
             spec.match(user, (25,))  # Missing second parameter
 
         self.assertIn("Missing positional parameter", str(cm.exception))
@@ -255,7 +259,7 @@ class TestJsonPathRFC9535Parser(unittest.TestCase):
         spec = parse("$[?@.age > %(min_age)d && @.active == %(active)s]")
         user = DictContext({"age": 30, "active": True})
 
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(JSONPathSyntaxError) as cm:
             spec.match(user, {"min_age": 25})  # Missing 'active' parameter
 
         self.assertIn("Missing named parameter", str(cm.exception))
