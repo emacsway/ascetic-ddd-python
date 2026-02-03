@@ -4,9 +4,109 @@ Extension for jsonpath-rfc9535 parser to support parameterized expressions.
 Extends the parser to recognize placeholders (%s, %d, %f, %(name)s)
 and bind values at execution time.
 """
-from typing import Any, Dict, Tuple, Union
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 import re
+
 from jsonpath_rfc9535 import JSONPathEnvironment
+
+
+# Unique placeholder markers (chosen to avoid collision with real data)
+PLACEHOLDER_MARKER_INT = -8765432109876
+PLACEHOLDER_MARKER_FLOAT = -8765432109876.5
+PLACEHOLDER_MARKER_STR = "__JSONPATH_PARAM_PLACEHOLDER_x9y8z7__"
+
+# Pre-compiled regex patterns for better performance
+_NAMED_PLACEHOLDER_PATTERN = re.compile(r'%\((\w+)\)([sdf])')
+_POSITIONAL_PLACEHOLDER_PATTERN = re.compile(r'%([sdf])')
+
+
+class JSONPathParameterError(Exception):
+    """Base exception for JSONPath parameter binding errors."""
+    pass
+
+
+class MissingParameterError(JSONPathParameterError):
+    """Raised when a required parameter is missing."""
+
+    def __init__(self, message: str, param_name: str = None, param_index: int = None):
+        super().__init__(message)
+        self.param_name = param_name
+        self.param_index = param_index
+
+
+@dataclass(frozen=True)
+class PlaceholderInfo:
+    """Information about a placeholder in the template."""
+    original: str
+    name: str
+    format_type: str
+    positional: bool
+
+
+def _get_placeholder_marker(format_type: str) -> str:
+    """
+    Get the appropriate placeholder marker for a format type.
+
+    Args:
+        format_type: 's', 'd', or 'f'
+
+    Returns:
+        String representation of the marker for use in JSONPath
+    """
+    if format_type == 's':
+        return f'"{PLACEHOLDER_MARKER_STR}"'
+    elif format_type == 'd':
+        return str(PLACEHOLDER_MARKER_INT)
+    elif format_type == 'f':
+        return str(PLACEHOLDER_MARKER_FLOAT)
+    else:
+        raise ValueError(f"Unknown format type: {format_type}")
+
+
+def _get_marker_for_replacement(format_type: str) -> str:
+    """
+    Get the marker string to search for during replacement.
+
+    Args:
+        format_type: 's', 'd', or 'f'
+
+    Returns:
+        The marker string as it appears in the processed template
+    """
+    if format_type == 's':
+        return f'"{PLACEHOLDER_MARKER_STR}"'
+    elif format_type == 'd':
+        return str(PLACEHOLDER_MARKER_INT)
+    elif format_type == 'f':
+        return str(PLACEHOLDER_MARKER_FLOAT)
+    else:
+        raise ValueError(f"Unknown format type: {format_type}")
+
+
+def _format_value(value: Any, format_type: str) -> str:
+    """
+    Format a value for insertion into JSONPath expression.
+
+    Args:
+        value: The value to format
+        format_type: 's', 'd', or 'f'
+
+    Returns:
+        Formatted string representation
+    """
+    if format_type == 's':
+        if isinstance(value, bool):
+            return 'true' if value else 'false'
+        escaped_value = str(value).replace('"', '\\"')
+        return f'"{escaped_value}"'
+    elif format_type == 'd':
+        return str(int(value))
+    elif format_type == 'f':
+        return str(float(value))
+    else:
+        raise ValueError(f"Unknown format type: {format_type}")
 
 
 class ParametrizedExpression:
@@ -14,9 +114,10 @@ class ParametrizedExpression:
     JSONPath expression with placeholder support (RFC 9535 compliant).
 
     Parses template once, binds different values at execution time.
+    Thread-safe: uses LRU cache for compiled queries.
     """
 
-    def __init__(self, template: str, env: JSONPathEnvironment = None):
+    def __init__(self, template: str, env: Optional[JSONPathEnvironment] = None):
         """
         Parse template with placeholders.
 
@@ -26,126 +127,132 @@ class ParametrizedExpression:
         """
         self.template = template
         self.env = env or JSONPathEnvironment()
-        self._placeholder_info = []  # Info from preprocessing
+        self._placeholder_info: List[PlaceholderInfo] = []
 
         # Parse template and replace placeholders with markers
-        self._processed_template, self._placeholder_info = self._preprocess_template(template)
+        self._processed_template = self._preprocess_template(template)
 
     @property
-    def placeholders(self):
+    def placeholders(self) -> List[PlaceholderInfo]:
         """Return placeholder info for compatibility."""
         return self._placeholder_info
 
-    def _preprocess_template(self, template: str) -> Tuple[str, list]:
+    def _preprocess_template(self, template: str) -> str:
         """
         Replace placeholders with temporary markers.
 
+        Args:
+            template: Original template with placeholders
+
         Returns:
-            (processed_template, list of placeholder info)
+            Processed template with markers
         """
-        placeholders = []
         processed = template
 
-        # Find named placeholders: %(name)s, %(age)d, %(price)f
-        named_pattern = r'%\((\w+)\)([sdf])'
-        for match in re.finditer(named_pattern, template):
+        # Find and replace named placeholders: %(name)s, %(age)d, %(price)f
+        for match in _NAMED_PLACEHOLDER_PATTERN.finditer(template):
             name = match.group(1)
             format_type = match.group(2)
             placeholder_str = match.group(0)
 
-            # Replace with a valid JSONPath literal based on type
-            if format_type == 's':
-                replacement = '"__PLACEHOLDER__"'
-            elif format_type == 'd':
-                replacement = '999999'
-            elif format_type == 'f':
-                replacement = '999999.0'
-
-            placeholders.append({
-                'original': placeholder_str,
-                'name': name,
-                'format_type': format_type,
-                'replacement': replacement,
-                'positional': False
-            })
-
+            replacement = _get_placeholder_marker(format_type)
+            self._placeholder_info.append(PlaceholderInfo(
+                original=placeholder_str,
+                name=name,
+                format_type=format_type,
+                positional=False,
+            ))
             processed = processed.replace(placeholder_str, replacement, 1)
 
-        # Find positional placeholders: %s, %d, %f
-        positional_pattern = r'%([sdf])'
+        # Find and replace positional placeholders: %s, %d, %f
         position = 0
-        for match in re.finditer(positional_pattern, processed):
+        for match in _POSITIONAL_PLACEHOLDER_PATTERN.finditer(processed):
             format_type = match.group(1)
             placeholder_str = match.group(0)
 
-            # Replace with a valid JSONPath literal
-            if format_type == 's':
-                replacement = '"__PLACEHOLDER__"'
-            elif format_type == 'd':
-                replacement = '999999'
-            elif format_type == 'f':
-                replacement = '999999.0'
-
-            placeholders.append({
-                'original': placeholder_str,
-                'name': str(position),
-                'format_type': format_type,
-                'replacement': replacement,
-                'positional': True
-            })
-
+            replacement = _get_placeholder_marker(format_type)
+            self._placeholder_info.append(PlaceholderInfo(
+                original=placeholder_str,
+                name=str(position),
+                format_type=format_type,
+                positional=True,
+            ))
             processed = processed.replace(placeholder_str, replacement, 1)
             position += 1
 
-        return processed, placeholders
+        return processed
 
-    def _build_bound_expression(self, params: Union[Tuple[Any, ...], Dict[str, Any]]) -> str:
-        """Build JSONPath expression with bound parameter values."""
+    def _build_bound_expression(
+        self, params: Union[Tuple[Any, ...], Dict[str, Any]]
+    ) -> str:
+        """
+        Build JSONPath expression with bound parameter values.
+
+        Args:
+            params: Parameter values (tuple for positional, dict for named)
+
+        Returns:
+            JSONPath expression string with values substituted
+
+        Raises:
+            MissingParameterError: If a required parameter is missing
+        """
         result = self._processed_template
 
-        # Process placeholders in order
-        for i, ph_info in enumerate(self._placeholder_info):
+        for ph_info in self._placeholder_info:
             # Get the value for this placeholder
-            if ph_info['positional']:
-                # Positional
-                idx = int(ph_info['name'])
-                if idx >= len(params):
-                    raise ValueError(f"Missing positional parameter at index {idx}")
+            if ph_info.positional:
+                idx = int(ph_info.name)
+                if not isinstance(params, (list, tuple)) or idx >= len(params):
+                    raise MissingParameterError(
+                        f"Missing positional parameter at index {idx}",
+                        param_index=idx,
+                    )
                 value = params[idx]
             else:
-                # Named
-                if ph_info['name'] not in params:
-                    raise ValueError(f"Missing named parameter: {ph_info['name']}")
-                value = params[ph_info['name']]
+                if not isinstance(params, dict) or ph_info.name not in params:
+                    raise MissingParameterError(
+                        f"Missing named parameter: {ph_info.name}",
+                        param_name=ph_info.name,
+                    )
+                value = params[ph_info.name]
 
-            # Replace the placeholder marker with the actual value
-            if ph_info['format_type'] == 's':
-                # String - need to escape and quote
-                if isinstance(value, bool):
-                    # Boolean - use lowercase true/false
-                    replacement = 'true' if value else 'false'
-                else:
-                    # String - escape quotes
-                    escaped_value = str(value).replace('"', '\\"')
-                    replacement = f'"{escaped_value}"'
-                marker = '"__PLACEHOLDER__"'
-            elif ph_info['format_type'] == 'd':
-                # Integer
-                replacement = str(int(value))
-                marker = '999999'
-            elif ph_info['format_type'] == 'f':
-                # Float
-                replacement = str(float(value))
-                marker = '999999.0'
-            else:
-                continue
-
-            # Replace first occurrence
+            # Replace the marker with the formatted value
+            marker = _get_marker_for_replacement(ph_info.format_type)
+            replacement = _format_value(value, ph_info.format_type)
             result = result.replace(marker, replacement, 1)
 
         return result
 
-    def find(self, data: Any, params: Union[Tuple[Any, ...], Dict[str, Any]]) -> list:
+    @lru_cache(maxsize=128)
+    def _compile_expression(self, expression: str):
+        """
+        Compile a JSONPath expression with caching.
+
+        Args:
+            expression: JSONPath expression string
+
+        Returns:
+            Compiled JSONPath query
+        """
+        return self.env.compile(expression)
+
+    def _get_compiled_query(self, params: Union[Tuple[Any, ...], Dict[str, Any]]):
+        """
+        Get compiled query for the given parameters.
+
+        Args:
+            params: Parameter values
+
+        Returns:
+            Compiled JSONPath query
+        """
+        bound_expression = self._build_bound_expression(params)
+        return self._compile_expression(bound_expression)
+
+    def find(
+        self, data: Any, params: Union[Tuple[Any, ...], Dict[str, Any]]
+    ) -> List[Any]:
         """
         Find all matching values.
 
@@ -156,17 +263,13 @@ class ParametrizedExpression:
         Returns:
             List of matching values
         """
-        # Build expression with bound values
-        bound_expression = self._build_bound_expression(params)
-
-        # Compile and execute
-        query = self.env.compile(bound_expression)
+        query = self._get_compiled_query(params)
         result = query.find(data)
-
-        # Return values
         return result.values()
 
-    def find_one(self, data: Any, params: Union[Tuple[Any, ...], Dict[str, Any]]) -> Any:
+    def find_one(
+        self, data: Any, params: Union[Tuple[Any, ...], Dict[str, Any]]
+    ) -> Optional[Any]:
         """
         Find first matching value.
 
@@ -177,17 +280,13 @@ class ParametrizedExpression:
         Returns:
             First matching value or None
         """
-        # Build expression with bound values
-        bound_expression = self._build_bound_expression(params)
-
-        # Compile and execute
-        query = self.env.compile(bound_expression)
+        query = self._get_compiled_query(params)
         node = query.find_one(data)
-
-        # Return value or None
         return node.value if node else None
 
-    def finditer(self, data: Any, params: Union[Tuple[Any, ...], Dict[str, Any]]):
+    def finditer(
+        self, data: Any, params: Union[Tuple[Any, ...], Dict[str, Any]]
+    ) -> Iterator[Any]:
         """
         Iterate over matching values.
 
@@ -198,18 +297,18 @@ class ParametrizedExpression:
         Yields:
             Matching values
         """
-        # Build expression with bound values
-        bound_expression = self._build_bound_expression(params)
-
-        # Compile and execute
-        query = self.env.compile(bound_expression)
-
-        # Iterate and yield values
+        query = self._get_compiled_query(params)
         for node in query.finditer(data):
             yield node.value
 
+    def clear_cache(self) -> None:
+        """Clear the compiled expression cache."""
+        self._compile_expression.cache_clear()
 
-def parse(template: str, env: JSONPathEnvironment = None) -> ParametrizedExpression:
+
+def parse(
+    template: str, env: Optional[JSONPathEnvironment] = None
+) -> ParametrizedExpression:
     """
     Parse JSONPath expression with C-style placeholders.
 

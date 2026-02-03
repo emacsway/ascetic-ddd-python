@@ -1,6 +1,9 @@
 """Unit tests for jsonpath-rfc9535 parser with C-style placeholders."""
 import unittest
-from ascetic_ddd.jsonpath_rfc9535_ext.domain.jsonpath_parameterized_parser import parse
+from ascetic_ddd.jsonpath_rfc9535_ext.domain.jsonpath_parameterized_parser import (
+    parse,
+    MissingParameterError,
+)
 
 
 class TestPositionalPlaceholders(unittest.TestCase):
@@ -10,20 +13,20 @@ class TestPositionalPlaceholders(unittest.TestCase):
         """Test parsing with %d placeholder."""
         expr = parse("$[?@.age > %d]")
         self.assertEqual(len(expr.placeholders), 1)
-        self.assertEqual(expr.placeholders[0]['format_type'], 'd')
-        self.assertTrue(expr.placeholders[0]['positional'])
+        self.assertEqual(expr.placeholders[0].format_type, 'd')
+        self.assertTrue(expr.placeholders[0].positional)
 
     def test_parse_string_placeholder(self):
         """Test parsing with %s placeholder."""
         expr = parse("$[?@.name == %s]")
         self.assertEqual(len(expr.placeholders), 1)
-        self.assertEqual(expr.placeholders[0]['format_type'], 's')
+        self.assertEqual(expr.placeholders[0].format_type, 's')
 
     def test_parse_float_placeholder(self):
         """Test parsing with %f placeholder."""
         expr = parse("$[?@.price > %f]")
         self.assertEqual(len(expr.placeholders), 1)
-        self.assertEqual(expr.placeholders[0]['format_type'], 'f')
+        self.assertEqual(expr.placeholders[0].format_type, 'f')
 
     def test_execute_with_integer(self):
         """Test execution with integer parameter."""
@@ -78,16 +81,16 @@ class TestNamedPlaceholders(unittest.TestCase):
         """Test parsing with %(name)d placeholder."""
         expr = parse("$[?@.age > %(min_age)d]")
         self.assertEqual(len(expr.placeholders), 1)
-        self.assertEqual(expr.placeholders[0]['name'], 'min_age')
-        self.assertEqual(expr.placeholders[0]['format_type'], 'd')
-        self.assertFalse(expr.placeholders[0]['positional'])
+        self.assertEqual(expr.placeholders[0].name, 'min_age')
+        self.assertEqual(expr.placeholders[0].format_type, 'd')
+        self.assertFalse(expr.placeholders[0].positional)
 
     def test_parse_named_string(self):
         """Test parsing with %(name)s placeholder."""
         expr = parse("$[?@.name == %(username)s]")
         self.assertEqual(len(expr.placeholders), 1)
-        self.assertEqual(expr.placeholders[0]['name'], 'username')
-        self.assertEqual(expr.placeholders[0]['format_type'], 's')
+        self.assertEqual(expr.placeholders[0].name, 'username')
+        self.assertEqual(expr.placeholders[0].format_type, 's')
 
     def test_execute_with_named_integer(self):
         """Test execution with named integer parameter."""
@@ -253,16 +256,18 @@ class TestErrorHandling(unittest.TestCase):
         expr = parse("$[?@.age > %d]")
         data = [{"age": 30}]
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(MissingParameterError) as ctx:
             expr.find(data, ())  # No parameters provided
+        self.assertEqual(ctx.exception.param_index, 0)
 
     def test_missing_named_parameter(self):
         """Test error when named parameter is missing."""
         expr = parse("$[?@.age > %(min_age)d]")
         data = [{"age": 30}]
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(MissingParameterError) as ctx:
             expr.find(data, {})  # No parameters provided
+        self.assertEqual(ctx.exception.param_name, 'min_age')
 
 
 class TestParenthesesSupport(unittest.TestCase):
