@@ -7,6 +7,9 @@ from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import (
     parse,
     ParametrizedSpecificationJsonPath2,
 )
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import (
+    JSONPathTypeError,
+)
 from ascetic_ddd.specification.domain.evaluate_visitor import CollectionContext
 from ascetic_ddd.specification.domain.nodes import And, Or, Equal, Not, GreaterThan
 
@@ -184,7 +187,7 @@ class TestJsonPath2Parser(unittest.TestCase):
 
         invalid_data = NoGetMethod()
 
-        with self.assertRaises(TypeError):
+        with self.assertRaises(JSONPathTypeError):
             spec.match(invalid_data, (25,))
 
     def test_error_on_missing_field(self):
@@ -629,14 +632,17 @@ class TestOperatorAssociativity(unittest.TestCase):
 
     def _get_ast(self, spec, data, params):
         """Helper to get the AST from a spec by triggering match()."""
-        # We need to call match to get the AST built
-        # The AST is built during match() in jsonpath2 parser
         from jsonpath2.path import Path
+        from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import _ConvertContext
 
-        spec._placeholder_bind_index = 0
-        processed = spec._preprocess_template()
-        path = Path.parse_str(processed)
-        return spec._extract_filter_expression(path, params)
+        path = Path.parse_str(spec._processed_template)
+        ctx = _ConvertContext(
+            params=params,
+            placeholder_info=spec._placeholder_info,
+            in_item_context=False,
+            placeholder_bind_index=0,
+        )
+        return spec._extract_filter_expression(path, ctx)
 
     def test_and_left_associativity(self):
         """Test that && produces left-associative And tree."""
@@ -706,6 +712,20 @@ class TestOperatorPrecedence(unittest.TestCase):
 
     These tests verify the behavior with explicit parentheses to control grouping.
     """
+
+    def _get_ast(self, spec, params):
+        """Helper to get the AST from a spec."""
+        from jsonpath2.path import Path
+        from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import _ConvertContext
+
+        path = Path.parse_str(spec._processed_template)
+        ctx = _ConvertContext(
+            params=params,
+            placeholder_info=spec._placeholder_info,
+            in_item_context=False,
+            placeholder_bind_index=0,
+        )
+        return spec._extract_filter_expression(path, ctx)
 
     def test_explicit_grouping_and_in_or(self):
         """Test explicit grouping: a || (b && c)."""
@@ -807,13 +827,13 @@ class TestErrorHandling(unittest.TestCase):
     """
 
     def test_invalid_context_type_error(self):
-        """Test TypeError for invalid context object."""
+        """Test JSONPathTypeError for invalid context object."""
         spec = parse("$[?(@.age > %d)]")
 
         class InvalidContext:
             pass
 
-        with self.assertRaises(TypeError) as ctx:
+        with self.assertRaises(JSONPathTypeError) as ctx:
             spec.match(InvalidContext(), (25,))
 
         self.assertIn("Context", str(ctx.exception))
@@ -858,8 +878,8 @@ class TestErrorHandling(unittest.TestCase):
 
         try:
             spec.match(MyCustomClass(), (25,))
-            self.fail("Expected TypeError")
-        except TypeError as e:
+            self.fail("Expected JSONPathTypeError")
+        except JSONPathTypeError as e:
             message = str(e)
             self.assertIn("MyCustomClass", message)
             self.assertIn("get", message.lower())
