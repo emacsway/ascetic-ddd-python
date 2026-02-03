@@ -56,13 +56,17 @@ class CursorCollector:
         self._last_result = self._collect_query(query, params)
         return self
 
-    async def fetchone(self) -> Deferred[Row] | None:
+    async def fetchone(self) -> Deferred[Row | None]:
         """
         Return deferred result for single row.
 
-        Returns Deferred[Row] that will be resolved after batch evaluation.
+        Returns Deferred[Row | None] that will be resolved after batch evaluation.
         """
-        return self._last_result
+        if self._last_result is not None:
+            return self._last_result
+        result: Deferred[Row | None] = Deferred()
+        result.resolve(None)
+        return result
 
     async def fetchmany(self, size: int = 0) -> Deferred[list[Row]]:
         """

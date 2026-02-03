@@ -43,13 +43,15 @@ class CursorCollectorTestCase(TestCase):
 
         self.assertIs(result, deferred)
 
-    def test_fetchone_returns_none_before_execute(self):
+    def test_fetchone_returns_resolved_deferred_before_execute(self):
         collect_fn = MagicMock(return_value=Deferred())
         cursor = CursorCollector(collect_fn)
 
         result = asyncio.run(cursor.fetchone())
 
-        self.assertIsNone(result)
+        self.assertIsInstance(result, Deferred)
+        self.assertTrue(result._is_resolved)
+        self.assertIsNone(result._value)
 
     def test_fetchmany_returns_deferred_list(self):
         deferred = Deferred()
