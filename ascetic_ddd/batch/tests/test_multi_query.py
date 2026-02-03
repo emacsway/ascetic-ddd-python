@@ -3,7 +3,7 @@ import asyncio
 from unittest import TestCase
 from unittest.mock import AsyncMock, MagicMock
 
-from ascetic_ddd.seedwork.infrastructure.batch.multi_query import (
+from ascetic_ddd.batch.multi_query import (
     MultiQueryBase,
     MultiQuery,
     AutoincrementMultiInsertQuery,

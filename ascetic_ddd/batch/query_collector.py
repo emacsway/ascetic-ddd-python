@@ -7,9 +7,9 @@ from ascetic_ddd.session.interfaces import (
     IPgSession, IAsyncTransaction, Query, Params, Row,
 )
 
-from ascetic_ddd.seedwork.infrastructure.batch.interfaces import IMultiQuerier
-from ascetic_ddd.seedwork.infrastructure.batch.multi_query import MultiQuery, AutoincrementMultiInsertQuery
-from ascetic_ddd.seedwork.infrastructure.batch.utils import is_insert_query, is_autoincrement_insert_query
+from ascetic_ddd.batch.interfaces import IMultiQuerier
+from ascetic_ddd.batch.multi_query import MultiQuery, AutoincrementMultiInsertQuery
+from ascetic_ddd.batch.utils import is_insert_query, is_autoincrement_insert_query
 
 
 __all__ = ("QueryCollector", "ConnectionCollector", "CursorCollector")

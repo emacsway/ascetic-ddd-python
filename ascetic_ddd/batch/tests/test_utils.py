@@ -1,7 +1,7 @@
 """Tests for batch utility functions."""
 from unittest import TestCase
 
-from ascetic_ddd.seedwork.infrastructure.batch.utils import (
+from ascetic_ddd.batch.utils import (
     is_insert_query,
     is_autoincrement_insert_query,
     convert_named_to_positional,

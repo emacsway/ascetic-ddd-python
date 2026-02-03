@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 from ascetic_ddd.deferred.deferred import Deferred
 
-from ascetic_ddd.seedwork.infrastructure.batch.query_collector import (
+from ascetic_ddd.batch.query_collector import (
     QueryCollector,
     ConnectionCollector,
     CursorCollector,
 )
-from ascetic_ddd.seedwork.infrastructure.batch.multi_query import MultiQuery, AutoincrementMultiInsertQuery
+from ascetic_ddd.batch.multi_query import MultiQuery, AutoincrementMultiInsertQuery
 
 
 class CursorCollectorTestCase(TestCase):

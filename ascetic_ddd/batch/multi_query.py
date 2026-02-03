@@ -7,8 +7,8 @@ from ascetic_ddd.session.interfaces import (
     IPgSession, Query, Params, Row,
 )
 
-from ascetic_ddd.seedwork.infrastructure.batch.interfaces import IMultiQuerier
-from ascetic_ddd.seedwork.infrastructure.batch.utils import RE_INSERT_VALUES, convert_named_to_positional
+from ascetic_ddd.batch.interfaces import IMultiQuerier
+from ascetic_ddd.batch.utils import RE_INSERT_VALUES, convert_named_to_positional
 
 
 __all__ = (
