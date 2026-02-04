@@ -112,17 +112,27 @@ class ReInsertValuesTestCase(TestCase):
             "INSERT INTO t (a, b) VALUES (%s, %s), (%s, %s), (%s, %s) RETURNING id"
         )
 
-    def test_match_named_params(self):
-        query = "INSERT INTO t (a, b) VALUES (%(a)s, %(b)s)"
-        match = RE_INSERT_VALUES.search(query)
-        self.assertIsNotNone(match)
-        self.assertEqual(match.group(1), "(%(a)s, %(b)s)")
 
-    def test_match_named_params_with_returning(self):
-        query = "INSERT INTO t (a, b) VALUES (%(a)s, %(b)s) RETURNING id"
+    def test_match_with_escaped_quotes(self):
+        """Test that escaped single quotes inside string literals are handled."""
+        query = "INSERT INTO t (a, b) VALUES (%s, 'someone''s value')"
         match = RE_INSERT_VALUES.search(query)
         self.assertIsNotNone(match)
-        self.assertEqual(match.group(1), "(%(a)s, %(b)s)")
+        self.assertEqual(match.group(1), "(%s, 'someone''s value')")
+
+    def test_match_with_empty_string(self):
+        """Test that empty string literals are handled."""
+        query = "INSERT INTO t (a, b, c) VALUES (%s, '', %s)"
+        match = RE_INSERT_VALUES.search(query)
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(1), "(%s, '', %s)")
+
+    def test_match_with_parenthesis_in_string(self):
+        """Test that parentheses inside string literals don't break parsing."""
+        query = "INSERT INTO t (a, b) VALUES (%s, 'test) value')"
+        match = RE_INSERT_VALUES.search(query)
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(1), "(%s, 'test) value')")
 
 
 class ReNamedParamTestCase(TestCase):

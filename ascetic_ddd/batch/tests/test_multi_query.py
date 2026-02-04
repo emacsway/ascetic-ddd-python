@@ -193,6 +193,48 @@ class MultiQueryTestCase(TestCase):
 
         self.assertEqual(callback_values, [None])
 
+    def test_evaluate_raises_exception_group_on_callback_error(self):
+        mq = MultiQuery()
+        query = "INSERT INTO t (a) VALUES (%s)"
+        d1 = mq.execute(query, (1,))
+
+        def on_success(value):
+            return ValueError("callback error")
+
+        d1.then(on_success, lambda e: None)
+
+        session = MagicMock()
+        session.connection.execute = AsyncMock()
+
+        with self.assertRaises(ExceptionGroup) as ctx:
+            asyncio.run(mq.evaluate(session))
+
+        self.assertEqual(len(ctx.exception.exceptions), 1)
+        self.assertIsInstance(ctx.exception.exceptions[0], ValueError)
+
+    def test_evaluate_collects_multiple_callback_errors(self):
+        mq = MultiQuery()
+        query = "INSERT INTO t (a) VALUES (%s)"
+        d1 = mq.execute(query, (1,))
+        d2 = mq.execute(query, (2,))
+
+        def on_success_error1(value):
+            return ValueError("error 1")
+
+        def on_success_error2(value):
+            return TypeError("error 2")
+
+        d1.then(on_success_error1, lambda e: None)
+        d2.then(on_success_error2, lambda e: None)
+
+        session = MagicMock()
+        session.connection.execute = AsyncMock()
+
+        with self.assertRaises(ExceptionGroup) as ctx:
+            asyncio.run(mq.evaluate(session))
+
+        self.assertEqual(len(ctx.exception.exceptions), 2)
+
 
 class AutoincrementMultiInsertQueryTestCase(TestCase):
     """Tests for AutoincrementMultiInsertQuery class (INSERT with RETURNING)."""
@@ -268,3 +310,51 @@ class AutoincrementMultiInsertQueryTestCase(TestCase):
         asyncio.run(mq.evaluate(session))
 
         self.assertEqual(received_rows, [(42,)])
+
+    def test_evaluate_raises_exception_group_on_callback_error(self):
+        mq = AutoincrementMultiInsertQuery()
+        query = "INSERT INTO t (a) VALUES (%s) RETURNING id"
+        d1 = mq.execute(query, ("x",))
+
+        def on_success(row):
+            return ValueError("callback error")
+
+        d1.then(on_success, lambda e: None)
+
+        cursor = AsyncMock()
+        cursor.fetchall = AsyncMock(return_value=[(42,)])
+
+        session = MagicMock()
+        session.connection.execute = AsyncMock(return_value=cursor)
+
+        with self.assertRaises(ExceptionGroup) as ctx:
+            asyncio.run(mq.evaluate(session))
+
+        self.assertEqual(len(ctx.exception.exceptions), 1)
+        self.assertIsInstance(ctx.exception.exceptions[0], ValueError)
+
+    def test_evaluate_collects_multiple_callback_errors(self):
+        mq = AutoincrementMultiInsertQuery()
+        query = "INSERT INTO t (a) VALUES (%s) RETURNING id"
+        d1 = mq.execute(query, ("x",))
+        d2 = mq.execute(query, ("y",))
+
+        def on_success_error1(row):
+            return ValueError("error 1")
+
+        def on_success_error2(row):
+            return TypeError("error 2")
+
+        d1.then(on_success_error1, lambda e: None)
+        d2.then(on_success_error2, lambda e: None)
+
+        cursor = AsyncMock()
+        cursor.fetchall = AsyncMock(return_value=[(1,), (2,)])
+
+        session = MagicMock()
+        session.connection.execute = AsyncMock(return_value=cursor)
+
+        with self.assertRaises(ExceptionGroup) as ctx:
+            asyncio.run(mq.evaluate(session))
+
+        self.assertEqual(len(ctx.exception.exceptions), 2)

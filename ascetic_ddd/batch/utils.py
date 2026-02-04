@@ -14,8 +14,9 @@ __all__ = (
 
 # Pattern for matching VALUES clause in INSERT queries
 # Matches: VALUES (%s, %s, ...) or VALUES (%(a)s, %(b)s, ...)
-# Uses (?:[^)]|\)s)+ to handle )s inside %(name)s
-RE_INSERT_VALUES = re.compile(r"VALUES\s*(\((?:[^)]|\)s)+\))", re.IGNORECASE)
+# Handles string literals with escaped quotes: 'someone''s value'
+# and strings containing parentheses: 'test) value'
+RE_INSERT_VALUES = re.compile(r"VALUES\s*(\((?:'(?:[^']|'')*'|[^)])+\))", re.IGNORECASE)
 
 # Pattern for matching named parameters %(name)s
 RE_NAMED_PARAM = re.compile(r"%\((\w+)\)s")

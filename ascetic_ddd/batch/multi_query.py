@@ -112,6 +112,9 @@ class MultiQuery(MultiQueryBase, IMultiQuerier):
 
         Args:
             session: Database session with execute method
+
+        Raises:
+            ExceptionGroup: If any deferred callbacks raised errors
         """
         if not self._params:
             return
@@ -121,8 +124,14 @@ class MultiQuery(MultiQueryBase, IMultiQuerier):
         await session.connection.execute(sql, params)
 
         # Resolve all deferred results with None (no RETURNING)
+        # and collect any errors from callbacks
+        errors: list[Exception] = []
         for deferred in self._results:
             deferred.resolve(None)
+            errors.extend(deferred.occurred_err())
+
+        if errors:
+            raise ExceptionGroup("Errors occurred in deferred callbacks", errors)
 
 
 class AutoincrementMultiInsertQuery(MultiQueryBase, IMultiQuerier):
@@ -139,6 +148,9 @@ class AutoincrementMultiInsertQuery(MultiQueryBase, IMultiQuerier):
 
         Args:
             session: Database session with fetch_all method
+
+        Raises:
+            ExceptionGroup: If any deferred callbacks raised errors
         """
         if not self._params:
             return
@@ -149,6 +161,12 @@ class AutoincrementMultiInsertQuery(MultiQueryBase, IMultiQuerier):
         rows = await cursor.fetchall()
 
         # Resolve each deferred result with its row
+        # and collect any errors from callbacks
+        errors: list[Exception] = []
         for i, row in enumerate(rows):
             if i < len(self._results):
                 self._results[i].resolve(row)
+                errors.extend(self._results[i].occurred_err())
+
+        if errors:
+            raise ExceptionGroup("Errors occurred in deferred callbacks", errors)
