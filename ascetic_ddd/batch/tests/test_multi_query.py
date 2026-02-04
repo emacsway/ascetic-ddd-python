@@ -112,6 +112,47 @@ class MultiQueryBaseTestCase(TestCase):
             "INSERT INTO t (a) VALUES (%s), (%s) RETURNING id"
         )
 
+    def test_build_sql_with_percent_s_in_string_literal(self):
+        """String literals containing %s should not affect batching."""
+        mq = MultiQuery()
+        # Query with %s inside a string literal - should be preserved as-is
+        query = "INSERT INTO t (a, b) VALUES (%s, 'format: %s placeholder')"
+        mq.execute(query, ("value1",))
+        mq.execute(query, ("value2",))
+
+        sql = mq._build_sql()
+        self.assertEqual(
+            sql,
+            "INSERT INTO t (a, b) VALUES (%s, 'format: %s placeholder'), (%s, 'format: %s placeholder')"
+        )
+
+    def test_build_sql_with_named_param_in_string_literal(self):
+        """String literals containing %(name)s should not affect batching."""
+        mq = MultiQuery()
+        # Query with %(name)s inside a string literal - should be preserved as-is
+        query = "INSERT INTO t (a, b) VALUES (%s, 'template: %(user)s format')"
+        mq.execute(query, ("value1",))
+        mq.execute(query, ("value2",))
+
+        sql = mq._build_sql()
+        self.assertEqual(
+            sql,
+            "INSERT INTO t (a, b) VALUES (%s, 'template: %(user)s format'), (%s, 'template: %(user)s format')"
+        )
+
+    def test_build_sql_with_escaped_quotes_and_placeholders_in_literal(self):
+        """String literals with escaped quotes and placeholder-like content."""
+        mq = MultiQuery()
+        query = "INSERT INTO t (a, b) VALUES (%s, 'someone''s %s value')"
+        mq.execute(query, ("x",))
+        mq.execute(query, ("y",))
+
+        sql = mq._build_sql()
+        self.assertEqual(
+            sql,
+            "INSERT INTO t (a, b) VALUES (%s, 'someone''s %s value'), (%s, 'someone''s %s value')"
+        )
+
     def test_merge_params_single_row(self):
         mq = MultiQuery()
         mq.execute("INSERT INTO t (a, b) VALUES (%s, %s)", (1, "x"))
