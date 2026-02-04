@@ -10,10 +10,29 @@ from ascetic_ddd.specification.domain.nodes import (
     Object,
     Value,
     And,
+    Or,
+    GreaterThan,
+    GreaterThanEqual,
+    LessThan,
+    Sub,
+    Item,
+    Wildcard,
+    IsNull,
+    IsNotNull,
+)
+from ascetic_ddd.specification.infrastructure.schema import (
+    SchemaRegistry,
+    StorageType,
+    ForeignKeyPair,
+    CollectionMapping,
 )
 
 from ascetic_ddd.specification.infrastructure.composite_expression_node import CompositeExpressionsDifferentLengthError, CompositeExpression
-from ascetic_ddd.specification.infrastructure.postgresql_visitor import compile_specification, PostgresqlVisitor
+from ascetic_ddd.specification.infrastructure.postgresql_visitor import (
+    compile_specification,
+    compile_to_sql,
+    PostgresqlVisitor,
+)
 from ascetic_ddd.specification.infrastructure.transform_visitor import TransformVisitor
 from ascetic_ddd.specification.infrastructure.transform_visitor import ITransformContext
 
@@ -383,6 +402,716 @@ class TestEndToEnd(unittest.TestCase):
         # But parameters should differ
         self.assertEqual([1, 2, 3], params1)
         self.assertEqual([10, 20, 30], params2)
+
+
+# =============================================================================
+# IS NULL / IS NOT NULL Tests
+# =============================================================================
+
+
+class TestPostgresqlVisitorIsNull(unittest.TestCase):
+    """Test IS NULL and IS NOT NULL operators."""
+
+    def test_is_null(self):
+        """Test IS NULL operator."""
+        expr = IsNull(Field(GlobalScope(), "deleted_at"))
+
+        visitor = PostgresqlVisitor()
+        expr.accept(visitor)
+        sql, params = visitor.result()
+
+        self.assertEqual("deleted_at IS NULL", sql)
+        self.assertEqual([], params)
+
+    def test_is_not_null(self):
+        """Test IS NOT NULL operator."""
+        expr = IsNotNull(Field(GlobalScope(), "created_at"))
+
+        visitor = PostgresqlVisitor()
+        expr.accept(visitor)
+        sql, params = visitor.result()
+
+        self.assertEqual("created_at IS NOT NULL", sql)
+        self.assertEqual([], params)
+
+    def test_is_null_with_and(self):
+        """Test IS NULL with AND operator."""
+        expr = And(
+            Equal(Field(GlobalScope(), "active"), Value(True)),
+            IsNull(Field(GlobalScope(), "deleted_at")),
+        )
+
+        visitor = PostgresqlVisitor()
+        expr.accept(visitor)
+        sql, params = visitor.result()
+
+        self.assertIn("IS NULL", sql)
+        self.assertIn("AND", sql)
+        self.assertEqual([True], params)
+
+
+# =============================================================================
+# compile_to_sql Tests
+# =============================================================================
+
+
+class TestCompileToSQL(unittest.TestCase):
+    """Test compile_to_sql function."""
+
+    def test_simple(self):
+        """Simple expression: age >= 18"""
+        expr = GreaterThanEqual(
+            Field(GlobalScope(), "age"),
+            Value(18),
+        )
+
+        sql, params = compile_to_sql(expr)
+
+        self.assertEqual("age >= $1", sql)
+        self.assertEqual([18], params)
+
+    def test_complex(self):
+        """Complex expression: (active = true) AND (age >= 18) OR (premium = true)"""
+        expr = Or(
+            And(
+                Equal(Field(GlobalScope(), "active"), Value(True)),
+                GreaterThanEqual(Field(GlobalScope(), "age"), Value(18)),
+            ),
+            Equal(Field(GlobalScope(), "premium"), Value(True)),
+        )
+
+        sql, params = compile_to_sql(expr)
+
+        self.assertIn("AND", sql)
+        self.assertIn("OR", sql)
+        self.assertEqual(3, len(params))
+
+    def test_with_wildcard(self):
+        """Wildcard expression generates EXISTS with unnest."""
+        expr = Wildcard(
+            Object(GlobalScope(), "items"),
+            GreaterThan(Field(Item(), "price"), Value(1000)),
+        )
+
+        sql, params = compile_to_sql(expr)
+
+        self.assertIn("EXISTS", sql)
+        self.assertIn("unnest", sql)
+        self.assertEqual([1000], params)
+
+    def test_nested_object(self):
+        """Nested object: user.profile.age >= 18"""
+        gs = GlobalScope()
+        user = Object(gs, "user")
+        profile = Object(user, "profile")
+
+        expr = GreaterThanEqual(
+            Field(profile, "age"),
+            Value(18),
+        )
+
+        sql, params = compile_to_sql(expr)
+
+        self.assertEqual("user.profile.age >= $1", sql)
+        self.assertEqual([18], params)
+
+    def test_arithmetic(self):
+        """Arithmetic: (price - discount) > 100"""
+        expr = GreaterThan(
+            Sub(
+                Field(GlobalScope(), "price"),
+                Field(GlobalScope(), "discount"),
+            ),
+            Value(100),
+        )
+
+        sql, params = compile_to_sql(expr)
+
+        self.assertIn("-", sql)
+        self.assertIn("price", sql)
+        self.assertIn("discount", sql)
+        self.assertEqual([100], params)
+
+    def test_negation(self):
+        """Negation: NOT (age < 18)"""
+        expr = Not(
+            LessThan(
+                Field(GlobalScope(), "age"),
+                Value(18),
+            ),
+        )
+
+        sql, params = compile_to_sql(expr)
+
+        self.assertIn("NOT", sql)
+        self.assertEqual([18], params)
+
+    def test_is_null(self):
+        """Test compile_to_sql with IS NULL."""
+        expr = And(
+            Equal(Field(GlobalScope(), "active"), Value(True)),
+            IsNull(Field(GlobalScope(), "deleted_at")),
+        )
+
+        sql, params = compile_to_sql(expr)
+
+        self.assertIn("IS NULL", sql)
+        self.assertEqual(1, len(params))
+
+    def test_with_schema(self):
+        """Test compile_to_sql with schema for relational collections."""
+        schema = (
+            SchemaRegistry("stores")
+            .with_parent_alias("s")
+            .register_relational("Items", "items", "store_id", "id")
+        )
+
+        expr = Wildcard(
+            Object(GlobalScope(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(1000)),
+        )
+
+        sql, params = compile_to_sql(expr, schema=schema)
+
+        self.assertIn("EXISTS", sql)
+        self.assertIn("items", sql)
+        self.assertIn("store_id = s.id", sql)
+        self.assertNotIn("unnest", sql)
+
+
+# =============================================================================
+# Wildcard/Collection Tests - Embedded (JSONB/array)
+# =============================================================================
+
+
+class TestPostgresqlVisitorWildcardEmbedded(unittest.TestCase):
+    """Test PostgreSQL visitor wildcard functionality for embedded collections."""
+
+    def test_wildcard_any(self):
+        """spec.Any(store.Items, func(item Item) bool { return item.Price > 1000 })"""
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(1000)),
+        )
+
+        visitor = PostgresqlVisitor()
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Price > $1)"
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([1000], params)
+
+    def test_wildcard_all(self):
+        """spec.All(store.Items, func(item Item) bool { return item.Active })"""
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            Field(Item(), "Active"),
+        )
+
+        visitor = PostgresqlVisitor()
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Active)"
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([], params)
+
+    def test_wildcard_complex_predicate(self):
+        """Complex predicate: item.Price > 1000 AND item.Active AND item.Stock > 0"""
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            And(
+                And(
+                    GreaterThan(Field(Item(), "Price"), Value(1000)),
+                    Field(Item(), "Active"),
+                ),
+                GreaterThan(Field(Item(), "Stock"), Value(0)),
+            ),
+        )
+
+        visitor = PostgresqlVisitor()
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Price > $1 AND item_1.Active AND item_1.Stock > $2)"
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([1000, 0], params)
+
+    def test_wildcard_with_root_condition(self):
+        """store.Active AND spec.Any(store.Items, ...)"""
+        ast = And(
+            Field(GlobalScope(), "Active"),
+            Wildcard(
+                Object(GlobalScope(), "Items"),
+                GreaterThan(Field(Item(), "Price"), Value(1000)),
+            ),
+        )
+
+        visitor = PostgresqlVisitor()
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "Active AND EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Price > $1)"
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([1000], params)
+
+    def test_wildcard_negated(self):
+        """NOT spec.Any(store.Items, ...)"""
+        ast = Not(
+            Wildcard(
+                Object(GlobalScope(), "Items"),
+                GreaterThan(Field(Item(), "Price"), Value(5000)),
+            ),
+        )
+
+        visitor = PostgresqlVisitor()
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "NOT EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Price > $1)"
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([5000], params)
+
+    def test_wildcard_arithmetic(self):
+        """item.Price - 100 > 900"""
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            GreaterThan(
+                Sub(Field(Item(), "Price"), Value(100)),
+                Value(900),
+            ),
+        )
+
+        visitor = PostgresqlVisitor()
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Price - $1 > $2)"
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([100, 900], params)
+
+    def test_wildcard_multiple(self):
+        """Multiple wildcards in same expression"""
+        ast = And(
+            And(
+                Field(GlobalScope(), "Active"),
+                Wildcard(
+                    Object(GlobalScope(), "Items"),
+                    GreaterThan(Field(Item(), "Price"), Value(1000)),
+                ),
+            ),
+            Wildcard(
+                Object(GlobalScope(), "Items"),
+                LessThan(Field(Item(), "Price"), Value(100)),
+            ),
+        )
+
+        visitor = PostgresqlVisitor()
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = (
+            "Active AND EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Price > $1) "
+            "AND EXISTS (SELECT 1 FROM unnest(Items) AS item_2 WHERE item_2.Price < $2)"
+        )
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([1000, 100], params)
+
+    def test_wildcard_less_than(self):
+        """item.Price < 100"""
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            LessThan(Field(Item(), "Price"), Value(100)),
+        )
+
+        visitor = PostgresqlVisitor()
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Price < $1)"
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([100], params)
+
+
+class TestPostgresqlVisitorWildcardNested(unittest.TestCase):
+    """Test nested wildcard functionality."""
+
+    def test_wildcard_nested(self):
+        """Nested wildcard: store.Categories -> category.Items"""
+        inner_wildcard = Wildcard(
+            Object(Item(), "Items"),  # category.Items
+            GreaterThan(Field(Item(), "Price"), Value(1000)),  # item.Price > 1000
+        )
+
+        outer_wildcard = Wildcard(
+            Object(GlobalScope(), "Categories"),  # store.Categories
+            inner_wildcard,
+        )
+
+        visitor = PostgresqlVisitor()
+        outer_wildcard.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = (
+            "EXISTS (SELECT 1 FROM unnest(Categories) AS category_1 WHERE "
+            "EXISTS (SELECT 1 FROM unnest(category_1.Items) AS item_2 WHERE item_2.Price > $1))"
+        )
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([1000], params)
+
+    def test_wildcard_nested_with_condition(self):
+        """Nested wildcard with additional condition: cat.Active AND ..."""
+        inner_wildcard = Wildcard(
+            Object(Item(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(1000)),
+        )
+
+        outer_wildcard = Wildcard(
+            Object(GlobalScope(), "Categories"),
+            And(
+                Field(Item(), "Active"),  # category.Active
+                inner_wildcard,
+            ),
+        )
+
+        visitor = PostgresqlVisitor()
+        outer_wildcard.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = (
+            "EXISTS (SELECT 1 FROM unnest(Categories) AS category_1 WHERE "
+            "category_1.Active AND EXISTS (SELECT 1 FROM unnest(category_1.Items) AS item_2 WHERE item_2.Price > $1))"
+        )
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([1000], params)
+
+    def test_wildcard_double_nested(self):
+        """Triple nesting: store.Regions -> region.Categories -> category.Items"""
+        innermost_wildcard = Wildcard(
+            Object(Item(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(5000)),
+        )
+
+        middle_wildcard = Wildcard(
+            Object(Item(), "Categories"),
+            innermost_wildcard,
+        )
+
+        outer_wildcard = Wildcard(
+            Object(GlobalScope(), "Regions"),
+            middle_wildcard,
+        )
+
+        visitor = PostgresqlVisitor()
+        outer_wildcard.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = (
+            "EXISTS (SELECT 1 FROM unnest(Regions) AS region_1 WHERE "
+            "EXISTS (SELECT 1 FROM unnest(region_1.Categories) AS category_2 WHERE "
+            "EXISTS (SELECT 1 FROM unnest(category_2.Items) AS item_3 WHERE item_3.Price > $1)))"
+        )
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([5000], params)
+
+
+# =============================================================================
+# Wildcard/Collection Tests - Relational (separate tables)
+# =============================================================================
+
+
+class TestSchemaRegistry(unittest.TestCase):
+    """Test SchemaRegistry functionality."""
+
+    def test_relational_simple_fk(self):
+        """Relational collection with simple FK."""
+        schema = (
+            SchemaRegistry("stores")
+            .with_parent_alias("s")
+            .register_relational("Items", "items", "store_id", "id")
+        )
+
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(1000)),
+        )
+
+        visitor = PostgresqlVisitor(schema=schema)
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM items AS item_1 WHERE item_1.store_id = s.id AND item_1.Price > $1)"
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([1000], params)
+
+    def test_relational_composite_fk(self):
+        """Relational collection with composite FK (tenant_id, store_id)."""
+        schema = (
+            SchemaRegistry("stores")
+            .with_parent_alias("s")
+            .register_relational_composite(
+                "Items",
+                "items",
+                [
+                    ForeignKeyPair("tenant_id", "tenant_id"),
+                    ForeignKeyPair("store_id", "id"),
+                ],
+            )
+        )
+
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(1000)),
+        )
+
+        visitor = PostgresqlVisitor(schema=schema)
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM items AS item_1 WHERE item_1.tenant_id = s.tenant_id AND item_1.store_id = s.id AND item_1.Price > $1)"
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([1000], params)
+
+    def test_relational_triple_composite_fk(self):
+        """Relational collection with triple composite FK."""
+        schema = (
+            SchemaRegistry("stores")
+            .with_parent_alias("s")
+            .register_relational_composite(
+                "Items",
+                "items",
+                [
+                    ForeignKeyPair("tenant_id", "tenant_id"),
+                    ForeignKeyPair("region_id", "region_id"),
+                    ForeignKeyPair("store_id", "id"),
+                ],
+            )
+        )
+
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            Equal(Field(Item(), "Active"), Value(True)),
+        )
+
+        visitor = PostgresqlVisitor(schema=schema)
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM items AS item_1 WHERE item_1.tenant_id = s.tenant_id AND item_1.region_id = s.region_id AND item_1.store_id = s.id AND item_1.Active = $1)"
+        self.assertEqual(expected_sql, sql)
+
+    def test_embedded_collection(self):
+        """Embedded collection uses unnest."""
+        schema = (
+            SchemaRegistry("stores")
+            .with_parent_alias("s")
+            .register_embedded("Items")
+        )
+
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(1000)),
+        )
+
+        visitor = PostgresqlVisitor(schema=schema)
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Price > $1)"
+        self.assertEqual(expected_sql, sql)
+
+    def test_default_to_embedded(self):
+        """Unknown collection defaults to embedded."""
+        schema = SchemaRegistry("stores").with_parent_alias("s")
+
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(1000)),
+        )
+
+        visitor = PostgresqlVisitor(schema=schema)
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Price > $1)"
+        self.assertEqual(expected_sql, sql)
+
+    def test_no_schema(self):
+        """No schema defaults to embedded (backwards compatibility)."""
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(1000)),
+        )
+
+        visitor = PostgresqlVisitor()  # No schema
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM unnest(Items) AS item_1 WHERE item_1.Price > $1)"
+        self.assertEqual(expected_sql, sql)
+
+    def test_relational_with_complex_predicate(self):
+        """Relational with AND predicate."""
+        schema = (
+            SchemaRegistry("stores")
+            .with_parent_alias("s")
+            .register_relational("Items", "items", "store_id", "id")
+        )
+
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            And(
+                GreaterThan(Field(Item(), "Price"), Value(1000)),
+                Equal(Field(Item(), "Active"), Value(True)),
+            ),
+        )
+
+        visitor = PostgresqlVisitor(schema=schema)
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM items AS item_1 WHERE item_1.store_id = s.id AND item_1.Price > $1 AND item_1.Active = $2)"
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual(2, len(params))
+
+    def test_mixed_collections(self):
+        """One embedded, one relational."""
+        schema = (
+            SchemaRegistry("stores")
+            .with_parent_alias("s")
+            .register_embedded("Tags")
+            .register_relational("Items", "items", "store_id", "id")
+        )
+
+        # Test relational
+        ast1 = Wildcard(
+            Object(GlobalScope(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(100)),
+        )
+
+        visitor1 = PostgresqlVisitor(schema=schema)
+        ast1.accept(visitor1)
+        sql1, _ = visitor1.result()
+
+        self.assertEqual(
+            "EXISTS (SELECT 1 FROM items AS item_1 WHERE item_1.store_id = s.id AND item_1.Price > $1)",
+            sql1,
+        )
+
+        # Test embedded
+        ast2 = Wildcard(
+            Object(GlobalScope(), "Tags"),
+            Equal(Field(Item(), "Name"), Value("sale")),
+        )
+
+        visitor2 = PostgresqlVisitor(schema=schema)
+        ast2.accept(visitor2)
+        sql2, _ = visitor2.result()
+
+        self.assertEqual(
+            "EXISTS (SELECT 1 FROM unnest(Tags) AS tag_1 WHERE tag_1.Name = $1)",
+            sql2,
+        )
+
+    def test_nested_relational_collections(self):
+        """Nested relational: stores -> categories -> items."""
+        schema = (
+            SchemaRegistry("stores")
+            .with_parent_alias("s")
+            .register_relational("Categories", "categories", "store_id", "id")
+            .register_relational("Items", "items", "category_id", "id")
+        )
+
+        ast = Wildcard(
+            Object(GlobalScope(), "Categories"),
+            Wildcard(
+                Object(Item(), "Items"),
+                GreaterThan(Field(Item(), "Price"), Value(1000)),
+            ),
+        )
+
+        visitor = PostgresqlVisitor(schema=schema)
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = (
+            "EXISTS (SELECT 1 FROM categories AS category_1 WHERE category_1.store_id = s.id AND "
+            "EXISTS (SELECT 1 FROM items AS item_2 WHERE item_2.category_id = category_1.id AND item_2.Price > $1))"
+        )
+        self.assertEqual(expected_sql, sql)
+        self.assertEqual([1000], params)
+
+    def test_nested_relational_with_composite_fk(self):
+        """Nested relational with composite FK."""
+        schema = (
+            SchemaRegistry("stores")
+            .with_parent_alias("s")
+            .register_relational_composite(
+                "Categories",
+                "categories",
+                [
+                    ForeignKeyPair("tenant_id", "tenant_id"),
+                    ForeignKeyPair("store_id", "id"),
+                ],
+            )
+            .register_relational_composite(
+                "Items",
+                "items",
+                [
+                    ForeignKeyPair("tenant_id", "tenant_id"),
+                    ForeignKeyPair("category_id", "id"),
+                ],
+            )
+        )
+
+        ast = Wildcard(
+            Object(GlobalScope(), "Categories"),
+            Wildcard(
+                Object(Item(), "Items"),
+                Equal(Field(Item(), "Active"), Value(True)),
+            ),
+        )
+
+        visitor = PostgresqlVisitor(schema=schema)
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = (
+            "EXISTS (SELECT 1 FROM categories AS category_1 WHERE "
+            "category_1.tenant_id = s.tenant_id AND category_1.store_id = s.id AND "
+            "EXISTS (SELECT 1 FROM items AS item_2 WHERE "
+            "item_2.tenant_id = category_1.tenant_id AND item_2.category_id = category_1.id AND item_2.Active = $1))"
+        )
+        self.assertEqual(expected_sql, sql)
+
+    def test_custom_alias(self):
+        """Relational with custom alias."""
+        schema = (
+            SchemaRegistry("stores")
+            .with_parent_alias("s")
+            .register(
+                "Items",
+                CollectionMapping(
+                    storage=StorageType.RELATIONAL,
+                    table="store_items",
+                    foreign_keys=[ForeignKeyPair("store_id", "id")],
+                    alias="si",
+                ),
+            )
+        )
+
+        ast = Wildcard(
+            Object(GlobalScope(), "Items"),
+            GreaterThan(Field(Item(), "Price"), Value(1000)),
+        )
+
+        visitor = PostgresqlVisitor(schema=schema)
+        ast.accept(visitor)
+        sql, params = visitor.result()
+
+        expected_sql = "EXISTS (SELECT 1 FROM store_items AS si_1 WHERE si_1.store_id = s.id AND si_1.Price > $1)"
+        self.assertEqual(expected_sql, sql)
 
 
 if __name__ == "__main__":

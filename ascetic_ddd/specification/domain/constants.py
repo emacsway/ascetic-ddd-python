@@ -18,7 +18,7 @@ class OPERATOR(str, Enum):
     RSHIFT = ">>"
     IS = "IS"  # test for TRUE, FALSE, UNKNOWN, NULL
     IS_NULL = "IS NULL"
-    IS_NOT_NULL = "IS NULL"
+    IS_NOT_NULL = "IS NOT NULL"
     IN = "IN"
     NOT_IN = "NOT IN"
     BETWEEN = "BETWEEN"
