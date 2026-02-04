@@ -10,6 +10,15 @@ from ascetic_ddd.batch.multi_query import (
 )
 
 
+def make_async_cursor_mock(fetchall_return_value):
+    """Create a cursor mock that supports async context manager."""
+    cursor = AsyncMock()
+    cursor.fetchall = AsyncMock(return_value=fetchall_return_value)
+    cursor.__aenter__ = AsyncMock(return_value=cursor)
+    cursor.__aexit__ = AsyncMock(return_value=None)
+    return cursor
+
+
 class MultiQueryBaseTestCase(TestCase):
     """Tests for MultiQueryBase class."""
 
@@ -294,8 +303,7 @@ class AutoincrementMultiInsertQueryTestCase(TestCase):
         mq.execute(query, (1,))
         mq.execute(query, (2,))
 
-        cursor = AsyncMock()
-        cursor.fetchall = AsyncMock(return_value=[(10,), (11,)])
+        cursor = make_async_cursor_mock([(10,), (11,)])
 
         session = MagicMock()
         session.connection.execute = AsyncMock(return_value=cursor)
@@ -314,8 +322,7 @@ class AutoincrementMultiInsertQueryTestCase(TestCase):
         d2 = mq.execute(query, ("y",))
         d3 = mq.execute(query, ("z",))
 
-        cursor = AsyncMock()
-        cursor.fetchall = AsyncMock(return_value=[(100,), (101,), (102,)])
+        cursor = make_async_cursor_mock([(100,), (101,), (102,)])
 
         session = MagicMock()
         session.connection.execute = AsyncMock(return_value=cursor)
@@ -342,8 +349,7 @@ class AutoincrementMultiInsertQueryTestCase(TestCase):
 
         d1.then(on_success, lambda e: None)
 
-        cursor = AsyncMock()
-        cursor.fetchall = AsyncMock(return_value=[(42,)])
+        cursor = make_async_cursor_mock([(42,)])
 
         session = MagicMock()
         session.connection.execute = AsyncMock(return_value=cursor)
@@ -362,8 +368,7 @@ class AutoincrementMultiInsertQueryTestCase(TestCase):
 
         d1.then(on_success, lambda e: None)
 
-        cursor = AsyncMock()
-        cursor.fetchall = AsyncMock(return_value=[(42,)])
+        cursor = make_async_cursor_mock([(42,)])
 
         session = MagicMock()
         session.connection.execute = AsyncMock(return_value=cursor)
@@ -389,8 +394,7 @@ class AutoincrementMultiInsertQueryTestCase(TestCase):
         d1.then(on_success_error1, lambda e: None)
         d2.then(on_success_error2, lambda e: None)
 
-        cursor = AsyncMock()
-        cursor.fetchall = AsyncMock(return_value=[(1,), (2,)])
+        cursor = make_async_cursor_mock([(1,), (2,)])
 
         session = MagicMock()
         session.connection.execute = AsyncMock(return_value=cursor)

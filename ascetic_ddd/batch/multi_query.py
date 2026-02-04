@@ -157,8 +157,8 @@ class AutoincrementMultiInsertQuery(MultiQueryBase, IMultiQuerier):
 
         sql = self._build_sql()
         params = self._merge_params()
-        cursor = await session.connection.execute(sql, params)
-        rows = await cursor.fetchall()
+        async with await session.connection.execute(sql, params) as cursor:
+            rows = await cursor.fetchall()
 
         # Resolve each deferred result with its row
         # and collect any errors from callbacks

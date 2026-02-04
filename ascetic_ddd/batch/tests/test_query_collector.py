@@ -13,6 +13,15 @@ from ascetic_ddd.batch.query_collector import (
 from ascetic_ddd.batch.multi_query import MultiQuery, AutoincrementMultiInsertQuery
 
 
+def make_async_cursor_mock(fetchall_return_value):
+    """Create a cursor mock that supports async context manager."""
+    cursor = AsyncMock()
+    cursor.fetchall = AsyncMock(return_value=fetchall_return_value)
+    cursor.__aenter__ = AsyncMock(return_value=cursor)
+    cursor.__aexit__ = AsyncMock(return_value=None)
+    return cursor
+
+
 class CursorCollectorTestCase(TestCase):
     """Tests for CursorCollector class."""
 
@@ -327,8 +336,7 @@ class QueryCollectorTestCase(TestCase):
         d1 = asyncio.run(cursor1.fetchone())
         d2 = asyncio.run(cursor2.fetchone())
 
-        db_cursor = AsyncMock()
-        db_cursor.fetchall = AsyncMock(return_value=[(100,), (101,)])
+        db_cursor = make_async_cursor_mock([(100,), (101,)])
 
         session = MagicMock()
         session.connection.execute = AsyncMock(return_value=db_cursor)
@@ -369,10 +377,8 @@ class QueryCollectorNestedQueriesTestCase(TestCase):
         d1.then(on_parent_resolved, lambda e: None)
 
         # Setup mock session
-        parent_cursor = AsyncMock()
-        parent_cursor.fetchall = AsyncMock(return_value=[(42,)])
-
-        child_cursor = AsyncMock()
+        parent_cursor = make_async_cursor_mock([(42,)])
+        child_cursor = make_async_cursor_mock([])
 
         call_count = [0]
 
