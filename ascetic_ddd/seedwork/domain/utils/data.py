@@ -1,5 +1,5 @@
 
-__all__ = ("hashable", "freeze", "is_subset",)
+__all__ = ("hashable", "freeze", "is_subset", "deepmerge",)
 
 
 def hashable(o):
@@ -40,3 +40,30 @@ def is_subset(sub, master):
     # 3. Handle Primitive Values (Strings, Ints, etc.)
     else:
         return sub == master
+
+
+def deepmerge(destination, source):
+    """
+    >>> a = { 'first' : { 'all_rows' : { 'pass' : 'dog', 'number' : '1' } } }
+    >>> b = { 'first' : { 'all_rows' : { 'fail' : 'cat', 'number' : '5' } } }
+    >>> deepmerge(b, a) == { 'first' : { 'all_rows' : { 'pass' : 'dog', 'fail' : 'cat', 'number' : '5' } } }
+    True
+    """
+
+    if isinstance(source, dict):
+        assert isinstance(destination, dict)
+        for key, value in source.items():
+            if key in destination:
+                deepmerge(destination[key], value)
+            else:
+                destination[key] = value
+
+    elif isinstance(source, list):
+        assert isinstance(destination, list)
+        for index, value in enumerate(source):
+            if isinstance(value, dict) and index < len(destination):
+                deepmerge(destination[index], value)
+            elif value not in destination:
+                destination.append(value)
+
+    return destination
