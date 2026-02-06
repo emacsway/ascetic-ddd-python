@@ -123,7 +123,7 @@ class StubRepository(IAggregateRepository[User]):
     async def insert(self, session: ISession, agg: User):
         # Simulate auto-increment: if ID is None or 0, assign new ID
         # Modify in-place (typical ORM behavior)
-        if agg.id is None or (isinstance(agg.id, UserId) and agg.id.value == 0):
+        if agg.id is None or (isinstance(agg.id, UserId) and agg.id.value in (0, None)):
             new_id = UserId(value=self._auto_increment_counter)
             self._auto_increment_counter += 1
             agg.id = new_id  # Modify in-place
@@ -189,7 +189,7 @@ class UserProviderAutoIncrement(AggregateProvider[dict, User]):
         # ID distributor raises Cursor immediately - simulates no pre-existing IDs
         self.id = ValueProvider(
             distributor=StubDistributor(raise_cursor_at=0),
-            input_generator=lambda: 0,  # Returns 0 - will be replaced by auto-increment
+            input_generator=None,  # Auto-increment - no generator needed
             output_factory=UserId,
             output_exporter=lambda x: x.value,
         )
@@ -315,7 +315,8 @@ class AggregateProviderAutoIncrementTestCase(IsolatedAsyncioTestCase):
         await provider.populate(session)
         await provider.create(session)
 
-        self.assertEqual(provider.id.get(), 10)
+        # get() returns query format with $eq operator
+        self.assertEqual(provider.id.get(), {'$eq': 10})
 
     async def test_populate_populates_all_providers(self):
         """populate() should populate all nested providers."""
@@ -431,9 +432,10 @@ class AggregateProviderPresetPKTestCase(IsolatedAsyncioTestCase):
             'email': 'custom@example.com',
         })
 
-        self.assertEqual(provider.id.get(), 999)
-        self.assertEqual(provider.name.get(), 'Custom Name')
-        self.assertEqual(provider.email.get(), 'custom@example.com')
+        # get() returns query format with $eq operator
+        self.assertEqual(provider.id.get(), {'$eq': 999})
+        self.assertEqual(provider.name.get(), {'$eq': 'Custom Name'})
+        self.assertEqual(provider.email.get(), {'$eq': 'custom@example.com'})
 
     async def test_get_returns_state(self):
         """get() should return current state of all providers."""
@@ -470,7 +472,8 @@ class AggregateProviderResetTestCase(IsolatedAsyncioTestCase):
         provider.reset()
 
         self.assertFalse(provider.is_complete())
-        self.assertEqual(provider._input, empty)
+        # _input is now IQueryOperator | None, not Empty
+        self.assertIsNone(provider._input)
         self.assertEqual(provider._output, empty)
 
     async def test_reset_clears_nested_providers(self):

@@ -348,7 +348,7 @@ class PgSpecificationVisitorBasicTestCase(TestCase):
     def test_empty_pattern(self):
         """Empty pattern should produce no SQL."""
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification({})
+        visitor._visit_object_pattern({})
 
         self.assertEqual(visitor.sql, "")
         self.assertEqual(visitor.params, tuple())
@@ -356,7 +356,7 @@ class PgSpecificationVisitorBasicTestCase(TestCase):
     def test_simple_pattern(self):
         """Simple pattern should use @> operator."""
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification({'status': 'active'})
+        visitor._visit_object_pattern({'status': 'active'})
 
         self.assertIn("@>", visitor.sql)
         self.assertEqual(len(visitor.params), 1)
@@ -364,7 +364,7 @@ class PgSpecificationVisitorBasicTestCase(TestCase):
     def test_multiple_simple_constraints(self):
         """Multiple simple constraints should be combined with @>."""
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification({
+        visitor._visit_object_pattern({
             'status': 'active',
             'type': 'user'
         })
@@ -375,7 +375,7 @@ class PgSpecificationVisitorBasicTestCase(TestCase):
     def test_custom_target_value_expr(self):
         """Custom target_value_expr should be used in SQL."""
         visitor = PgSpecificationVisitor(target_value_expr="data")
-        visitor.visit_object_pattern_specification({'status': 'active'})
+        visitor._visit_object_pattern({'status': 'active'})
 
         self.assertIn("data @>", visitor.sql)
 
@@ -385,7 +385,7 @@ class PgSpecificationVisitorBasicTestCase(TestCase):
         test_uuid = uuid.uuid4()
 
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification(test_uuid)
+        visitor._visit_object_pattern(test_uuid)
 
         self.assertIn("@>", visitor.sql)
         self.assertEqual(len(visitor.params), 1)
@@ -401,7 +401,7 @@ class PgSpecificationVisitorNestedConstraintsTestCase(TestCase):
     def test_nested_without_accessor_uses_containment(self):
         """Nested dict without accessor should use simple @>."""
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification(
+        visitor._visit_object_pattern(
             {'fk_id': {'status': 'active'}},
             aggregate_provider_accessor=None
         )
@@ -428,7 +428,7 @@ class PgSpecificationVisitorNestedConstraintsTestCase(TestCase):
         user_provider.provider_name = "user"
 
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification(
+        visitor._visit_object_pattern(
             {'department_id': {'name': 'Engineering'}},
             aggregate_provider_accessor=lambda: user_provider
         )
@@ -445,7 +445,7 @@ class PgSpecificationVisitorNestedConstraintsTestCase(TestCase):
         company_provider.provider_name = "company"
 
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification(
+        visitor._visit_object_pattern(
             {'address': {'city': 'Moscow'}},
             aggregate_provider_accessor=lambda: company_provider
         )
@@ -474,7 +474,7 @@ class PgSpecificationVisitorNestedConstraintsTestCase(TestCase):
         user_provider.provider_name = "user"
 
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification(
+        visitor._visit_object_pattern(
             {
                 'name': 'Alice',  # Simple constraint
                 'department_id': {'name': 'Engineering'}  # Nested constraint
@@ -508,7 +508,7 @@ class PgSpecificationVisitorExistsSubqueryTestCase(TestCase):
         dept_provider.provider_name = "department"
 
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification(
+        visitor._visit_object_pattern(
             {'status_id': {'name': 'Active'}},
             aggregate_provider_accessor=lambda: dept_provider
         )
@@ -545,7 +545,7 @@ class PgSpecificationVisitorExistsSubqueryTestCase(TestCase):
         user_provider.provider_name = "user"
 
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification(
+        visitor._visit_object_pattern(
             {'department_id': {'status_id': {'name': 'Active'}}},
             aggregate_provider_accessor=lambda: user_provider
         )
@@ -573,7 +573,7 @@ class PgSpecificationVisitorEdgeCasesTestCase(TestCase):
         status_provider.provider_name = "status"
 
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification(
+        visitor._visit_object_pattern(
             {'unknown_field': {'nested': 'value'}},
             aggregate_provider_accessor=lambda: status_provider
         )
@@ -585,7 +585,7 @@ class PgSpecificationVisitorEdgeCasesTestCase(TestCase):
     def test_none_pattern(self):
         """None pattern should produce no SQL."""
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification(None)
+        visitor._visit_object_pattern(None)
 
         self.assertEqual(visitor.sql, "")
         self.assertEqual(visitor.params, tuple())
@@ -603,7 +603,7 @@ class PgSpecificationVisitorEdgeCasesTestCase(TestCase):
         dept_provider.provider_name = "department"
 
         visitor = PgSpecificationVisitor()
-        visitor.visit_object_pattern_specification(
+        visitor._visit_object_pattern(
             {'status_id': {}},  # Empty nested dict
             aggregate_provider_accessor=lambda: dept_provider
         )

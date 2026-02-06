@@ -1,23 +1,25 @@
 """
-Экспериментальная версия. PoC.
+Query-based lookup specification.
 """
 import typing
 
+from ascetic_ddd.faker.domain.query.operators import IQueryOperator
+from ascetic_ddd.faker.domain.query.visitors import query_to_plain_value
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecificationVisitor, ISpecification
 from ascetic_ddd.seedwork.domain.session import ISession
-from ascetic_ddd.seedwork.domain.utils.data import is_subset, hashable
+from ascetic_ddd.seedwork.domain.utils.data import is_subset
 
-__all__ = ('ObjectPatternLookupSpecification',)
+__all__ = ('QueryLookupSpecification',)
 
 
 T = typing.TypeVar("T", covariant=True)
 
 
-class ObjectPatternLookupSpecification(ISpecification[T], typing.Generic[T]):
+class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
     """
     Specification с nested lookup в is_satisfied_by().
 
-    В отличие от ObjectPatternResolvableSpecification, не резолвит вложенные constraints
+    В отличие от QueryResolvableSpecification, не резолвит вложенные constraints
     заранее, а делает lookup при каждой проверке (с кешированием).
 
     Преимущества:
@@ -29,16 +31,17 @@ class ObjectPatternLookupSpecification(ISpecification[T], typing.Generic[T]):
     - Требует доступ к providers при is_satisfied_by()
 
     Пример:
-        spec = ObjectPatternLookupSpecification(
-            {'fk_id': {'status': 'active'}},
+        query = QueryParser().parse({'fk_id': {'$rel': {'status': {'$eq': 'active'}}}})
+        spec = QueryLookupSpecification(
+            query,
             lambda obj: {'fk_id': obj.fk_id},
-            providers_accessor=lambda: aggregate_provider
+            aggregate_provider_accessor=lambda: aggregate_provider
         )
         # Индекс один для всех объектов с active fk
         # is_satisfied_by() проверяет fk.status == 'active' через lookup
     """
 
-    _object_pattern: dict
+    _query: IQueryOperator
     _hash: int | None
     _str: str | None
     _object_exporter: typing.Callable[[T], dict]
@@ -46,7 +49,7 @@ class ObjectPatternLookupSpecification(ISpecification[T], typing.Generic[T]):
     _nested_cache: dict[tuple[type, str, typing.Any], bool]  # {(provider_type, field_key, fk_id): matches}
 
     __slots__ = (
-        '_object_pattern',
+        '_query',
         '_object_exporter',
         '_hash',
         '_str',
@@ -56,11 +59,11 @@ class ObjectPatternLookupSpecification(ISpecification[T], typing.Generic[T]):
 
     def __init__(
             self,
-            object_pattern: dict,
+            query: IQueryOperator,
             object_exporter: typing.Callable[[T], dict],
             aggregate_provider_accessor: typing.Callable[[], typing.Any] | None = None,
     ):
-        self._object_pattern = object_pattern
+        self._query = query
         self._object_exporter = object_exporter
         self._aggregate_provider_accessor = aggregate_provider_accessor
         self._hash = None
@@ -69,29 +72,31 @@ class ObjectPatternLookupSpecification(ISpecification[T], typing.Generic[T]):
 
     def __str__(self) -> str:
         if self._str is None:
-            self._str = str(hashable(self._object_pattern))
+            self._str = repr(self._query)
         return self._str
 
     def __hash__(self) -> int:
         if self._hash is None:
-            self._hash = hash(hashable(self._object_pattern))
+            self._hash = hash(self._query)
         return self._hash
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, ObjectPatternLookupSpecification):
+        if not isinstance(other, QueryLookupSpecification):
             return False
-        return self._object_pattern == other._object_pattern
+        return self._query == other._query
 
     async def is_satisfied_by(self, session: ISession, obj: T) -> bool:
+        object_pattern = query_to_plain_value(self._query)
+
         if self._aggregate_provider_accessor is None:
             # Без провайдеров - только простое сравнение
             state = self._object_exporter(obj)
-            return is_subset(self._object_pattern, state)
+            return is_subset(object_pattern, state)
 
         state = self._object_exporter(obj)
         aggregate_provider = self._aggregate_provider_accessor()
         return await self._matches_pattern_with_provider(
-            session, self._object_pattern, state, aggregate_provider
+            session, object_pattern, state, aggregate_provider
         )
 
     async def _matches_pattern_with_provider(
@@ -198,8 +203,8 @@ class ObjectPatternLookupSpecification(ISpecification[T], typing.Generic[T]):
         )
 
     def accept(self, visitor: ISpecificationVisitor):
-        visitor.visit_object_pattern_specification(
-            self._object_pattern,
+        visitor.visit_query_specification(
+            self._query,
             self._aggregate_provider_accessor
         )
 

@@ -4,6 +4,7 @@ from ascetic_ddd.faker.domain.distributors.m2o import DummyDistributor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import ICursor, IM2ODistributor
 from ascetic_ddd.faker.domain.providers._mixins import BaseDistributionProvider
 from ascetic_ddd.faker.domain.providers.interfaces import IValueProvider
+from ascetic_ddd.faker.domain.query.operators import EqOperator
 from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
@@ -88,15 +89,17 @@ class ValueProvider(
         if self.is_complete():
             return
 
-        if self._input is not empty:
-            self._output = self._output_factory(self._input)
+        if self._input is not None:
+            # Extract value from EqOperator
+            input_value = self._input.value if isinstance(self._input, EqOperator) else None
+            self._output = self._output_factory(input_value)
             # await cursor.append(session, self._output)
             return
 
         try:
             result = await self._distributor.next(session, self._make_specification())
             value = self._output_exporter(result)
-            self.set(value)
+            self.set({'$eq': value})
             # self.set() could reset self._output
             self._output = result
         except ICursor as cursor:
@@ -106,7 +109,7 @@ class ValueProvider(
                 value = await self._input_generator(session, cursor.position)
                 result = self._output_factory(value)
                 await cursor.append(session, result)
-                self.set(value)
+                self.set({'$eq': value})
                 # self.set() could reset self._output
                 self._output = result
 

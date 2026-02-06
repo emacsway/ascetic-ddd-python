@@ -6,6 +6,8 @@ import typing
 from psycopg.types.json import Jsonb
 
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
+from ascetic_ddd.faker.domain.query.operators import IQueryOperator
+from ascetic_ddd.faker.domain.query.visitors import query_to_plain_value
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecificationVisitor
 
 __all__ = ("PgSpecificationVisitor",)
@@ -35,7 +37,15 @@ class PgSpecificationVisitor(ISpecificationVisitor):
         self._sql += "jsonb_path_match(%s, '%s')" % (self._target_value_expr, jsonpath)  # jsonb_path_match_tz?
         self._params += params
 
-    def visit_object_pattern_specification(
+    def visit_query_specification(
+            self,
+            query: IQueryOperator,
+            aggregate_provider_accessor: typing.Callable[[], typing.Any] | None = None
+    ):
+        object_pattern = query_to_plain_value(query)
+        self._visit_object_pattern(object_pattern, aggregate_provider_accessor)
+
+    def _visit_object_pattern(
             self,
             object_pattern: dict,
             aggregate_provider_accessor: typing.Callable[[], typing.Any] | None = None
@@ -130,7 +140,7 @@ class PgSpecificationVisitor(ISpecificationVisitor):
         """
         # Рекурсивно обрабатываем вложенный pattern
         nested_visitor = PgSpecificationVisitor(target_value_expr="rt.value")
-        nested_visitor.visit_object_pattern_specification(
+        nested_visitor._visit_object_pattern(
             nested_pattern,
             related_aggregate_provider_accessor
         )

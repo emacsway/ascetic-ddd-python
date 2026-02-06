@@ -163,11 +163,14 @@ class DependentProvider(
                         provider.set(self._inputs[i])
 
         # Set dependency's ID on dependency_field for each child (FK)
-        if self._dependency_field is not None and self._dependency_id is not None:
+        if self._dependency_field is not None and self._dependency_id:
             for provider in providers:
                 related_provider = getattr(provider, self._dependency_field, None)
-                if related_provider is not None:
-                    related_provider.set(self._dependency_id)
+                if related_provider is None:
+                    raise AttributeError(
+                        f"Provider '{self.provider_name}': child has no provider '{self._dependency_field}'"
+                    )
+                related_provider.set(self._dependency_id)
 
         # Populate each provider
         for provider in providers:

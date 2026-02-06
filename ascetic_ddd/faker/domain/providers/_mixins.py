@@ -10,6 +10,12 @@ from ascetic_ddd.faker.domain.providers.interfaces import (
     IValueProvider, INameable, ICloningShunt, ICloneable,
     ICompositeValueProvider, IDependentProvider
 )
+from ascetic_ddd.faker.domain.query.operators import (
+    IQueryOperator, CompositeQuery
+)
+from ascetic_ddd.faker.domain.query.parser import QueryParser
+from ascetic_ddd.faker.domain.query.merger import QueryMerger
+from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty, Empty
 from ascetic_ddd.observable.interfaces import IObservable
@@ -125,32 +131,49 @@ class BaseProvider(
     typing.Generic[T_Input, T_Output],
     metaclass=abc.ABCMeta
 ):
-    _input: T_Input | Empty = empty
+    _input: IQueryOperator | None = None
     _output: T_Output | Empty = empty
 
     def reset(self) -> None:
-        self._input = empty
+        self._input = None
         self._output = empty
         self.notify('input', self._input)
 
     def set(self, value: T_Input) -> None:
-        if self._input != value:
-            self._input = value
+        """
+        Set provider value using query format.
+
+        Args:
+            value: Query in format {'$eq': v} or scalar (implicit $eq)
+
+        Examples:
+            provider.set({'$eq': 5})
+            provider.set(5)  # implicit $eq
+        """
+        new_query = QueryParser().parse(value)
+        old_input = self._input
+        if self._input is not None:
+            self._input = QueryMerger().merge(self._input, new_query, self.provider_name)
+        else:
+            self._input = new_query
+        # Only reset output if input actually changed
+        if self._input != old_input:
             self._output = empty
-            self.notify('input', self._input)
+        self.notify('input', self._input)
 
     def get(self) -> T_Input:
-        return self._input
+        """Return current query as dict format."""
+        return query_to_dict(self._input) if self._input is not None else {}
 
     def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
-        clone._input = empty
+        clone._input = None
         clone._output = empty
 
     def is_complete(self) -> bool:
         return self._output is not empty
 
     def is_transient(self) -> bool:
-        return self._input is empty
+        return self._input is None
 
     async def append(self, session: ISession, value: T_Output):
         pass
@@ -199,7 +222,7 @@ class BaseCompositeProvider(
     metaclass=abc.ABCMeta
 ):
 
-    _input: T_Input | Empty = empty
+    _input: IQueryOperator | None = None
     _output: T_Output | Empty = empty
     _provider_name: str | None = None
 
@@ -213,14 +236,14 @@ class BaseCompositeProvider(
         return any(provider.is_transient() for provider in self.providers.values())
 
     def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
-        clone._input = empty
+        clone._input = None
         clone._output = empty
         for attr, provider in self.providers.items():
             setattr(clone, attr, provider.empty(shunt))
         clone.on_init()
 
     def reset(self) -> None:
-        self._input = empty
+        self._input = None
         self._output = empty
         self.notify('input', self._input)
         for provider in self.providers.values():
@@ -228,24 +251,47 @@ class BaseCompositeProvider(
 
     def set(self, value: T_Input) -> None:
         """
-        https://docs.python.org/3/library/stdtypes.html#mapping-types-dict
+        Set composite provider value using query format.
+
+        Args:
+            value: Query in format {'field': {'$eq': v}, ...}
+
+        Examples:
+            provider.set({'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}})
         """
-        if self._input != value:
-            self._input = value
+        new_query = QueryParser().parse(value)
+        old_input = self._input
+        if self._input is not None:
+            self._input = QueryMerger().merge(self._input, new_query, self.provider_name)
+        else:
+            self._input = new_query
+        # Only reset output if input actually changed
+        if self._input != old_input:
             self._output = empty
-            self.notify('input', value)
-        if value is not empty:
-            for attr, val in value.items():
-                """
-                Вложенная композиция поддерживается автоматически.
-                """
-                getattr(self, attr).set(val)
+        self.notify('input', self._input)
+        self._distribute_query(self._input)
+
+    def _distribute_query(self, query: IQueryOperator) -> None:
+        """
+        Distribute query to nested providers.
+
+        Вложенная композиция поддерживается автоматически.
+        """
+        if isinstance(query, CompositeQuery):
+            for attr, field_query in query.fields.items():
+                provider = getattr(self, attr, None)
+                if provider is None:
+                    raise AttributeError(
+                        f"Provider '{self.provider_name}': has no nested provider '{attr}'"
+                    )
+                provider.set(query_to_dict(field_query))
 
     def get(self) -> T_Input:
+        """Return current query as dict format, composed from nested providers."""
         value = dict()
         for attr, provider in self.providers.items():
             val = provider.get()
-            if val is not empty:
+            if val:  # not empty dict
                 value[attr] = val
         return value
 
@@ -322,7 +368,7 @@ class BaseCompositeDistributionProvider(
     metaclass=abc.ABCMeta
 ):
 
-    _input: T_Input | Empty = empty
+    _input: IQueryOperator | None = None
     _output: T_Output | Empty = empty
     _provider_name: str | None = None
     _distributor: IM2ODistributor[T_Input]

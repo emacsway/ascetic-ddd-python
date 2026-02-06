@@ -243,7 +243,7 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
         provider.reset()
 
         self.assertFalse(provider.is_complete())
-        self.assertEqual(provider._input, empty)
+        self.assertIsNone(provider._input)
         self.assertEqual(provider._output, empty)
 
 
@@ -287,7 +287,8 @@ class ValueProviderWithFactoriesTestCase(IsolatedAsyncioTestCase):
 
         await provider.populate(session)
 
-        self.assertEqual(provider.get(), 'test')
+        # get() returns query format with $eq operator
+        self.assertEqual(provider.get(), {'$eq': 'test'})
         self.assertEqual(provider._output, {'id': 1, 'name': 'test'})
 
 
@@ -382,7 +383,7 @@ class ValueProviderSetGetTestCase(IsolatedAsyncioTestCase):
     """Tests for set() and get() methods."""
 
     async def test_set_updates_input(self):
-        """set() should update the input value."""
+        """set() should update the input value using query format."""
         distributor = MockDistributor(values=['output'])
         generator = AsyncMock()
 
@@ -391,12 +392,14 @@ class ValueProviderSetGetTestCase(IsolatedAsyncioTestCase):
             input_generator=generator,
         )
 
+        # set() accepts plain values (implicit $eq) or query format
         provider.set('manual_value')
 
-        self.assertEqual(provider.get(), 'manual_value')
+        # get() returns query format with $eq operator
+        self.assertEqual(provider.get(), {'$eq': 'manual_value'})
 
     async def test_get_returns_input(self):
-        """get() should return the input value set during populate()."""
+        """get() should return the input value set during populate() in query format."""
         distributor = MockDistributor(values=['output_value'])
         generator = AsyncMock()
         session = MockSession()
@@ -409,7 +412,8 @@ class ValueProviderSetGetTestCase(IsolatedAsyncioTestCase):
 
         await provider.populate(session)
 
-        self.assertEqual(provider.get(), 'output_value')
+        # get() returns query format with $eq operator
+        self.assertEqual(provider.get(), {'$eq': 'output_value'})
 
 
 class ValueProviderProviderNameTestCase(IsolatedAsyncioTestCase):

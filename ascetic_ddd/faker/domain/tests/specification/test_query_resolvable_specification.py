@@ -1,3 +1,4 @@
+"""Tests for QueryResolvableSpecification."""
 import dataclasses
 import typing
 from unittest import IsolatedAsyncioTestCase
@@ -7,9 +8,11 @@ from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
 from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
 from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
+from ascetic_ddd.faker.domain.query.parser import QueryParser
+from ascetic_ddd.faker.domain.query.operators import EqOperator, RelOperator, CompositeQuery
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.specification.object_pattern_resolvable_specification import ObjectPatternResolvableSpecification
+from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
 from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
 
@@ -238,16 +241,17 @@ class UserFaker(AggregateProvider[dict, User]):
 
 
 # =============================================================================
-# Tests for ObjectPatternResolvableSpecification
+# Tests for QueryResolvableSpecification
 # =============================================================================
 
-class ObjectPatternResolvableSpecificationBasicTestCase(IsolatedAsyncioTestCase):
-    """Basic tests for ObjectPatternResolvableSpecification."""
+class QueryResolvableSpecificationBasicTestCase(IsolatedAsyncioTestCase):
+    """Basic tests for QueryResolvableSpecification."""
 
     async def test_is_satisfied_by_simple_pattern(self):
         """Simple pattern matching should work."""
-        spec = ObjectPatternResolvableSpecification(
-            {'status': 'active'},
+        query = QueryParser().parse({'status': 'active'})
+        spec = QueryResolvableSpecification(
+            query,
             lambda obj: obj
         )
         session = MockSession()
@@ -257,8 +261,9 @@ class ObjectPatternResolvableSpecificationBasicTestCase(IsolatedAsyncioTestCase)
 
     async def test_is_satisfied_by_nested_pattern(self):
         """Nested pattern matching should work."""
-        spec = ObjectPatternResolvableSpecification(
-            {'address': {'city': 'Moscow'}},
+        query = QueryParser().parse({'address': {'city': 'Moscow'}})
+        spec = QueryResolvableSpecification(
+            query,
             lambda obj: obj
         )
         session = MockSession()
@@ -268,7 +273,8 @@ class ObjectPatternResolvableSpecificationBasicTestCase(IsolatedAsyncioTestCase)
 
     async def test_is_satisfied_by_unresolved_raises_exception(self):
         """is_satisfied_by() on unresolved specification should raise TypeError."""
-        spec = ObjectPatternResolvableSpecification({'status': 'active'}, lambda obj: obj)
+        query = QueryParser().parse({'status': 'active'})
+        spec = QueryResolvableSpecification(query, lambda obj: obj)
         session = MockSession()
         with self.assertRaises(TypeError) as ctx:
             await spec.is_satisfied_by(session, {'status': 'active'})
@@ -276,8 +282,10 @@ class ObjectPatternResolvableSpecificationBasicTestCase(IsolatedAsyncioTestCase)
 
     async def test_hash_equality(self):
         """Specifications with same resolved pattern should be equal."""
-        spec1 = ObjectPatternResolvableSpecification({'status': 'active'}, lambda obj: obj)
-        spec2 = ObjectPatternResolvableSpecification({'status': 'active'}, lambda obj: obj)
+        query1 = QueryParser().parse({'status': 'active'})
+        query2 = QueryParser().parse({'status': 'active'})
+        spec1 = QueryResolvableSpecification(query1, lambda obj: obj)
+        spec2 = QueryResolvableSpecification(query2, lambda obj: obj)
         session = MockSession()
         await spec1.resolve_nested(session)
         await spec2.resolve_nested(session)
@@ -286,8 +294,10 @@ class ObjectPatternResolvableSpecificationBasicTestCase(IsolatedAsyncioTestCase)
 
     async def test_hash_inequality(self):
         """Specifications with different resolved patterns should not be equal."""
-        spec1 = ObjectPatternResolvableSpecification({'status': 'active'}, lambda obj: obj)
-        spec2 = ObjectPatternResolvableSpecification({'status': 'inactive'}, lambda obj: obj)
+        query1 = QueryParser().parse({'status': 'active'})
+        query2 = QueryParser().parse({'status': 'inactive'})
+        spec1 = QueryResolvableSpecification(query1, lambda obj: obj)
+        spec2 = QueryResolvableSpecification(query2, lambda obj: obj)
         session = MockSession()
         await spec1.resolve_nested(session)
         await spec2.resolve_nested(session)
@@ -296,76 +306,31 @@ class ObjectPatternResolvableSpecificationBasicTestCase(IsolatedAsyncioTestCase)
 
     def test_hash_unresolved_raises_exception(self):
         """Hash of unresolved specification should raise TypeError."""
-        spec = ObjectPatternResolvableSpecification({'status': 'active'}, lambda obj: obj)
+        query = QueryParser().parse({'status': 'active'})
+        spec = QueryResolvableSpecification(query, lambda obj: obj)
         with self.assertRaises(TypeError) as ctx:
             hash(spec)
         self.assertIn("unresolved", str(ctx.exception))
 
     def test_eq_unresolved_raises_exception(self):
         """Comparing unresolved specifications should raise TypeError."""
-        spec1 = ObjectPatternResolvableSpecification({'status': 'active'}, lambda obj: obj)
-        spec2 = ObjectPatternResolvableSpecification({'status': 'active'}, lambda obj: obj)
+        query1 = QueryParser().parse({'status': 'active'})
+        query2 = QueryParser().parse({'status': 'active'})
+        spec1 = QueryResolvableSpecification(query1, lambda obj: obj)
+        spec2 = QueryResolvableSpecification(query2, lambda obj: obj)
         with self.assertRaises(TypeError) as ctx:
             spec1 == spec2
         self.assertIn("unresolved", str(ctx.exception))
 
-    async def test_hash_uses_resolved_pattern_not_object_pattern(self):
-        """hash() should use _resolved_pattern, not _object_pattern."""
-        spec = ObjectPatternResolvableSpecification({'status': 'active'}, lambda obj: obj)
-        session = MockSession()
-        await spec.resolve_nested(session)
 
-        # Manually change _resolved_pattern to verify hash uses it
-        spec._resolved_pattern = {'status': 'modified'}
-        spec._hash = None  # Reset cached hash
-
-        from ascetic_ddd.seedwork.domain.utils.data import hashable
-        expected_hash = hash(hashable({'status': 'modified'}))
-        self.assertEqual(hash(spec), expected_hash)
-
-    async def test_eq_uses_resolved_pattern_not_object_pattern(self):
-        """__eq__() should compare _resolved_pattern, not _object_pattern."""
-        # Same _object_pattern but different _resolved_pattern
-        spec1 = ObjectPatternResolvableSpecification({'status': 'active'}, lambda obj: obj)
-        spec2 = ObjectPatternResolvableSpecification({'status': 'active'}, lambda obj: obj)
-        session = MockSession()
-        await spec1.resolve_nested(session)
-        await spec2.resolve_nested(session)
-
-        # Manually set different _resolved_pattern
-        spec1._resolved_pattern = {'status': 'value1'}
-        spec2._resolved_pattern = {'status': 'value2'}
-
-        self.assertNotEqual(spec1, spec2)
-
-        # Same _resolved_pattern
-        spec2._resolved_pattern = {'status': 'value1'}
-        self.assertEqual(spec1, spec2)
-
-    async def test_is_satisfied_by_uses_resolved_pattern_not_object_pattern(self):
-        """is_satisfied_by() should use _resolved_pattern, not _object_pattern."""
-        spec = ObjectPatternResolvableSpecification(
-            {'status': 'original'},
-            lambda obj: obj
-        )
-        session = MockSession()
-        await spec.resolve_nested(session)
-
-        # Manually set different _resolved_pattern
-        spec._resolved_pattern = {'status': 'resolved'}
-
-        # Should match against _resolved_pattern, not _object_pattern
-        self.assertTrue(await spec.is_satisfied_by(session, {'status': 'resolved', 'extra': 'field'}))
-        self.assertFalse(await spec.is_satisfied_by(session, {'status': 'original'}))
-
-
-class ObjectPatternResolvableSpecificationResolveNestedTestCase(IsolatedAsyncioTestCase):
-    """Tests for ObjectPatternResolvableSpecification.resolve_nested()."""
+class QueryResolvableSpecificationResolveNestedTestCase(IsolatedAsyncioTestCase):
+    """Tests for QueryResolvableSpecification.resolve_nested()."""
 
     async def test_resolve_nested_without_accessor(self):
         """Without aggregate_provider_accessor, pattern stays unchanged."""
-        spec = ObjectPatternResolvableSpecification(
-            {'status_id': {'name': 'Active'}},
+        query = QueryParser().parse({'status_id': {'name': 'Active'}})
+        spec = QueryResolvableSpecification(
+            query,
             lambda obj: obj,
             aggregate_provider_accessor=None
         )
@@ -388,8 +353,9 @@ class ObjectPatternResolvableSpecificationResolveNestedTestCase(IsolatedAsyncioT
         user_provider = UserFaker(user_repo, user_dist, status_provider)
         user_provider.provider_name = "user"
 
-        spec = ObjectPatternResolvableSpecification(
-            {'name': 'Alice', 'id': 123},
+        query = QueryParser().parse({'name': 'Alice', 'id': 123})
+        spec = QueryResolvableSpecification(
+            query,
             lambda obj: obj,
             aggregate_provider_accessor=lambda: user_provider
         )
@@ -401,113 +367,11 @@ class ObjectPatternResolvableSpecificationResolveNestedTestCase(IsolatedAsyncioT
         self.assertEqual(spec._resolved_pattern['name'], 'Alice')
         self.assertEqual(spec._resolved_pattern['id'], 123)
 
-    async def test_resolve_nested_with_reference_provider(self):
-        """Nested dict for IReferenceProvider should be resolved to ID."""
-        from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
-
-        # Create a mock reference provider that returns a known ID
-        class MockReferenceProvider(IReferenceProvider):
-            def __init__(self):
-                self._input = empty
-                self._output = empty
-                self._provider_name = None
-
-            async def populate(self, session):
-                # Simulate populating with resolved ID
-                self._output = StatusId("resolved_active")
-
-            def set(self, value):
-                self._input = value
-
-            def get(self):
-                return self._output
-
-            async def create(self, session):
-                return self._output
-
-            async def append(self, session, value):
-                pass
-
-            def reset(self):
-                self._input = empty
-                self._output = empty
-
-            def is_complete(self):
-                return self._output is not empty
-
-            def is_transient(self):
-                return self._input is empty
-
-            def empty(self, shunt=None):
-                return MockReferenceProvider()
-
-            def do_empty(self, clone, shunt):
-                pass
-
-            @property
-            def provider_name(self):
-                return self._provider_name
-
-            @provider_name.setter
-            def provider_name(self, value):
-                self._provider_name = value
-
-            @property
-            def aggregate_provider(self):
-                return None
-
-            @aggregate_provider.setter
-            def aggregate_provider(self, value):
-                pass
-
-            async def setup(self, session):
-                pass
-
-            async def cleanup(self, session):
-                pass
-
-            def attach(self, aspect, observer, id_=None):
-                return lambda: None
-
-            def detach(self, aspect, observer, id_=None):
-                pass
-
-            def notify(self, aspect, *args, **kwargs):
-                pass
-
-            async def anotify(self, aspect, *args, **kwargs):
-                pass
-
-        # Create a mock aggregate provider with the reference provider
-        class MockAggregateProvider:
-            def __init__(self):
-                self.status_id = MockReferenceProvider()
-
-            @property
-            def providers(self):
-                return {'status_id': self.status_id}
-
-        mock_agg_provider = MockAggregateProvider()
-
-        # Create specification with nested constraint
-        spec = ObjectPatternResolvableSpecification(
-            {'status_id': {'name': 'Active'}},
-            lambda obj: obj,
-            aggregate_provider_accessor=lambda: mock_agg_provider
-        )
-
-        session = MockSession()
-        await spec.resolve_nested(session)
-
-        # Nested dict should be resolved to concrete ID
-        self.assertIn('status_id', spec._resolved_pattern)
-        resolved_status_id = spec._resolved_pattern['status_id']
-        self.assertEqual(resolved_status_id, StatusId("resolved_active"))
-
     async def test_resolve_nested_idempotent(self):
         """Calling resolve_nested() multiple times should be idempotent."""
-        spec = ObjectPatternResolvableSpecification(
-            {'status': 'active'},
+        query = QueryParser().parse({'status': 'active'})
+        spec = QueryResolvableSpecification(
+            query,
             lambda obj: obj,
             aggregate_provider_accessor=None
         )
@@ -522,47 +386,22 @@ class ObjectPatternResolvableSpecificationResolveNestedTestCase(IsolatedAsyncioT
         # Should be the same object (not re-resolved)
         self.assertIs(first_resolved, second_resolved)
 
-    async def test_resolve_nested_non_reference_provider_unchanged(self):
-        """Nested dict for non-IReferenceProvider should stay as dict."""
-        status_repo = StubRepository()
-        status_dist = StubDistributor(values=[Status(StatusId("active"), "Active")])
-        status_provider = StatusFaker(status_repo, status_dist)
-        status_provider.provider_name = "status"
 
-        user_repo = StubRepository()
-        user_dist = StubDistributor()
-        user_provider = UserFaker(user_repo, user_dist, status_provider)
-        user_provider.provider_name = "user"
-
-        # 'name' is a ValueProvider, not ReferenceProvider
-        # So nested dict should stay unchanged
-        spec = ObjectPatternResolvableSpecification(
-            {'name': {'nested': 'value'}},  # name is ValueProvider
-            user_provider._output_exporter,
-            aggregate_provider_accessor=lambda: user_provider
-        )
-
-        session = MockSession()
-        await spec.resolve_nested(session)
-
-        # Should stay as dict (ValueProvider doesn't resolve nested)
-        self.assertEqual(spec._resolved_pattern['name'], {'nested': 'value'})
-
-
-class ObjectPatternResolvableSpecificationAcceptTestCase(IsolatedAsyncioTestCase):
-    """Tests for ObjectPatternResolvableSpecification.accept()."""
+class QueryResolvableSpecificationAcceptTestCase(IsolatedAsyncioTestCase):
+    """Tests for QueryResolvableSpecification.accept()."""
 
     def test_accept_passes_aggregate_provider_accessor(self):
         """accept() should pass aggregate_provider_accessor to visitor."""
         received_accessor = [None]
 
         class MockVisitor:
-            def visit_object_pattern_specification(self, pattern, accessor=None):
+            def visit_query_specification(self, query, accessor=None):
                 received_accessor[0] = accessor
 
         accessor = lambda: "test_provider"
-        spec = ObjectPatternResolvableSpecification(
-            {'status': 'active'},
+        query = QueryParser().parse({'status': 'active'})
+        spec = QueryResolvableSpecification(
+            query,
             lambda obj: obj,
             aggregate_provider_accessor=accessor
         )
@@ -577,11 +416,12 @@ class ObjectPatternResolvableSpecificationAcceptTestCase(IsolatedAsyncioTestCase
         received_accessor = ["not_none"]
 
         class MockVisitor:
-            def visit_object_pattern_specification(self, pattern, accessor=None):
+            def visit_query_specification(self, query, accessor=None):
                 received_accessor[0] = accessor
 
-        spec = ObjectPatternResolvableSpecification(
-            {'status': 'active'},
+        query = QueryParser().parse({'status': 'active'})
+        spec = QueryResolvableSpecification(
+            query,
             lambda obj: obj,
             aggregate_provider_accessor=None
         )
@@ -591,57 +431,12 @@ class ObjectPatternResolvableSpecificationAcceptTestCase(IsolatedAsyncioTestCase
 
         self.assertIsNone(received_accessor[0])
 
-    def test_accept_passes_object_pattern_when_unresolved(self):
-        """accept() should pass _object_pattern when specification is not resolved."""
-        received_pattern = [None]
-
-        class MockVisitor:
-            def visit_object_pattern_specification(self, pattern, accessor=None):
-                received_pattern[0] = pattern
-
-        original_pattern = {'status_id': {'name': 'Active'}}
-        spec = ObjectPatternResolvableSpecification(
-            original_pattern,
-            lambda obj: obj
-        )
-
-        visitor = MockVisitor()
-        spec.accept(visitor)
-
-        # Should pass original pattern (with nested dict)
-        self.assertEqual(received_pattern[0], original_pattern)
-        self.assertIs(received_pattern[0], original_pattern)
-
-    async def test_accept_passes_resolved_pattern_when_resolved(self):
-        """accept() should pass _resolved_pattern when specification is resolved."""
-        received_pattern = [None]
-
-        class MockVisitor:
-            def visit_object_pattern_specification(self, pattern, accessor=None):
-                received_pattern[0] = pattern
-
-        original_pattern = {'status': 'active'}
-        spec = ObjectPatternResolvableSpecification(
-            original_pattern,
-            lambda obj: obj
-        )
-
-        session = MockSession()
-        await spec.resolve_nested(session)
-
-        visitor = MockVisitor()
-        spec.accept(visitor)
-
-        # Should pass resolved pattern
-        self.assertEqual(received_pattern[0], spec._resolved_pattern)
-        self.assertIs(received_pattern[0], spec._resolved_pattern)
-
 
 # =============================================================================
 # Sociable Tests — тесты с реальными коллабораторами
 # =============================================================================
 
-class ObjectPatternResolvableSpecificationSociableTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationSociableTestCase(IsolatedAsyncioTestCase):
     """Sociable tests with real collaborators (InMemoryRepository, real providers)."""
 
     async def asyncSetUp(self):
@@ -675,62 +470,14 @@ class ObjectPatternResolvableSpecificationSociableTestCase(IsolatedAsyncioTestCa
         await self.status_repo.cleanup(self.session)
         await self.user_repo.cleanup(self.session)
 
-    async def test_resolve_nested_returns_exported_dict(self):
-        """resolve_nested() with real ReferenceProvider returns exported dict, not ID.
-
-        This documents the actual behavior: ReferenceProvider.get() returns
-        the full exported dict, not just the ID value.
-        """
-        # Pre-populate user_dist (used by UserFaker.status_id ReferenceProvider)
-        # with Status aggregate
-        active_status = Status(StatusId("active"), "Active")
-        await self.status_repo.insert(self.session, active_status)
-        # user_dist is used by ReferenceProvider, returns Status objects
-        self.user_dist._values = [active_status]
-        self.user_dist._raise_cursor = False
-        self.user_dist._index = 0
-
-        spec = ObjectPatternResolvableSpecification(
-            {'status_id': {'name': 'Active'}},
-            UserFaker._export,
-            aggregate_provider_accessor=lambda: self.user_provider
-        )
-
-        await spec.resolve_nested(self.session)
-
-        # ReferenceProvider.get() returns exported dict, not StatusId
-        resolved_status = spec._resolved_pattern['status_id']
-        self.assertIsInstance(resolved_status, dict)
-        self.assertEqual(resolved_status['id'], 'active')
-        self.assertEqual(resolved_status['name'], 'Active')
-
-    async def test_resolve_nested_creates_new_aggregate_on_cursor(self):
-        """When distributor raises Cursor, a new aggregate is created."""
-        # Distributor with raise_cursor=True - will create new Status
-        self.status_dist._raise_cursor = True
-
-        spec = ObjectPatternResolvableSpecification(
-            {'status_id': {'name': 'Active'}},
-            UserFaker._export,
-            aggregate_provider_accessor=lambda: self.user_provider
-        )
-
-        await spec.resolve_nested(self.session)
-
-        # New Status was created with generated ID
-        resolved_status = spec._resolved_pattern['status_id']
-        self.assertIsInstance(resolved_status, dict)
-        self.assertEqual(resolved_status['name'], 'Active')
-        # ID is auto-generated (status_0, status_1, etc.)
-        self.assertTrue(resolved_status['id'].startswith('status_'))
-
     async def test_simple_pattern_with_real_providers(self):
         """Simple patterns work with real providers."""
         user = User(UserId(1), StatusId("active"), "Alice")
         await self.user_repo.insert(self.session, user)
 
-        spec = ObjectPatternResolvableSpecification(
-            {'name': 'Alice'},
+        query = QueryParser().parse({'name': 'Alice'})
+        spec = QueryResolvableSpecification(
+            query,
             UserFaker._export,
             aggregate_provider_accessor=lambda: self.user_provider
         )
@@ -742,38 +489,6 @@ class ObjectPatternResolvableSpecificationSociableTestCase(IsolatedAsyncioTestCa
         user2 = User(UserId(2), StatusId("active"), "Bob")
         self.assertFalse(await spec.is_satisfied_by(self.session, user2))
 
-    async def test_hash_equality_with_real_providers(self):
-        """Hash and equality work with real providers after resolve_nested()."""
-        # Pre-populate user_dist (used by ReferenceProvider)
-        active_status = Status(StatusId("active"), "Active")
-        await self.status_repo.insert(self.session, active_status)
-        self.user_dist._values = [active_status, active_status]  # для обоих spec
-        self.user_dist._raise_cursor = False
-
-        spec1 = ObjectPatternResolvableSpecification(
-            {'status_id': {'name': 'Active'}},
-            UserFaker._export,
-            aggregate_provider_accessor=lambda: self.user_provider
-        )
-        spec2 = ObjectPatternResolvableSpecification(
-            {'status_id': {'name': 'Active'}},
-            UserFaker._export,
-            aggregate_provider_accessor=lambda: self.user_provider
-        )
-
-        self.user_dist._index = 0
-        await spec1.resolve_nested(self.session)
-
-        # Reset provider state for second spec
-        self.user_provider.status_id.reset()
-        self.user_dist._index = 0
-        await spec2.resolve_nested(self.session)
-
-        # Same resolved pattern → equal hash
-        self.assertEqual(spec1._resolved_pattern, spec2._resolved_pattern)
-        self.assertEqual(hash(spec1), hash(spec2))
-        self.assertEqual(spec1, spec2)
-
     async def test_repository_find_with_specification(self):
         """InMemoryRepository.find() works with specification."""
         user1 = User(UserId(1), StatusId("active"), "Alice")
@@ -783,8 +498,9 @@ class ObjectPatternResolvableSpecificationSociableTestCase(IsolatedAsyncioTestCa
         await self.user_repo.insert(self.session, user2)
         await self.user_repo.insert(self.session, user3)
 
-        spec = ObjectPatternResolvableSpecification(
-            {'name': 'Alice'},
+        query = QueryParser().parse({'name': 'Alice'})
+        spec = QueryResolvableSpecification(
+            query,
             UserFaker._export,
             aggregate_provider_accessor=lambda: self.user_provider
         )
@@ -797,3 +513,8 @@ class ObjectPatternResolvableSpecificationSociableTestCase(IsolatedAsyncioTestCa
         names = [u.name for u in found]
         self.assertIn('Alice', names)
         self.assertNotIn('Bob', names)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

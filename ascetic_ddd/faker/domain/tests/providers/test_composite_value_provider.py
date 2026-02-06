@@ -254,8 +254,9 @@ class CompositeValueProviderLevel2TestCase(IsolatedAsyncioTestCase):
             'internal_user_id': 199,
         })
 
-        self.assertEqual(provider.tenant_id.get(), 99)
-        self.assertEqual(provider.internal_user_id.get(), 199)
+        # get() returns query format with $eq operator
+        self.assertEqual(provider.tenant_id.get(), {'$eq': 99})
+        self.assertEqual(provider.internal_user_id.get(), {'$eq': 199})
 
     async def test_reuse_existing_user_id(self):
         """UserIdProvider should reuse existing UserId from distributor."""
@@ -326,12 +327,13 @@ class CompositeValueProviderLevel3TestCase(IsolatedAsyncioTestCase):
             'internal_resume_id': 1001,
         })
 
-        self.assertEqual(provider.user_id.tenant_id.get(), 1)
-        self.assertEqual(provider.user_id.internal_user_id.get(), 101)
-        self.assertEqual(provider.internal_resume_id.get(), 1001)
+        # get() returns query format with $eq operator
+        self.assertEqual(provider.user_id.tenant_id.get(), {'$eq': 1})
+        self.assertEqual(provider.user_id.internal_user_id.get(), {'$eq': 101})
+        self.assertEqual(provider.internal_resume_id.get(), {'$eq': 1001})
 
     async def test_get_returns_nested_structure(self):
-        """get() should return the full nested structure."""
+        """get() should return the full nested structure in query format."""
         distributor = StubDistributor(raise_cursor_at=0)
         provider = ResumeIdProvider(distributor)
         provider.provider_name = 'resume_id'
@@ -339,9 +341,11 @@ class CompositeValueProviderLevel3TestCase(IsolatedAsyncioTestCase):
 
         await provider.populate(session)
 
+        # CompositeValueProvider.get() returns nested dict from nested providers
         result = provider.get()
         self.assertIn('user_id', result)
         self.assertIn('internal_resume_id', result)
+        # Nested composite providers return their own nested get() results
         self.assertIn('tenant_id', result['user_id'])
         self.assertIn('internal_user_id', result['user_id'])
 
@@ -381,7 +385,8 @@ class CompositeValueProviderResetTestCase(IsolatedAsyncioTestCase):
         provider.reset()
 
         self.assertFalse(provider.is_complete())
-        self.assertEqual(provider._input, empty)
+        # _input is now IQueryOperator | None, not Empty
+        self.assertIsNone(provider._input)
         self.assertEqual(provider._output, empty)
 
 

@@ -15,9 +15,9 @@ T = typing.TypeVar("T", covariant=True)
 
 class ISpecificationVisitor(typing.Protocol):
 
-    def visit_object_pattern_specification(
+    def visit_query_specification(
             self,
-            object_pattern: typing.Any,
+            query: typing.Any,  # IQueryOperator
             aggregate_provider_accessor: typing.Callable[[], typing.Any] | None = None
     ):
         ...

@@ -142,7 +142,7 @@ class StubEmployeeRepository(IAggregateRepository[Employee]):
         pass
 
     async def insert(self, session: ISession, agg: Employee):
-        if agg.id is None or (isinstance(agg.id, EmployeeId) and agg.id.value == 0):
+        if agg.id is None or (isinstance(agg.id, EmployeeId) and agg.id.value in (0, None)):
             new_id = EmployeeId(value=self._auto_increment_counter)
             self._auto_increment_counter += 1
             agg.id = new_id
@@ -204,7 +204,7 @@ class EmployeeProvider(AggregateProvider[dict, Employee]):
     def __init__(self, repository: IAggregateRepository[Employee]):
         self.id = ValueProvider(
             distributor=StubM2ODistributor(),
-            input_generator=lambda: 0,
+            input_generator=None,  # Auto-increment
             output_factory=EmployeeId,
             output_exporter=lambda x: x.value,
         )
@@ -586,7 +586,7 @@ class StubCompanyRepository(IAggregateRepository[Company]):
         pass
 
     async def insert(self, session: ISession, agg: Company):
-        if agg.id is None or (isinstance(agg.id, CompanyId) and agg.id.value == 0):
+        if agg.id is None or (isinstance(agg.id, CompanyId) and agg.id.value in (0, None)):
             new_id = CompanyId(value=self._auto_increment_counter)
             self._auto_increment_counter += 1
             agg.id = new_id
@@ -634,7 +634,7 @@ class CompanyProviderWithEmployees(AggregateProvider[dict, Company]):
     ):
         self.id = ValueProvider(
             distributor=StubM2ODistributor(),
-            input_generator=lambda: 0,
+            input_generator=None,  # Auto-increment
             output_factory=CompanyId,
             output_exporter=lambda x: x.value,
         )

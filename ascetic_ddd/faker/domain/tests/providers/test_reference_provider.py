@@ -172,7 +172,7 @@ class StubTenantRepository(IAggregateRepository[Tenant]):
         pass
 
     async def insert(self, session: ISession, agg: Tenant):
-        if agg.id is None or (isinstance(agg.id, TenantId) and agg.id.value == 0):
+        if agg.id is None or (isinstance(agg.id, TenantId) and agg.id.value in (0, None)):
             new_id = TenantId(value=self._auto_increment_counter)
             self._auto_increment_counter += 1
             agg.id = new_id
@@ -220,7 +220,7 @@ class StubUserRepository(IAggregateRepository[User]):
 
     async def insert(self, session: ISession, agg: User):
         if agg.id.internal_user_id is None or (
-                isinstance(agg.id.internal_user_id, InternalUserId) and agg.id.internal_user_id.value == 0
+                isinstance(agg.id.internal_user_id, InternalUserId) and agg.id.internal_user_id.value in (0, None)
         ):
             new_internal_id = InternalUserId(value=self._auto_increment_counter)
             self._auto_increment_counter += 1
@@ -272,7 +272,7 @@ class StubResumeRepository(IAggregateRepository[Resume]):
 
     async def insert(self, session: ISession, agg: Resume):
         if agg.id.internal_resume_id is None or (
-                isinstance(agg.id.internal_resume_id, InternalResumeId) and agg.id.internal_resume_id.value == 0
+                isinstance(agg.id.internal_resume_id, InternalResumeId) and agg.id.internal_resume_id.value in (0, None)
         ):
             new_internal_id = InternalResumeId(value=self._auto_increment_counter)
             self._auto_increment_counter += 1
@@ -428,7 +428,7 @@ class TenantProviderAutoIncrement(AggregateProvider[dict, Tenant]):
     def __init__(self, repository: IAggregateRepository[Tenant]):
         self.id = ValueProvider(
             distributor=StubDistributor(raise_cursor_at=0),
-            input_generator=lambda: 0,
+            input_generator=None,  # Auto-increment
             output_factory=TenantId,
             output_exporter=lambda x: x.value,
         )
@@ -968,9 +968,10 @@ class ReferenceProviderPresetPKMultiLevelTestCase(IsolatedAsyncioTestCase):
             'username': 'custom_user',
         })
 
-        self.assertEqual(user_provider.id.tenant_id.get(), 999)
-        self.assertEqual(user_provider.id.internal_user_id.get(), 888)
-        self.assertEqual(user_provider.username.get(), 'custom_user')
+        # get() returns query format with $eq operator
+        self.assertEqual(user_provider.id.tenant_id.get(), {'$eq': 999})
+        self.assertEqual(user_provider.id.internal_user_id.get(), {'$eq': 888})
+        self.assertEqual(user_provider.username.get(), {'$eq': 'custom_user'})
 
 
 # =============================================================================
@@ -1038,7 +1039,8 @@ class ReferenceProviderResetTestCase(IsolatedAsyncioTestCase):
         user_provider.reset()
 
         self.assertFalse(user_provider.tenant_id.is_complete())
-        self.assertEqual(user_provider.tenant_id._input, empty)
+        # _input is now IQueryOperator | None, not Empty
+        self.assertIsNone(user_provider.tenant_id._input)
 
 
 # =============================================================================

@@ -7,10 +7,16 @@ from ascetic_ddd.faker.domain.providers._mixins import BaseDistributionProvider
 from ascetic_ddd.faker.domain.providers.interfaces import (
     IReferenceProvider, IEntityProvider, ICloningShunt, ISetupable
 )
+from ascetic_ddd.faker.domain.query.operators import (
+    IQueryOperator, EqOperator, RelOperator, CompositeQuery
+)
+from ascetic_ddd.faker.domain.query.parser import QueryParser
+from ascetic_ddd.faker.domain.query.merger import QueryMerger
+from ascetic_ddd.faker.domain.query.visitors import query_to_dict, dict_to_query
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.specification.object_pattern_resolvable_specification import ObjectPatternResolvableSpecification
+from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
 from ascetic_ddd.faker.domain.values.empty import empty
 
 __all__ = ('ReferenceProvider',)
@@ -49,7 +55,7 @@ class ReferenceProvider(
             self,
             distributor: IM2ODistributor,
             aggregate_provider: IEntityProvider[T_Input, T_Output] | Callable[[], IEntityProvider[T_Input, T_Output]],
-            specification_factory: Callable[..., ISpecification] = ObjectPatternResolvableSpecification,
+            specification_factory: Callable[..., ISpecification] = QueryResolvableSpecification,
     ):
         self.aggregate_provider = aggregate_provider
         self._specification_factory = specification_factory
@@ -68,38 +74,51 @@ class ReferenceProvider(
             return
 
         # Создаём specification с aggregate_provider_accessor для lazy resolve_nested и subqueries
-        if self._input is not empty and isinstance(self._input, dict):
+        if self._input is not None:
             specification = self._specification_factory(
                 self._input,
                 self.aggregate_provider._output_exporter,
                 aggregate_provider_accessor=lambda: self.aggregate_provider,
             )
-        elif self._input is empty:
-            specification = EmptySpecification()
         else:
-            specification = self._specification_factory(self._input, self.aggregate_provider._output_exporter)
+            specification = EmptySpecification()
 
         try:
             result = await self._distributor.next(session, specification)
             if result is not None:
                 value = self.aggregate_provider._output_exporter(result)
-                self.set(value)
-                self.aggregate_provider.set(value)
+                self.set(self._build_id_query(value))
+                self.aggregate_provider.set(dict_to_query(value))
                 await self.aggregate_provider.populate(session)
             else:
-                self.set(None)
+                # Alternative to "if isinstance(new_query, EqOperator) and new_query.value is None"
+                # self._input = None
+                self.set({'$eq': None})
             # self.set() could reset self._output
             self._output = result
         except ICursor as cursor:
-            if self._input is not empty and isinstance(self._input, dict):
-                self.aggregate_provider.set(self._input)
+            if self._input is not None:
+                # Propagate constraints to aggregate_provider (already done in set())
+                pass
             await self.aggregate_provider.populate(session)
             result = await self.aggregate_provider.create(session)
             await cursor.append(session, result)
             value = self.aggregate_provider._output_exporter(result)
-            self.set(value)
+            self.set(self._build_id_query(value))
             # self.set() could reset self._output
             self._output = result
+
+    def _build_id_query(self, exported_value: dict) -> dict:
+        """
+        Build reference query from exported aggregate value.
+
+        Extracts just the id field for the reference's $rel constraint.
+        For scalar PK: {'$rel': {'id': {'$eq': 10}}}
+        For composite PK: {'$rel': {'id': {'tenant_id': {'$eq': 15}, ...}}}
+        """
+        id_attr = self.aggregate_provider._id_attr
+        id_value = exported_value[id_attr]
+        return {'$rel': {id_attr: dict_to_query(id_value)}}
 
     async def setup(self, session: ISession):
         await super().setup(session)
@@ -115,9 +134,58 @@ class ReferenceProvider(
         return await self.aggregate_provider.id_provider.create(session)
 
     def set(self, value: T_Input) -> None:
-        # infinite recursion
-        # self.aggregate_provider.set(value)
-        super().set(value)
+        """
+        Set reference provider value using query format.
+
+        Supports all formats:
+        - {'$eq': 27} - scalar PK
+        - {'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}} - composite PK
+        - {'$rel': {'is_active': {'$eq': True}}} - related aggregate criteria
+
+        Non-$rel values are automatically wrapped into $rel with id.
+        """
+        new_query = QueryParser().parse(value)
+        id_attr = self.aggregate_provider._id_attr
+        merger = QueryMerger(id_attr=id_attr)
+
+        if self._input is not None:
+            # EqOperator(None) means "null the reference" - replace, don't merge
+            if isinstance(new_query, EqOperator) and new_query.value is None:
+                self._input = new_query
+            else:
+                self._input = merger.merge(self._input, new_query, self.provider_name)
+        else:
+            # Wrap non-$rel into $rel
+            if not isinstance(new_query, RelOperator):
+                if isinstance(new_query, EqOperator):
+                    # Scalar PK: {'$eq': 27} -> $rel: {id: {'$eq': 27}}
+                    new_query = RelOperator({id_attr: new_query})
+                else:
+                    # CompositeQuery: {'name': ...} -> $rel: {'name': ...}
+                    new_query = RelOperator(new_query.fields)
+            self._input = new_query
+
+        self._propagate_to_aggregate(self._input)
+        self._output = empty
+        self.notify('input', self._input)
+
+    def _propagate_to_aggregate(self, query: IQueryOperator) -> None:
+        """
+        Propagate $rel constraints to aggregate_provider.
+
+        infinite recursion prevention:
+        We only propagate once during set(), not recursively.
+        """
+        if not isinstance(query, RelOperator):
+            return
+
+        for field, op in query.constraints.items():
+            provider = getattr(self.aggregate_provider, field, None)
+            if provider is None:
+                raise AttributeError(
+                    f"Provider '{self.provider_name}': aggregate has no provider '{field}'"
+                )
+            provider.set(query_to_dict(op))
 
     @property
     def aggregate_provider(self) -> IEntityProvider[T_Input, T_Output]:

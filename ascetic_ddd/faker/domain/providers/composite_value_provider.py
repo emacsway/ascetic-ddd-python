@@ -3,9 +3,10 @@ import typing
 from ascetic_ddd.faker.domain.distributors.m2o import DummyDistributor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import ICursor, IM2ODistributor
 from ascetic_ddd.faker.domain.providers._mixins import BaseCompositeDistributionProvider
+from ascetic_ddd.faker.domain.query.visitors import dict_to_query
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.specification.object_pattern_resolvable_specification import ObjectPatternResolvableSpecification
+from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
 from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 
@@ -52,7 +53,7 @@ class CompositeValueProvider(
             distributor: IM2ODistributor[T_Input] | None = None,
             output_factory: typing.Callable[[...], T_Output] | None = None,  # T_Output of each nested Provider.
             output_exporter: typing.Callable[[T_Output], T_Input] | None = None,
-            specification_factory: typing.Callable[..., ISpecification] = ObjectPatternResolvableSpecification,
+            specification_factory: typing.Callable[..., ISpecification] = QueryResolvableSpecification,
     ):
         if distributor is None:
             distributor = DummyDistributor()
@@ -89,7 +90,7 @@ class CompositeValueProvider(
                 self._output = await self._default_factory(session)
             return
 
-        if self._input is empty:
+        if self._input is None:
             specification = EmptySpecification()
         else:
             specification = self._specification_factory(self._input, self._output_exporter)
@@ -98,9 +99,9 @@ class CompositeValueProvider(
             result = await self._distributor.next(session, specification)
             if result is not None:
                 value = self._output_exporter(result)
-                self.set(value)
+                self.set(dict_to_query(value))
             else:
-                self.set(None)
+                self.set({'$eq': None})
             # self.set() could reset self._output
             self._output = result
         except ICursor as cursor:
@@ -108,9 +109,6 @@ class CompositeValueProvider(
             for attr, provider in self.providers.items():
                 await provider.populate(session)
             result = await self._default_factory(session, cursor.position)
-            value = self._output_exporter(result)
-            self.set(value)
-            # self.set() could reset self._output
             self._output = result
             if not self.is_transient():
                 await cursor.append(session, self._output)

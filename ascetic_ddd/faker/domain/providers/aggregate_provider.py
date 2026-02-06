@@ -3,6 +3,7 @@ from abc import ABCMeta
 
 from ascetic_ddd.seedwork.domain.identity.interfaces import IAccessible
 from ascetic_ddd.faker.domain.providers._mixins import BaseCompositeProvider, ObservableMixin
+from ascetic_ddd.faker.domain.query.visitors import dict_to_query
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.providers.interfaces import IAggregateProvider
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
@@ -100,13 +101,20 @@ class AggregateProvider(
         if saved_result is not None:
             result = saved_result
             state = self._output_exporter(result)
-            self.set(state)
+            self.set(dict_to_query(state))
             await self.populate(session)
         else:
             await self._repository.insert(session, result)
             state = self._output_exporter(result)
-            self.id_provider.set(state.get(self._id_attr))
+            id_value = state.get(self._id_attr)
+            self.id_provider.set(dict_to_query(id_value))
             await self.id_provider.populate(session)
+            # Auto-increment PK uses DummyDistributor which doesn't store values,
+            # so append() is no-op. For composite PK with weighted distributor,
+            # append() would add the new PK to the pool. Currently not needed
+            # since PK providers don't use distribution-based distributors.
+            # Note: ReferenceProvider observers listen to repository events
+            # (via SubscriptionAggregateProviderAccessor), not to distributor.append().
             # await self.id_provider.append(session, getattr(result, self._id_attr))
         # self.set() could reset self._output
         self._output = result
