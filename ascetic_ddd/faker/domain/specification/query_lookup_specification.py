@@ -3,11 +3,11 @@ Query-based lookup specification.
 """
 import typing
 
-from ascetic_ddd.faker.domain.query.operators import IQueryOperator
-from ascetic_ddd.faker.domain.query.visitors import query_to_plain_value
+from ascetic_ddd.faker.domain.query.operators import (
+    IQueryOperator, EqOperator, RelOperator, CompositeQuery
+)
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecificationVisitor, ISpecification
 from ascetic_ddd.seedwork.domain.session import ISession
-from ascetic_ddd.seedwork.domain.utils.data import is_subset
 
 __all__ = ('QueryLookupSpecification',)
 
@@ -86,121 +86,100 @@ class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
         return self._query == other._query
 
     async def is_satisfied_by(self, session: ISession, obj: T) -> bool:
-        object_pattern = query_to_plain_value(self._query)
-
-        if self._aggregate_provider_accessor is None:
-            # Без провайдеров - только простое сравнение
-            state = self._object_exporter(obj)
-            return is_subset(object_pattern, state)
-
+        """Check if object satisfies the query."""
         state = self._object_exporter(obj)
-        aggregate_provider = self._aggregate_provider_accessor()
-        return await self._matches_pattern_with_provider(
-            session, object_pattern, state, aggregate_provider
-        )
+        aggregate_provider = self._aggregate_provider_accessor() if self._aggregate_provider_accessor else None
+        providers = aggregate_provider.providers if aggregate_provider else {}
+        return await self._matches(session, self._query, state, providers)
 
-    async def _matches_pattern_with_provider(
+    async def _matches(
             self,
-            session: typing.Any,
-            pattern: dict,
-            state: dict,
-            aggregate_provider: typing.Any
+            session: ISession,
+            query: IQueryOperator,
+            state: typing.Any,
+            providers: dict
     ) -> bool:
-        """Проверяет соответствие state паттерну с nested lookup через провайдер."""
-        for key, value in pattern.items():
-            if isinstance(value, dict):
-                # Nested constraint - нужен lookup
-                if not await self._matches_nested(session, key, state.get(key), value, aggregate_provider):
+        """Check if state matches query, with nested lookup for IReferenceProvider."""
+        if isinstance(query, EqOperator):
+            return state == query.value
+
+        elif isinstance(query, CompositeQuery):
+            if not isinstance(state, dict):
+                return False
+            for field, field_op in query.fields.items():
+                field_value = state.get(field)
+                field_provider = providers.get(field)
+                if not await self._matches_field(session, field, field_op, field_value, field_provider):
                     return False
+            return True
+
+        elif isinstance(query, RelOperator):
+            # RelOperator - check constraints against state
+            if isinstance(state, dict):
+                for field, field_op in query.constraints.items():
+                    field_value = state.get(field)
+                    if not await self._matches(session, field_op, field_value, {}):
+                        return False
             else:
-                # Simple value comparison
-                if state.get(key) != value:
-                    return False
-        return True
+                for field, field_op in query.constraints.items():
+                    field_value = getattr(state, field, None)
+                    if not await self._matches(session, field_op, field_value, {}):
+                        return False
+            return True
 
-    async def _matches_nested(
+        return False
+
+    async def _matches_field(
             self,
-            session: typing.Any,
-            field_key: str,
-            fk_id: typing.Any,
-            nested_pattern: dict,
-            aggregate_provider: typing.Any
+            session: ISession,
+            field: str,
+            field_op: IQueryOperator,
+            field_value: typing.Any,
+            provider: typing.Any
     ) -> bool:
-        """
-        Проверяет, удовлетворяет ли связанный объект nested pattern.
+        """Match a single field, doing nested lookup if provider is IReferenceProvider."""
+        from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
 
-        Использует кеш для избежания повторных lookup'ов.
+        if isinstance(field_op, EqOperator):
+            return field_value == field_op.value
 
-        Args:
-            session: сессия для запросов к repository
-            field_key: имя поля (ключ для провайдера)
-            fk_id: значение foreign key
-            nested_pattern: паттерн для проверки связанного объекта
-            aggregate_provider: провайдер текущего уровня
+        # Non-EqOperator with IReferenceProvider - need nested lookup
+        if isinstance(provider, IReferenceProvider):
+            return await self._do_nested_lookup(session, field, field_value, field_op, provider)
 
-        Returns:
-            True если связанный объект удовлетворяет паттерну
-        """
-        if fk_id is None:
-            return False
-
-        # Ключ кеша включает тип провайдера для избежания коллизий
-        # между одинаковыми field_key на разных уровнях вложенности
-        cache_key = (type(aggregate_provider), field_key, fk_id)
-
-        if cache_key in self._nested_cache:
-            return self._nested_cache[cache_key]
-
-        # Делаем lookup
-        result = await self._do_nested_lookup(session, field_key, fk_id, nested_pattern, aggregate_provider)
-        self._nested_cache[cache_key] = result
-        return result
+        # Non-EqOperator without IReferenceProvider - recursive match
+        nested_providers = provider.providers if hasattr(provider, 'providers') else {}
+        return await self._matches(session, field_op, field_value, nested_providers)
 
     async def _do_nested_lookup(
             self,
-            session: typing.Any,
+            session: ISession,
             field_key: str,
             fk_id: typing.Any,
-            nested_pattern: dict,
-            aggregate_provider: typing.Any
+            nested_query: IQueryOperator,
+            ref_provider: typing.Any
     ) -> bool:
-        """
-        Выполняет lookup связанного объекта и проверяет паттерн.
+        """Lookup foreign object and check if it matches nested_query."""
+        if fk_id is None:
+            return False
 
-        Args:
-            session: сессия для запросов к repository
-            field_key: имя поля (ключ для провайдера)
-            fk_id: значение foreign key
-            nested_pattern: паттерн для проверки
-            aggregate_provider: провайдер текущего уровня
+        cache_key = (type(ref_provider), field_key, fk_id)
+        if cache_key in self._nested_cache:
+            return self._nested_cache[cache_key]
 
-        Returns:
-            True если связанный объект удовлетворяет паттерну
-        """
-        from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
-
-        providers = aggregate_provider.providers
-        nested_provider = providers.get(field_key)
-
-        if not isinstance(nested_provider, IReferenceProvider):
-            # Не reference provider - не можем делать lookup
-            return fk_id is not None
-
-        # Получаем связанный объект через repository вложенного агрегата
-        referenced_aggregate_provider = nested_provider.aggregate_provider
+        referenced_aggregate_provider = ref_provider.aggregate_provider
         repository = referenced_aggregate_provider._repository
         foreign_obj = await repository.get(session, fk_id)
 
         if foreign_obj is None:
-            return False
+            result = False
+        else:
+            foreign_state = referenced_aggregate_provider._output_exporter(foreign_obj)
+            foreign_providers = referenced_aggregate_provider.providers
+            result = await self._matches(session, nested_query, foreign_state, foreign_providers)
 
-        # Экспортируем состояние через exporter вложенного агрегата
-        foreign_state = referenced_aggregate_provider._output_exporter(foreign_obj)
-
-        # Рекурсивно проверяем nested pattern с провайдером вложенного уровня
-        return await self._matches_pattern_with_provider(
-            session, nested_pattern, foreign_state, referenced_aggregate_provider
-        )
+        self._nested_cache[cache_key] = result
+        return result
 
     def accept(self, visitor: ISpecificationVisitor):
         visitor.visit_query_specification(
