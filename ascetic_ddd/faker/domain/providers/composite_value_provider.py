@@ -94,14 +94,6 @@ class CompositeValueProvider(
         else:
             specification = self._specification_factory(self._input, self._output_exporter)
 
-        await self.do_populate(session)
-        cursors = {}
-        for attr, provider in self.providers.items():
-            try:
-                await provider.populate(session)
-            except ICursor as cursor:
-                cursors[attr] = cursor
-
         try:
             result = await self._distributor.next(session, specification)
             if result is not None:
@@ -112,6 +104,9 @@ class CompositeValueProvider(
             # self.set() could reset self._output
             self._output = result
         except ICursor as cursor:
+            await self.do_populate(session)
+            for attr, provider in self.providers.items():
+                await provider.populate(session)
             result = await self._default_factory(session, cursor.position)
             value = self._output_exporter(result)
             self.set(value)
