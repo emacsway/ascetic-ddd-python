@@ -16,35 +16,10 @@ from ascetic_ddd.faker.domain.query.operators import (
     RelOperator,
     CompositeQuery,
 )
+from ascetic_ddd.faker.domain.query.parser import normalize_query
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 
 __all__ = ('QueryMerger',)
-
-
-def normalize_query(op: IQueryOperator) -> IQueryOperator:
-    """
-    Normalize query by unwrapping redundant EqOperator wrappers.
-
-    EqOperator(CompositeQuery({'a': EqOperator(1)})) -> CompositeQuery({'a': EqOperator(1)})
-
-    Assumes tree is fully parsed (no raw dicts inside EqOperator).
-    This ensures consistent structure for merging.
-    """
-    if isinstance(op, EqOperator):
-        if isinstance(op.value, IQueryOperator):
-            # Unwrap: EqOperator(CompositeQuery(...)) -> CompositeQuery(...)
-            return normalize_query(op.value)
-        return op
-
-    if isinstance(op, RelOperator):
-        normalized = {k: normalize_query(v) for k, v in op.constraints.items()}
-        return RelOperator(normalized)
-
-    if isinstance(op, CompositeQuery):
-        normalized = {k: normalize_query(v) for k, v in op.fields.items()}
-        return CompositeQuery(normalized)
-
-    return op
 
 
 class QueryMerger:

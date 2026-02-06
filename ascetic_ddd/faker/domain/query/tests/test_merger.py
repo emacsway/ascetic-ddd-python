@@ -1,7 +1,8 @@
 """Tests for QueryMerger."""
 import unittest
 
-from ascetic_ddd.faker.domain.query.merger import QueryMerger, normalize_query
+from ascetic_ddd.faker.domain.query.merger import QueryMerger
+from ascetic_ddd.faker.domain.query.parser import normalize_query
 from ascetic_ddd.faker.domain.query.operators import (
     EqOperator, RelOperator, CompositeQuery
 )

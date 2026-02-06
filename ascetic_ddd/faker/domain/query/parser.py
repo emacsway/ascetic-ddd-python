@@ -1,14 +1,16 @@
 """
 Query parser for MongoDB-like query syntax.
 
-Parses dict queries into operator tree.
+Two-stage processing:
+1. Parsing: dict -> operator tree (full depth, no raw dicts remain)
+2. Normalization: unwrap redundant EqOperator wrappers
 
 Examples:
-    parse({'$eq': 5})                    -> EqOperator(5)
-    parse(5)                             -> EqOperator(5)  # implicit $eq
-    parse({'$rel': {'status': {'$eq': 'active'}}})
-                                         -> RelOperator({'status': EqOperator('active')})
-    parse({'tenant_id': {'$eq': 15}})    -> CompositeQuery({'tenant_id': EqOperator(15)})
+    parse_query({'$eq': 5})                    -> EqOperator(5)
+    parse_query(5)                             -> EqOperator(5)  # implicit $eq
+    parse_query({'$rel': {'status': {'$eq': 'active'}}})
+                                               -> RelOperator({'status': EqOperator('active')})
+    parse_query({'tenant_id': {'$eq': 15}})    -> CompositeQuery({'tenant_id': EqOperator(15)})
 """
 import typing
 
@@ -19,7 +21,7 @@ from ascetic_ddd.faker.domain.query.operators import (
     CompositeQuery,
 )
 
-__all__ = ('QueryParser',)
+__all__ = ('QueryParser', 'normalize_query', 'parse_query')
 
 
 class QueryParser:
@@ -121,3 +123,39 @@ class QueryParser:
         for field, value in fields.items():
             parsed[field] = self.parse(value)
         return CompositeQuery(parsed)
+
+
+def normalize_query(op: IQueryOperator) -> IQueryOperator:
+    """
+    Normalize query by unwrapping redundant EqOperator wrappers.
+
+    EqOperator(CompositeQuery({'a': EqOperator(1)})) -> CompositeQuery({'a': EqOperator(1)})
+
+    Assumes tree is fully parsed (no raw dicts inside EqOperator).
+    """
+    if isinstance(op, EqOperator):
+        if isinstance(op.value, IQueryOperator):
+            # Unwrap: EqOperator(CompositeQuery(...)) -> CompositeQuery(...)
+            return normalize_query(op.value)
+        return op
+
+    if isinstance(op, RelOperator):
+        normalized = {k: normalize_query(v) for k, v in op.constraints.items()}
+        return RelOperator(normalized)
+
+    if isinstance(op, CompositeQuery):
+        normalized = {k: normalize_query(v) for k, v in op.fields.items()}
+        return CompositeQuery(normalized)
+
+    return op
+
+
+def parse_query(query: typing.Any) -> IQueryOperator:
+    """
+    Parse and normalize query.
+
+    Two-stage processing:
+    1. Parse dict into operator tree (full depth)
+    2. Normalize: unwrap redundant EqOperator wrappers
+    """
+    return normalize_query(QueryParser().parse(query))
