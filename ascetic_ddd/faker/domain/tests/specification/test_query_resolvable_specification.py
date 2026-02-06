@@ -1,4 +1,4 @@
-"""Tests for QuerySpecification."""
+"""Tests for QueryResolvableSpecification."""
 import dataclasses
 import typing
 from unittest import IsolatedAsyncioTestCase
@@ -13,7 +13,7 @@ from ascetic_ddd.faker.domain.query.operators import (
 )
 from ascetic_ddd.faker.domain.query.parser import QueryParser
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.specification.query_specification import QuerySpecification
+from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
 from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 
@@ -252,12 +252,12 @@ class UserFaker(AggregateProvider[dict, User]):
 # Tests for _matches() method
 # =============================================================================
 
-class QuerySpecificationMatchesEqOperatorTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationMatchesEqOperatorTestCase(IsolatedAsyncioTestCase):
     """Tests for _matches() with EqOperator."""
 
     async def test_matches_eq_operator_equal_value(self):
         """EqOperator matches equal value."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             EqOperator('active'),
             lambda obj: obj
         )
@@ -265,7 +265,7 @@ class QuerySpecificationMatchesEqOperatorTestCase(IsolatedAsyncioTestCase):
 
     async def test_matches_eq_operator_different_value(self):
         """EqOperator does not match different value."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             EqOperator('active'),
             lambda obj: obj
         )
@@ -273,7 +273,7 @@ class QuerySpecificationMatchesEqOperatorTestCase(IsolatedAsyncioTestCase):
 
     async def test_matches_eq_operator_none(self):
         """EqOperator matches None value."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             EqOperator(None),
             lambda obj: obj
         )
@@ -281,7 +281,7 @@ class QuerySpecificationMatchesEqOperatorTestCase(IsolatedAsyncioTestCase):
 
     async def test_matches_eq_operator_int(self):
         """EqOperator matches int value."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             EqOperator(42),
             lambda obj: obj
         )
@@ -289,12 +289,12 @@ class QuerySpecificationMatchesEqOperatorTestCase(IsolatedAsyncioTestCase):
         self.assertFalse(spec._matches(EqOperator(42), 43))
 
 
-class QuerySpecificationMatchesCompositeQueryTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationMatchesCompositeQueryTestCase(IsolatedAsyncioTestCase):
     """Tests for _matches() with CompositeQuery."""
 
     async def test_matches_composite_query_dict_state(self):
         """CompositeQuery matches dict state."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -307,7 +307,7 @@ class QuerySpecificationMatchesCompositeQueryTestCase(IsolatedAsyncioTestCase):
 
     async def test_matches_composite_query_missing_field(self):
         """CompositeQuery does not match when field is missing."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -317,7 +317,7 @@ class QuerySpecificationMatchesCompositeQueryTestCase(IsolatedAsyncioTestCase):
 
     async def test_matches_composite_query_wrong_value(self):
         """CompositeQuery does not match when value differs."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -327,7 +327,7 @@ class QuerySpecificationMatchesCompositeQueryTestCase(IsolatedAsyncioTestCase):
 
     async def test_matches_composite_query_non_dict_state(self):
         """CompositeQuery returns False for non-dict state."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -337,7 +337,7 @@ class QuerySpecificationMatchesCompositeQueryTestCase(IsolatedAsyncioTestCase):
 
     async def test_matches_composite_query_nested(self):
         """CompositeQuery matches nested structure."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({}),
             lambda obj: obj
         )
@@ -350,12 +350,12 @@ class QuerySpecificationMatchesCompositeQueryTestCase(IsolatedAsyncioTestCase):
         self.assertTrue(spec._matches(query, state))
 
 
-class QuerySpecificationMatchesRelOperatorTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationMatchesRelOperatorTestCase(IsolatedAsyncioTestCase):
     """Tests for _matches() with RelOperator."""
 
     async def test_matches_rel_operator_dict_state(self):
         """RelOperator matches dict state."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             RelOperator({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -365,7 +365,7 @@ class QuerySpecificationMatchesRelOperatorTestCase(IsolatedAsyncioTestCase):
 
     async def test_matches_rel_operator_object_state(self):
         """RelOperator matches object state via getattr."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             RelOperator({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -375,7 +375,7 @@ class QuerySpecificationMatchesRelOperatorTestCase(IsolatedAsyncioTestCase):
 
     async def test_matches_rel_operator_object_wrong_value(self):
         """RelOperator does not match object with wrong value."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             RelOperator({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -385,7 +385,7 @@ class QuerySpecificationMatchesRelOperatorTestCase(IsolatedAsyncioTestCase):
 
     async def test_matches_rel_operator_nested(self):
         """RelOperator matches nested constraints."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             RelOperator({}),
             lambda obj: obj
         )
@@ -402,13 +402,13 @@ class QuerySpecificationMatchesRelOperatorTestCase(IsolatedAsyncioTestCase):
 # Tests for resolve_nested()
 # =============================================================================
 
-class QuerySpecificationResolveNestedTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationResolveNestedTestCase(IsolatedAsyncioTestCase):
     """Tests for resolve_nested()."""
 
     async def test_resolve_nested_without_accessor(self):
         """Without accessor, resolved_query equals original query."""
         query = CompositeQuery({'status': EqOperator('active')})
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             lambda obj: obj,
             aggregate_provider_accessor=None
@@ -420,7 +420,7 @@ class QuerySpecificationResolveNestedTestCase(IsolatedAsyncioTestCase):
     async def test_resolve_nested_idempotent(self):
         """Calling resolve_nested() multiple times is idempotent."""
         query = CompositeQuery({'status': EqOperator('active')})
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             lambda obj: obj,
             aggregate_provider_accessor=None
@@ -437,7 +437,7 @@ class QuerySpecificationResolveNestedTestCase(IsolatedAsyncioTestCase):
     async def test_resolve_nested_preserves_eq_operator(self):
         """EqOperator is preserved during resolution."""
         query = EqOperator('active')
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             lambda obj: obj,
             aggregate_provider_accessor=lambda: None
@@ -449,7 +449,7 @@ class QuerySpecificationResolveNestedTestCase(IsolatedAsyncioTestCase):
     async def test_resolve_nested_recreates_rel_operator(self):
         """RelOperator is recreated with resolved constraints."""
         query = RelOperator({'status': EqOperator('active')})
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             lambda obj: obj,
             aggregate_provider_accessor=lambda: None
@@ -467,7 +467,7 @@ class QuerySpecificationResolveNestedTestCase(IsolatedAsyncioTestCase):
     async def test_resolve_nested_recreates_composite_query(self):
         """CompositeQuery is recreated with resolved fields."""
         query = CompositeQuery({'status': EqOperator('active')})
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             lambda obj: obj,
             aggregate_provider_accessor=lambda: None
@@ -495,7 +495,7 @@ class QuerySpecificationResolveNestedTestCase(IsolatedAsyncioTestCase):
 
         # Query with simple values (no nested constraints)
         query = QueryParser().parse({'name': 'Alice', 'id': 123})
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             lambda obj: obj,
             aggregate_provider_accessor=lambda: user_provider
@@ -514,12 +514,12 @@ class QuerySpecificationResolveNestedTestCase(IsolatedAsyncioTestCase):
 # Tests for is_satisfied_by()
 # =============================================================================
 
-class QuerySpecificationIsSatisfiedByTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationIsSatisfiedByTestCase(IsolatedAsyncioTestCase):
     """Tests for is_satisfied_by()."""
 
     async def test_is_satisfied_by_unresolved_raises(self):
         """is_satisfied_by() on unresolved spec raises TypeError."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -530,7 +530,7 @@ class QuerySpecificationIsSatisfiedByTestCase(IsolatedAsyncioTestCase):
 
     async def test_is_satisfied_by_uses_exporter(self):
         """is_satisfied_by() uses object_exporter."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: {'status': obj.status}  # exporter extracts status
         )
@@ -542,7 +542,7 @@ class QuerySpecificationIsSatisfiedByTestCase(IsolatedAsyncioTestCase):
 
     async def test_is_satisfied_by_match(self):
         """is_satisfied_by() returns True on match."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -552,7 +552,7 @@ class QuerySpecificationIsSatisfiedByTestCase(IsolatedAsyncioTestCase):
 
     async def test_is_satisfied_by_no_match(self):
         """is_satisfied_by() returns False on no match."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -565,12 +565,12 @@ class QuerySpecificationIsSatisfiedByTestCase(IsolatedAsyncioTestCase):
 # Tests for __hash__, __eq__, __str__
 # =============================================================================
 
-class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
     """Tests for __hash__, __eq__, __str__."""
 
     def test_hash_unresolved_raises(self):
         """hash() on unresolved spec raises TypeError."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -580,7 +580,7 @@ class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
 
     async def test_hash_resolved(self):
         """hash() works on resolved spec."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -591,11 +591,11 @@ class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
 
     async def test_hash_equality(self):
         """Same resolved query produces same hash."""
-        spec1 = QuerySpecification(
+        spec1 = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
-        spec2 = QuerySpecification(
+        spec2 = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -606,11 +606,11 @@ class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
 
     async def test_hash_inequality(self):
         """Different resolved query produces different hash."""
-        spec1 = QuerySpecification(
+        spec1 = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
-        spec2 = QuerySpecification(
+        spec2 = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('inactive')}),
             lambda obj: obj
         )
@@ -621,11 +621,11 @@ class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
 
     def test_eq_unresolved_raises(self):
         """__eq__ on unresolved specs raises TypeError."""
-        spec1 = QuerySpecification(
+        spec1 = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
-        spec2 = QuerySpecification(
+        spec2 = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -635,11 +635,11 @@ class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
 
     async def test_eq_resolved_same(self):
         """__eq__ returns True for same resolved query."""
-        spec1 = QuerySpecification(
+        spec1 = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
-        spec2 = QuerySpecification(
+        spec2 = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -650,11 +650,11 @@ class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
 
     async def test_eq_resolved_different(self):
         """__eq__ returns False for different resolved query."""
-        spec1 = QuerySpecification(
+        spec1 = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
-        spec2 = QuerySpecification(
+        spec2 = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('inactive')}),
             lambda obj: obj
         )
@@ -664,8 +664,8 @@ class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
         self.assertNotEqual(spec1, spec2)
 
     def test_eq_with_non_specification(self):
-        """__eq__ with non-QuerySpecification returns False."""
-        spec = QuerySpecification(
+        """__eq__ with non-QueryResolvableSpecification returns False."""
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -675,7 +675,7 @@ class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
 
     def test_str_unresolved_raises(self):
         """str() on unresolved spec raises TypeError."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -685,7 +685,7 @@ class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
 
     async def test_str_resolved(self):
         """str() works on resolved spec."""
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             CompositeQuery({'status': EqOperator('active')}),
             lambda obj: obj
         )
@@ -700,7 +700,7 @@ class QuerySpecificationHashEqStrTestCase(IsolatedAsyncioTestCase):
 # Tests for accept()
 # =============================================================================
 
-class QuerySpecificationAcceptTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationAcceptTestCase(IsolatedAsyncioTestCase):
     """Tests for accept()."""
 
     def test_accept_passes_query_and_accessor(self):
@@ -714,7 +714,7 @@ class QuerySpecificationAcceptTestCase(IsolatedAsyncioTestCase):
 
         query = CompositeQuery({'status': EqOperator('active')})
         accessor = lambda: "test_provider"
-        spec = QuerySpecification(query, lambda obj: obj, accessor)
+        spec = QueryResolvableSpecification(query, lambda obj: obj, accessor)
 
         spec.accept(MockVisitor())
 
@@ -730,7 +730,7 @@ class QuerySpecificationAcceptTestCase(IsolatedAsyncioTestCase):
                 received['accessor'] = accessor
 
         query = CompositeQuery({'status': EqOperator('active')})
-        spec = QuerySpecification(query, lambda obj: obj, aggregate_provider_accessor=None)
+        spec = QueryResolvableSpecification(query, lambda obj: obj, aggregate_provider_accessor=None)
 
         spec.accept(MockVisitor())
 
@@ -745,7 +745,7 @@ class QuerySpecificationAcceptTestCase(IsolatedAsyncioTestCase):
                 received['query'] = query
 
         query = CompositeQuery({'status': EqOperator('active')})
-        spec = QuerySpecification(query, lambda obj: obj, lambda: None)
+        spec = QueryResolvableSpecification(query, lambda obj: obj, lambda: None)
 
         session = MockSession()
         await spec.resolve_nested(session)
@@ -764,7 +764,7 @@ class QuerySpecificationAcceptTestCase(IsolatedAsyncioTestCase):
                 received['query'] = query
 
         query = CompositeQuery({'status': EqOperator('active')})
-        spec = QuerySpecification(query, lambda obj: obj)
+        spec = QueryResolvableSpecification(query, lambda obj: obj)
 
         spec.accept(MockVisitor())
 
@@ -775,13 +775,13 @@ class QuerySpecificationAcceptTestCase(IsolatedAsyncioTestCase):
 # Integration with QueryParser
 # =============================================================================
 
-class QuerySpecificationParserIntegrationTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationParserIntegrationTestCase(IsolatedAsyncioTestCase):
     """Integration tests with QueryParser."""
 
     async def test_with_parsed_simple_query(self):
-        """QuerySpecification works with QueryParser output."""
+        """QueryResolvableSpecification works with QueryParser output."""
         query = QueryParser().parse({'status': 'active'})
-        spec = QuerySpecification(query, lambda obj: obj)
+        spec = QueryResolvableSpecification(query, lambda obj: obj)
 
         session = MockSession()
         await spec.resolve_nested(session)
@@ -802,7 +802,7 @@ class QuerySpecificationParserIntegrationTestCase(IsolatedAsyncioTestCase):
         query = QueryParser().parse({
             'address': {'city': 'Moscow', 'zip': '123456'}
         })
-        spec = QuerySpecification(query, lambda obj: obj)
+        spec = QueryResolvableSpecification(query, lambda obj: obj)
 
         session = MockSession()
         await spec.resolve_nested(session)
@@ -814,9 +814,9 @@ class QuerySpecificationParserIntegrationTestCase(IsolatedAsyncioTestCase):
         self.assertFalse(await spec.is_satisfied_by(session, state_wrong))
 
     async def test_with_parsed_rel_query(self):
-        """QuerySpecification works with $rel queries."""
+        """QueryResolvableSpecification works with $rel queries."""
         query = QueryParser().parse({'$rel': {'status': 'active'}})
-        spec = QuerySpecification(query, lambda obj: obj)
+        spec = QueryResolvableSpecification(query, lambda obj: obj)
 
         session = MockSession()
         await spec.resolve_nested(session)
@@ -828,7 +828,7 @@ class QuerySpecificationParserIntegrationTestCase(IsolatedAsyncioTestCase):
 # Sociable Tests - with real collaborators
 # =============================================================================
 
-class QuerySpecificationCascadeResolutionTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationCascadeResolutionTestCase(IsolatedAsyncioTestCase):
     """Tests for cascade resolution via ReferenceProviders."""
 
     async def test_resolve_nested_via_reference_provider(self):
@@ -850,7 +850,7 @@ class QuerySpecificationCascadeResolutionTestCase(IsolatedAsyncioTestCase):
 
         # Test: nested constraint {'name': 'Active'} should resolve to status_id
         query = QueryParser().parse({'status_id': {'$rel': {'name': {'$eq': 'Active'}}}})
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             UserFaker._export,
             aggregate_provider_accessor=lambda: user_provider
@@ -864,7 +864,7 @@ class QuerySpecificationCascadeResolutionTestCase(IsolatedAsyncioTestCase):
         self.assertIsNotNone(resolved_status)
 
 
-class QuerySpecificationSociableTestCase(IsolatedAsyncioTestCase):
+class QueryResolvableSpecificationSociableTestCase(IsolatedAsyncioTestCase):
     """Sociable tests with real collaborators (InMemoryRepository, real providers)."""
 
     async def asyncSetUp(self):
@@ -904,7 +904,7 @@ class QuerySpecificationSociableTestCase(IsolatedAsyncioTestCase):
         await self.user_repo.insert(self.session, user)
 
         query = QueryParser().parse({'name': 'Alice'})
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             UserFaker._export,
             aggregate_provider_accessor=lambda: self.user_provider
@@ -927,7 +927,7 @@ class QuerySpecificationSociableTestCase(IsolatedAsyncioTestCase):
         await self.user_repo.insert(self.session, user3)
 
         query = QueryParser().parse({'name': 'Alice'})
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             UserFaker._export,
             aggregate_provider_accessor=lambda: self.user_provider

@@ -16,12 +16,12 @@ from ascetic_ddd.faker.domain.specification.interfaces import (
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 from ascetic_ddd.seedwork.domain.utils.data import hashable
 
-__all__ = ('QuerySpecification',)
+__all__ = ('QueryResolvableSpecification',)
 
 T = typing.TypeVar("T", covariant=True)
 
 
-class QuerySpecification(IResolvableSpecification[T], typing.Generic[T]):
+class QueryResolvableSpecification(IResolvableSpecification[T], typing.Generic[T]):
     """
     Specification built from IQueryOperator tree.
 
@@ -37,7 +37,7 @@ class QuerySpecification(IResolvableSpecification[T], typing.Generic[T]):
             'status': EqOperator('active'),
             'department': RelOperator({'name': EqOperator('IT')})
         })
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             lambda obj: {'status': obj.status, 'department': obj.department_id},
             aggregate_provider_accessor=lambda: provider
@@ -45,7 +45,7 @@ class QuerySpecification(IResolvableSpecification[T], typing.Generic[T]):
 
     Example with QueryParser (from QueryResolvableSpecification):
         query = QueryParser().parse({'status_id': {'$rel': {'name': {'$eq': 'Active'}}}})
-        spec = QuerySpecification(
+        spec = QueryResolvableSpecification(
             query,
             lambda obj: {'status_id': obj.status_id, ...},
             aggregate_provider_accessor=lambda: user_provider
@@ -87,7 +87,7 @@ class QuerySpecification(IResolvableSpecification[T], typing.Generic[T]):
     def __str__(self) -> str:
         if self._resolved_query is None:
             raise TypeError(
-                "Cannot cast to string unresolved QuerySpecification. "
+                "Cannot cast to string unresolved QueryResolvableSpecification. "
                 "Call resolve_nested() first."
             )
         if self._str is None:
@@ -98,7 +98,7 @@ class QuerySpecification(IResolvableSpecification[T], typing.Generic[T]):
     def __hash__(self) -> int:
         if self._resolved_query is None:
             raise TypeError(
-                "Cannot hash unresolved QuerySpecification. "
+                "Cannot hash unresolved QueryResolvableSpecification. "
                 "Call resolve_nested() first."
             )
         if self._hash is None:
@@ -107,11 +107,11 @@ class QuerySpecification(IResolvableSpecification[T], typing.Generic[T]):
         return self._hash
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, QuerySpecification):
+        if not isinstance(other, QueryResolvableSpecification):
             return False
         if self._resolved_query is None or other._resolved_query is None:
             raise TypeError(
-                "Cannot compare unresolved QuerySpecification. "
+                "Cannot compare unresolved QueryResolvableSpecification. "
                 "Call resolve_nested() first."
             )
         return self._resolved_query == other._resolved_query
@@ -175,7 +175,7 @@ class QuerySpecification(IResolvableSpecification[T], typing.Generic[T]):
         """Check if object satisfies the query."""
         if self._resolved_query is None:
             raise TypeError(
-                "Cannot use unresolved QuerySpecification. "
+                "Cannot use unresolved QueryResolvableSpecification. "
                 "Call resolve_nested() first."
             )
 
