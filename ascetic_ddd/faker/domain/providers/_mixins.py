@@ -13,7 +13,7 @@ from ascetic_ddd.faker.domain.providers.interfaces import (
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, CompositeQuery
 )
-from ascetic_ddd.faker.domain.query.parser import QueryParser
+from ascetic_ddd.faker.domain.query.parser import parse_query
 from ascetic_ddd.faker.domain.query.merger import QueryMerger
 from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
@@ -150,7 +150,7 @@ class BaseProvider(
             provider.set({'$eq': 5})
             provider.set(5)  # implicit $eq
         """
-        new_query = QueryParser().parse(value)
+        new_query = parse_query(value)
         old_input = self._input
         if self._input is not None:
             self._input = QueryMerger().merge(self._input, new_query, self.provider_name)
@@ -259,7 +259,7 @@ class BaseCompositeProvider(
         Examples:
             provider.set({'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}})
         """
-        new_query = QueryParser().parse(value)
+        new_query = parse_query(value)
         old_input = self._input
         if self._input is not None:
             self._input = QueryMerger().merge(self._input, new_query, self.provider_name)
