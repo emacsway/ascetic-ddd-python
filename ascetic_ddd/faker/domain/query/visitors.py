@@ -34,6 +34,8 @@ class QueryToDictVisitor(IQueryVisitor[dict]):
         return op.accept(self)
 
     def visit_eq(self, op: EqOperator) -> dict:
+        if isinstance(op.value, IQueryOperator):
+            return {'$eq': op.value.accept(self)}
         return {'$eq': op.value}
 
     def visit_rel(self, op: RelOperator) -> dict:
@@ -60,6 +62,8 @@ class QueryToPlainValueVisitor(IQueryVisitor[typing.Any]):
         return op.accept(self)
 
     def visit_eq(self, op: EqOperator) -> typing.Any:
+        if isinstance(op.value, IQueryOperator):
+            return op.value.accept(self)
         return op.value
 
     def visit_rel(self, op: RelOperator) -> dict:

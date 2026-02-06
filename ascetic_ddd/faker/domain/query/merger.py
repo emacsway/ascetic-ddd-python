@@ -23,17 +23,17 @@ __all__ = ('QueryMerger',)
 
 def normalize_query(op: IQueryOperator) -> IQueryOperator:
     """
-    Normalize query by pushing $eq down the tree.
+    Normalize query by unwrapping redundant EqOperator wrappers.
 
-    {'$eq': {'a': 1, 'b': 2}} -> CompositeQuery({'a': EqOperator(1), 'b': EqOperator(2)})
+    EqOperator(CompositeQuery({'a': EqOperator(1)})) -> CompositeQuery({'a': EqOperator(1)})
 
+    Assumes tree is fully parsed (no raw dicts inside EqOperator).
     This ensures consistent structure for merging.
     """
     if isinstance(op, EqOperator):
-        if isinstance(op.value, dict):
-            # Push $eq down: {'$eq': {'a': 1}} -> {'a': {'$eq': 1}}
-            fields = {k: normalize_query(EqOperator(v)) for k, v in op.value.items()}
-            return CompositeQuery(fields)
+        if isinstance(op.value, IQueryOperator):
+            # Unwrap: EqOperator(CompositeQuery(...)) -> CompositeQuery(...)
+            return normalize_query(op.value)
         return op
 
     if isinstance(op, RelOperator):
@@ -109,6 +109,15 @@ class QueryMerger:
         provider_name: str | None
     ) -> IQueryOperator:
         """Perform the actual merge."""
+        # Normalize when types differ (recursive calls)
+        # Skip normalization for EqOperator+RelOperator (handled specially)
+        if type(left) != type(right):
+            if not (
+                (isinstance(left, EqOperator) and isinstance(right, RelOperator)) or
+                (isinstance(left, RelOperator) and isinstance(right, EqOperator))
+            ):
+                left = normalize_query(left)
+                right = normalize_query(right)
 
         # EqOperator + EqOperator
         if isinstance(left, EqOperator) and isinstance(right, EqOperator):
@@ -133,6 +142,12 @@ class QueryMerger:
             return self._merge_composite_into_rel(left, right, provider_name)
         if isinstance(left, RelOperator) and isinstance(right, CompositeQuery):
             return self._merge_composite_into_rel(right, left, provider_name)
+
+        # EqOperator(scalar) + CompositeQuery - scalar is more specific, keep it
+        if isinstance(left, EqOperator) and isinstance(right, CompositeQuery):
+            return left
+        if isinstance(left, CompositeQuery) and isinstance(right, EqOperator):
+            return right
 
         raise ValueError(
             f"Cannot merge {type(left).__name__} with {type(right).__name__}"

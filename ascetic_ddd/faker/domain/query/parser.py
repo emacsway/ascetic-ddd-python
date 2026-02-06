@@ -92,16 +92,17 @@ class QueryParser:
         else:
             raise ValueError(f"Unknown operator: {op_name}")
 
-    def _parse_eq(self, value: typing.Any) -> IQueryOperator:
+    def _parse_eq(self, value: typing.Any) -> EqOperator:
         """
-        Parse $eq operator value.
+        Parse $eq operator value to full depth.
 
-        Normalizes dict values by pushing $eq down:
-        {'$eq': {'a': 1, 'b': 2}} -> CompositeQuery({'a': EqOperator(1), 'b': EqOperator(2)})
+        Dict values are recursively parsed into operator tree but $eq wrapper is preserved:
+        {'$eq': {'a': 1, 'b': 2}} -> EqOperator(CompositeQuery({'a': EqOperator(1), 'b': EqOperator(2)}))
+
+        Use normalize_query() to unwrap redundant $eq afterwards.
         """
         if isinstance(value, dict):
-            # Push $eq down: {'$eq': {'a': 1}} -> {'a': {'$eq': 1}}
-            return self._parse_fields(value)
+            return EqOperator(self.parse(value))
         return EqOperator(value)
 
     def _parse_rel(self, constraints: typing.Any) -> RelOperator:

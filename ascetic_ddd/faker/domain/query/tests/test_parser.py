@@ -51,10 +51,12 @@ class TestQueryParserExplicitEq(unittest.TestCase):
         self.assertIsNone(result.value)
 
     def test_parse_eq_operator_with_dict(self):
-        """$eq can contain composite value (dict)."""
+        """$eq with dict is fully parsed into EqOperator(CompositeQuery(...))."""
         result = self.parser.parse({'$eq': {'tenant_id': 1, 'local_id': 2}})
         self.assertIsInstance(result, EqOperator)
-        self.assertEqual(result.value, {'tenant_id': 1, 'local_id': 2})
+        self.assertIsInstance(result.value, CompositeQuery)
+        self.assertEqual(result.value.fields['tenant_id'].value, 1)
+        self.assertEqual(result.value.fields['local_id'].value, 2)
 
 
 class TestQueryParserRel(unittest.TestCase):

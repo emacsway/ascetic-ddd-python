@@ -60,11 +60,12 @@ class TestQueryMergerEqOperator(unittest.TestCase):
         self.assertIsNone(result.value)
 
     def test_merge_eq_eq_complex_values(self):
-        """EqOperator can contain dict (composite PK)."""
-        left = EqOperator({'tenant': 1, 'local': 2})
-        right = EqOperator({'tenant': 1, 'local': 2})
+        """EqOperator can contain parsed composite PK."""
+        inner = CompositeQuery({'tenant': EqOperator(1), 'local': EqOperator(2)})
+        left = EqOperator(inner)
+        right = EqOperator(inner)
         result = self.merger.merge(left, right, 'test')
-        self.assertEqual(result.value, {'tenant': 1, 'local': 2})
+        self.assertEqual(result.value, inner)
 
 
 class TestQueryMergerRelOperator(unittest.TestCase):
@@ -165,12 +166,13 @@ class TestQueryMergerEqRel(unittest.TestCase):
     def test_merge_with_custom_id_attr(self):
         """Use custom id_attr for composite PKs."""
         merger = QueryMerger(id_attr='pk')
-        eq = EqOperator({'tenant': 1, 'local': 2})
+        inner = CompositeQuery({'tenant': EqOperator(1), 'local': EqOperator(2)})
+        eq = EqOperator(inner)
         rel = RelOperator({'status': EqOperator('active')})
         result = merger.merge(eq, rel, 'test')
 
         self.assertIsInstance(result, RelOperator)
-        self.assertEqual(result.constraints['pk'].value, {'tenant': 1, 'local': 2})
+        self.assertEqual(result.constraints['pk'].value, inner)
 
 
 class TestQueryMergerCompositeQuery(unittest.TestCase):
@@ -226,13 +228,16 @@ class TestQueryMergerIncompatibleTypes(unittest.TestCase):
     def setUp(self):
         self.merger = QueryMerger(id_attr='id')
 
-    def test_merge_composite_eq_raises(self):
+    def test_merge_composite_eq_keeps_eq(self):
+        """EqOperator is more specific than CompositeQuery, keep EqOperator."""
         left = CompositeQuery({'a': EqOperator(1)})
         right = EqOperator(5)
 
-        with self.assertRaises(ValueError) as cm:
-            self.merger.merge(left, right, 'test')
-        self.assertIn("Cannot merge", str(cm.exception))
+        result = self.merger.merge(left, right, 'test')
+
+        # EqOperator wins as more specific value
+        self.assertIsInstance(result, EqOperator)
+        self.assertEqual(result.value, 5)
 
     def test_merge_composite_rel_places_under_id(self):
         """CompositeQuery + RelOperator -> places CompositeQuery under $rel.id."""
@@ -257,9 +262,10 @@ class TestNormalizeQuery(unittest.TestCase):
         self.assertIsInstance(result, EqOperator)
         self.assertEqual(result.value, 5)
 
-    def test_normalize_eq_with_dict_one_level(self):
-        """{'$eq': {'a': 1}} -> {'a': {'$eq': 1}}"""
-        op = EqOperator({'a': 1})
+    def test_normalize_eq_wrapping_composite(self):
+        """EqOperator(CompositeQuery(...)) -> CompositeQuery(...)"""
+        inner = CompositeQuery({'a': EqOperator(1)})
+        op = EqOperator(inner)
         result = normalize_query(op)
 
         self.assertIsInstance(result, CompositeQuery)
@@ -267,35 +273,28 @@ class TestNormalizeQuery(unittest.TestCase):
         self.assertIsInstance(result.fields['a'], EqOperator)
         self.assertEqual(result.fields['a'].value, 1)
 
-    def test_normalize_eq_with_dict_two_levels(self):
-        """{'$eq': {'a': {'b': 2}}} -> {'a': {'b': {'$eq': 2}}}"""
-        op = EqOperator({'a': {'b': 2}})
+    def test_normalize_eq_wrapping_nested_composite(self):
+        """EqOperator(CompositeQuery({'a': CompositeQuery(...)})) unwraps outer $eq."""
+        inner = CompositeQuery({'b': EqOperator(2)})
+        op = EqOperator(CompositeQuery({'a': inner}))
         result = normalize_query(op)
 
         self.assertIsInstance(result, CompositeQuery)
-        self.assertIn('a', result.fields)
         self.assertIsInstance(result.fields['a'], CompositeQuery)
-        self.assertIn('b', result.fields['a'].fields)
-        self.assertIsInstance(result.fields['a'].fields['b'], EqOperator)
         self.assertEqual(result.fields['a'].fields['b'].value, 2)
 
-    def test_normalize_eq_with_dict_three_levels(self):
-        """{'$eq': {'a': {'b': {'c': 3}}}} -> {'a': {'b': {'c': {'$eq': 3}}}}"""
-        op = EqOperator({'a': {'b': {'c': 3}}})
+    def test_normalize_double_wrapped_eq(self):
+        """EqOperator(EqOperator(5)) -> EqOperator(5)"""
+        op = EqOperator(EqOperator(5))
         result = normalize_query(op)
 
-        self.assertIsInstance(result, CompositeQuery)
-        a = result.fields['a']
-        self.assertIsInstance(a, CompositeQuery)
-        b = a.fields['b']
-        self.assertIsInstance(b, CompositeQuery)
-        c = b.fields['c']
-        self.assertIsInstance(c, EqOperator)
-        self.assertEqual(c.value, 3)
+        self.assertIsInstance(result, EqOperator)
+        self.assertEqual(result.value, 5)
 
-    def test_normalize_rel_with_nested_eq(self):
-        """RelOperator normalizes its constraints recursively."""
-        op = RelOperator({'a': EqOperator({'x': 1, 'y': 2})})
+    def test_normalize_rel_with_nested_eq_wrapping_composite(self):
+        """RelOperator normalizes EqOperator(CompositeQuery) in constraints."""
+        inner = CompositeQuery({'x': EqOperator(1), 'y': EqOperator(2)})
+        op = RelOperator({'a': EqOperator(inner)})
         result = normalize_query(op)
 
         self.assertIsInstance(result, RelOperator)
@@ -304,9 +303,10 @@ class TestNormalizeQuery(unittest.TestCase):
         self.assertEqual(a.fields['x'].value, 1)
         self.assertEqual(a.fields['y'].value, 2)
 
-    def test_normalize_composite_with_nested_eq(self):
-        """CompositeQuery normalizes its fields recursively."""
-        op = CompositeQuery({'a': EqOperator({'nested': 'value'})})
+    def test_normalize_composite_with_nested_eq_wrapping_composite(self):
+        """CompositeQuery normalizes EqOperator(CompositeQuery) in fields."""
+        inner = CompositeQuery({'nested': EqOperator('value')})
+        op = CompositeQuery({'a': EqOperator(inner)})
         result = normalize_query(op)
 
         self.assertIsInstance(result, CompositeQuery)

@@ -64,7 +64,7 @@ class EqOperator(IQueryOperator):
 
     Represents exact value match. Value can be:
     - Primitive (int, str, bool, None)
-    - Dict (for composite values like composite PK)
+    - IQueryOperator (parsed subtree, before normalization)
     """
     __slots__ = ('value', '_hash')
 
