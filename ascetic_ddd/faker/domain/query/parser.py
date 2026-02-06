@@ -86,11 +86,23 @@ class QueryParser:
         op_name, op_value = next(iter(operators.items()))
 
         if op_name == '$eq':
-            return EqOperator(op_value)
+            return self._parse_eq(op_value)
         elif op_name == '$rel':
             return self._parse_rel(op_value)
         else:
             raise ValueError(f"Unknown operator: {op_name}")
+
+    def _parse_eq(self, value: typing.Any) -> IQueryOperator:
+        """
+        Parse $eq operator value.
+
+        Normalizes dict values by pushing $eq down:
+        {'$eq': {'a': 1, 'b': 2}} -> CompositeQuery({'a': EqOperator(1), 'b': EqOperator(2)})
+        """
+        if isinstance(value, dict):
+            # Push $eq down: {'$eq': {'a': 1}} -> {'a': {'$eq': 1}}
+            return self._parse_fields(value)
+        return EqOperator(value)
 
     def _parse_rel(self, constraints: typing.Any) -> RelOperator:
         """Parse $rel operator value into RelOperator."""
