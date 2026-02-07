@@ -61,13 +61,10 @@ class ReferenceProvider(
         self._specification_factory = specification_factory
         super().__init__(distributor=distributor)
 
-    def do_empty(self, clone: typing.Self, shunt: ICloningShunt | None = None):
-        super().do_empty(clone, shunt)
-        clone._aggregate_provider_accessor = self._aggregate_provider_accessor.empty(shunt)
-
-    def reset(self) -> None:
-        super().reset()
-        self._aggregate_provider_accessor.reset()
+    async def create(self, session: ISession) -> T_Output:
+        if self._output is empty:
+            raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
+        return self._output
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
@@ -84,54 +81,29 @@ class ReferenceProvider(
             specification = EmptySpecification()
 
         try:
-            result = await self._distributor.next(session, specification)
-            if result is not None:
-                value = self.aggregate_provider._output_exporter(result)
-                self.require(self._build_id_query(value))
+            output = await self._distributor.next(session, specification)
+            if output is not None:
+                value = self.aggregate_provider._output_exporter(output)
                 self.aggregate_provider.require(dict_to_query(value))
                 await self.aggregate_provider.populate(session)
+                self._set_input(self.aggregate_provider.id_provider.state())
+                self._output = await self.aggregate_provider.create(session)
             else:
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
                 # self._criteria = None
-                self.require({'$eq': None})
+                self._set_input(None)
             # self.require() could reset self._output
-            self._output = result
+            self._output = output
         except ICursor as cursor:
             if self._criteria is not None:
                 # Propagate constraints to aggregate_provider (already done in require())
                 pass
             await self.aggregate_provider.populate(session)
-            result = await self.aggregate_provider.create(session)
-            await cursor.append(session, result)
-            value = self.aggregate_provider._output_exporter(result)
-            self.require(self._build_id_query(value))
+            output = await self.aggregate_provider.create(session)
+            await cursor.append(session, output)
+            self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
-            self._output = result
-
-    def _build_id_query(self, exported_value: dict) -> dict:
-        """
-        Build reference query from exported aggregate value.
-
-        Extracts just the id field for the reference's $rel constraint.
-        For scalar PK: {'$rel': {'id': {'$eq': 10}}}
-        For composite PK: {'$rel': {'id': {'tenant_id': {'$eq': 15}, ...}}}
-        """
-        id_attr = self.aggregate_provider._id_attr
-        id_value = exported_value[id_attr]
-        return {'$rel': {id_attr: dict_to_query(id_value)}}
-
-    async def setup(self, session: ISession):
-        await super().setup(session)
-        await self._aggregate_provider_accessor.setup(session)
-
-    async def cleanup(self, session: ISession):
-        await super().cleanup(session)
-        await self._aggregate_provider_accessor.cleanup(session)
-
-    async def create(self, session: ISession) -> T_Output:
-        if self._output is None:
-            return None
-        return await self.aggregate_provider.id_provider.create(session)
+            self._output = output
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
@@ -223,6 +195,22 @@ class ReferenceProvider(
         self._aggregate_provider_accessor = SubscriptionAggregateProviderAccessor[T_Input, T_Output, T_Agg_Provider](
             self, aggregate_provider_accessor
         )
+
+    def do_empty(self, clone: typing.Self, shunt: ICloningShunt | None = None):
+        super().do_empty(clone, shunt)
+        clone._aggregate_provider_accessor = self._aggregate_provider_accessor.empty(shunt)
+
+    def reset(self) -> None:
+        super().reset()
+        self._aggregate_provider_accessor.reset()
+
+    async def setup(self, session: ISession):
+        await super().setup(session)
+        await self._aggregate_provider_accessor.setup(session)
+
+    async def cleanup(self, session: ISession):
+        await super().cleanup(session)
+        await self._aggregate_provider_accessor.cleanup(session)
 
 
 class SubscriptionAggregateProviderAccessor(IAggregateProviderAccessor[T_Agg_Provider], typing.Generic[T_Input, T_Output, T_Agg_Provider]):
