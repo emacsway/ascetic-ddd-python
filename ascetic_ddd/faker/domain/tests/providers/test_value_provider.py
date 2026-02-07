@@ -392,8 +392,8 @@ class ValueProviderSetGetTestCase(IsolatedAsyncioTestCase):
             input_generator=generator,
         )
 
-        # set() accepts plain values (implicit $eq) or query format
-        provider.set('manual_value')
+        # require() accepts plain values (implicit $eq) or query format
+        provider.require('manual_value')
 
         # get() returns query format with $eq operator
         self.assertEqual(provider.get(), {'$eq': 'manual_value'})

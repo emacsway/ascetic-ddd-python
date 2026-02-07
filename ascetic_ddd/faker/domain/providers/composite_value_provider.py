@@ -99,10 +99,10 @@ class CompositeValueProvider(
             result = await self._distributor.next(session, specification)
             if result is not None:
                 value = self._output_exporter(result)
-                self.set(dict_to_query(value))
+                self.require(dict_to_query(value))
             else:
-                self.set({'$eq': None})
-            # self.set() could reset self._output
+                self.require({'$eq': None})
+            # self.require() could reset self._output
             self._output = result
         except ICursor as cursor:
             await self.do_populate(session)

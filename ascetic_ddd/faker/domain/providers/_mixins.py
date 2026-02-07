@@ -139,18 +139,18 @@ class BaseProvider(
         self._output = empty
         self.notify('input', self._input)
 
-    def set(self, value: T_Input) -> None:
+    def require(self, query: dict[str, typing.Any]) -> None:
         """
         Set provider value using query format.
 
         Args:
-            value: Query in format {'$eq': v} or scalar (implicit $eq)
+            query: Query in format {'$eq': v} or scalar (implicit $eq)
 
         Examples:
-            provider.set({'$eq': 5})
-            provider.set(5)  # implicit $eq
+            provider.require({'$eq': 5})
+            provider.require(5)  # implicit $eq
         """
-        new_query = parse_query(value)
+        new_query = parse_query(query)
         old_input = self._input
         if self._input is not None:
             try:
@@ -252,17 +252,17 @@ class BaseCompositeProvider(
         for provider in self.providers.values():
             provider.reset()
 
-    def set(self, value: T_Input) -> None:
+    def require(self, query: dict[str, typing.Any]) -> None:
         """
         Set composite provider value using query format.
 
         Args:
-            value: Query in format {'field': {'$eq': v}, ...}
+            query: Query in format {'field': {'$eq': v}, ...}
 
         Examples:
-            provider.set({'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}})
+            provider.require({'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}})
         """
-        new_query = parse_query(value)
+        new_query = parse_query(query)
         old_input = self._input
         if self._input is not None:
             try:
@@ -290,7 +290,7 @@ class BaseCompositeProvider(
                     raise AttributeError(
                         f"Provider '{self.provider_name}': has no nested provider '{attr}'"
                     )
-                provider.set(query_to_dict(field_query))
+                provider.require(query_to_dict(field_query))
 
     def get(self) -> T_Input:
         """Return current query as dict format, composed from nested providers."""

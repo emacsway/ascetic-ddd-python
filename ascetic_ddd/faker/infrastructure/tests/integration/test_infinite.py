@@ -430,8 +430,8 @@ class ThirdModelFaker(AggregateProvider[dict, ThirdModel]):
     async def do_populate(self, session: ISession) -> None:
         await self.id.populate(session)
         id_ = await self.id.create(session)
-        self.second_model_id.set({'$rel': {'id': {'first_model_id': {'$eq': id_.first_model_id}}}})
-        self.parent_id.set({'$rel': {'id': {'first_model_id': {'$eq': id_.first_model_id}}}})
+        self.second_model_id.require({'$rel': {'id': {'first_model_id': {'$eq': id_.first_model_id}}}})
+        self.parent_id.require({'$rel': {'id': {'first_model_id': {'$eq': id_.first_model_id}}}})
 
 
 # ################## Mock Server ################################################

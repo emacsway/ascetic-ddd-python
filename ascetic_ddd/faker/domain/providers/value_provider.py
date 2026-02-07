@@ -99,8 +99,8 @@ class ValueProvider(
         try:
             result = await self._distributor.next(session, self._make_specification())
             value = self._output_exporter(result)
-            self.set({'$eq': value})
-            # self.set() could reset self._output
+            self.require({'$eq': value})
+            # self.require() could reset self._output
             self._output = result
         except ICursor as cursor:
             if self._input_generator is None:
@@ -109,8 +109,8 @@ class ValueProvider(
                 value = await self._input_generator(session, cursor.position)
                 result = self._output_factory(value)
                 await cursor.append(session, result)
-                self.set({'$eq': value})
-                # self.set() could reset self._output
+                self.require({'$eq': value})
+                # self.require() could reset self._output
                 self._output = result
 
     def _make_specification(self) -> ISpecification | None:

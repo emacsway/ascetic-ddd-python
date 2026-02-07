@@ -101,13 +101,13 @@ class AggregateProvider(
         if saved_result is not None:
             result = saved_result
             state = self._output_exporter(result)
-            self.set(dict_to_query(state))
+            self.require(dict_to_query(state))
             await self.populate(session)
         else:
             await self._repository.insert(session, result)
             state = self._output_exporter(result)
             id_value = state.get(self._id_attr)
-            self.id_provider.set(dict_to_query(id_value))
+            self.id_provider.require(dict_to_query(id_value))
             await self.id_provider.populate(session)
             # Auto-increment PK uses DummyDistributor which doesn't store values,
             # so append() is no-op. For composite PK with weighted distributor,
@@ -116,7 +116,7 @@ class AggregateProvider(
             # Note: ReferenceProvider observers listen to repository events
             # (via SubscriptionAggregateProviderAccessor), not to distributor.append().
             # await self.id_provider.append(session, getattr(result, self._id_attr))
-        # self.set() could reset self._output
+        # self.require() could reset self._output
         self._output = result
 
         # Create dependent entities AFTER this aggregate is created (they need its ID for FK)

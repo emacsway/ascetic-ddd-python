@@ -959,7 +959,7 @@ class ReferenceProviderPresetPKMultiLevelTestCase(IsolatedAsyncioTestCase):
         user_provider.provider_name = 'user'
 
         # Set values manually
-        user_provider.set({
+        user_provider.require({
             'id': {
                 'tenant_id': 999,
                 'internal_user_id': 888,

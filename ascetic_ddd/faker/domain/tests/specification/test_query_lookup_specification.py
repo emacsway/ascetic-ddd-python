@@ -174,7 +174,7 @@ class MockReferenceProvider(IReferenceProvider):
     async def populate(self, session):
         pass
 
-    def set(self, value):
+    def require(self, value):
         self._input = value
 
     def get(self):

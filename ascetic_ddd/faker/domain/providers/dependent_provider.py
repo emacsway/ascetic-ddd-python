@@ -155,12 +155,12 @@ class DependentProvider(
                 # Weighted mode: select value for each child using WeightedRangeDistributor
                 for provider in providers:
                     index = self._value_selector.distribute()
-                    provider.set(self._inputs[index])
+                    provider.require(self._inputs[index])
             else:
                 # Direct mode: values[i] → child[i]
                 for i, provider in enumerate(providers):
                     if i < len(self._inputs):
-                        provider.set(self._inputs[i])
+                        provider.require(self._inputs[i])
 
         # Set dependency's ID on dependency_field for each child (FK)
         if self._dependency_field is not None and self._dependency_id:
@@ -170,7 +170,7 @@ class DependentProvider(
                     raise AttributeError(
                         f"Provider '{self.provider_name}': child has no provider '{self._dependency_field}'"
                     )
-                related_provider.set(self._dependency_id)
+                related_provider.require(self._dependency_id)
 
         # Populate each provider
         for provider in providers:

@@ -410,7 +410,7 @@ class AggregateProviderPresetPKTestCase(IsolatedAsyncioTestCase):
         provider2 = UserProviderPresetPK(repository)
         provider2.provider_name = 'user2'
         # Pre-set the same ID
-        provider2.id.set(100)
+        provider2.id.require(100)
         await provider2.populate(session)
         result2 = await provider2.create(session)
 
@@ -426,7 +426,7 @@ class AggregateProviderPresetPKTestCase(IsolatedAsyncioTestCase):
         provider = UserProviderPresetPK(repository)
         provider.provider_name = 'user'
 
-        provider.set({
+        provider.require({
             'id': 999,
             'name': 'Custom Name',
             'email': 'custom@example.com',

@@ -249,7 +249,7 @@ class CompositeValueProviderLevel2TestCase(IsolatedAsyncioTestCase):
         provider = UserIdProvider(distributor)
         provider.provider_name = 'user_id'
 
-        provider.set({
+        provider.require({
             'tenant_id': 99,
             'internal_user_id': 199,
         })
@@ -319,7 +319,7 @@ class CompositeValueProviderLevel3TestCase(IsolatedAsyncioTestCase):
         provider = ResumeIdProvider(distributor)
         provider.provider_name = 'resume_id'
 
-        provider.set({
+        provider.require({
             'user_id': {
                 'tenant_id': 1,
                 'internal_user_id': 101,

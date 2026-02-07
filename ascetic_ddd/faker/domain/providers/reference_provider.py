@@ -87,25 +87,25 @@ class ReferenceProvider(
             result = await self._distributor.next(session, specification)
             if result is not None:
                 value = self.aggregate_provider._output_exporter(result)
-                self.set(self._build_id_query(value))
-                self.aggregate_provider.set(dict_to_query(value))
+                self.require(self._build_id_query(value))
+                self.aggregate_provider.require(dict_to_query(value))
                 await self.aggregate_provider.populate(session)
             else:
                 # Alternative to "if isinstance(new_query, EqOperator) and new_query.value is None"
                 # self._input = None
-                self.set({'$eq': None})
-            # self.set() could reset self._output
+                self.require({'$eq': None})
+            # self.require() could reset self._output
             self._output = result
         except ICursor as cursor:
             if self._input is not None:
-                # Propagate constraints to aggregate_provider (already done in set())
+                # Propagate constraints to aggregate_provider (already done in require())
                 pass
             await self.aggregate_provider.populate(session)
             result = await self.aggregate_provider.create(session)
             await cursor.append(session, result)
             value = self.aggregate_provider._output_exporter(result)
-            self.set(self._build_id_query(value))
-            # self.set() could reset self._output
+            self.require(self._build_id_query(value))
+            # self.require() could reset self._output
             self._output = result
 
     def _build_id_query(self, exported_value: dict) -> dict:
@@ -133,7 +133,7 @@ class ReferenceProvider(
             return None
         return await self.aggregate_provider.id_provider.create(session)
 
-    def set(self, value: T_Input) -> None:
+    def require(self, query: dict[str, typing.Any]) -> None:
         """
         Set reference provider value using query format.
 
@@ -144,7 +144,7 @@ class ReferenceProvider(
 
         Non-$rel values are automatically wrapped into $rel with id.
         """
-        new_query = parse_query(value)
+        new_query = parse_query(query)
 
         # EqOperator(None) means "null the reference" - don't wrap, don't merge
         if isinstance(new_query, EqOperator) and new_query.value is None:
@@ -194,7 +194,7 @@ class ReferenceProvider(
         Propagate $rel constraints to aggregate_provider.
 
         infinite recursion prevention:
-        We only propagate once during set(), not recursively.
+        We only propagate once during require(), not recursively.
         """
         if not isinstance(query, RelOperator):
             return
@@ -205,7 +205,7 @@ class ReferenceProvider(
                 raise AttributeError(
                     f"Provider '{self.provider_name}': aggregate has no provider '{field}'"
                 )
-            provider.set(query_to_dict(op))
+            provider.require(query_to_dict(op))
 
     @property
     def aggregate_provider(self) -> IEntityProvider[T_Input, T_Output]:

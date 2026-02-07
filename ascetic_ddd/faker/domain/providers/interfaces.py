@@ -106,7 +106,7 @@ class IInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta):
     (см. агрегат Specialist at grade project).
     Это подсказка на вопрос о том, должен ли Distributor хранить сырые значения провайдера или готовый агрегат.
 
-    В method self.set(...) технически невозможно установить в качестве значения итоговый тип,
+    В method self.require(...) технически невозможно установить в качестве значения итоговый тип,
     т.к. для валидного его состояния банально может не хватать данных (Auto Increment PK, FK).
     """
     @abstractmethod
@@ -114,7 +114,7 @@ class IInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def set(self, value: T_Input) -> None:
+    def require(self, query: dict[str, typing.Any]) -> None:
         """
         Для CompositeProvider не используем **kwargs,
         т.к. иначе придется инспектировать сигнатуру каждого вложенного вызываемого сеттера
