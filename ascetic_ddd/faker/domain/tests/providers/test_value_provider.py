@@ -243,7 +243,7 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
         provider.reset()
 
         self.assertFalse(provider.is_complete())
-        self.assertIsNone(provider._input)
+        self.assertIsNone(provider._query)
         self.assertEqual(provider._output, empty)
 
 

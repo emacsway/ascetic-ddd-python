@@ -1039,8 +1039,8 @@ class ReferenceProviderResetTestCase(IsolatedAsyncioTestCase):
         user_provider.reset()
 
         self.assertFalse(user_provider.tenant_id.is_complete())
-        # _input is now IQueryOperator | None, not Empty
-        self.assertIsNone(user_provider.tenant_id._input)
+        # _query is now IQueryOperator | None, not Empty
+        self.assertIsNone(user_provider.tenant_id._query)
 
 
 # =============================================================================

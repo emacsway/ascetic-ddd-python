@@ -90,10 +90,10 @@ class CompositeValueProvider(
                 self._output = await self._default_factory(session)
             return
 
-        if self._input is None:
+        if self._query is None:
             specification = EmptySpecification()
         else:
-            specification = self._specification_factory(self._input, self._output_exporter)
+            specification = self._specification_factory(self._query, self._output_exporter)
 
         try:
             result = await self._distributor.next(session, specification)

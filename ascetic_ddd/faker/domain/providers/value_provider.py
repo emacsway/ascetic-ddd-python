@@ -89,9 +89,9 @@ class ValueProvider(
         if self.is_complete():
             return
 
-        if self._input is not None:
+        if self._query is not None:
             # Extract value from EqOperator
-            input_value = self._input.value if isinstance(self._input, EqOperator) else None
+            input_value = self._query.value if isinstance(self._query, EqOperator) else None
             self._output = self._output_factory(input_value)
             # await cursor.append(session, self._output)
             return

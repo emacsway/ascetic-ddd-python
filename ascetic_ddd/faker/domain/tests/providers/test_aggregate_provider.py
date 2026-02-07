@@ -473,7 +473,7 @@ class AggregateProviderResetTestCase(IsolatedAsyncioTestCase):
 
         self.assertFalse(provider.is_complete())
         # _input is now IQueryOperator | None, not Empty
-        self.assertIsNone(provider._input)
+        self.assertIsNone(provider._query)
         self.assertEqual(provider._output, empty)
 
     async def test_reset_clears_nested_providers(self):

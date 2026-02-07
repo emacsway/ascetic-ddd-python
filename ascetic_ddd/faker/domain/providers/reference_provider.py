@@ -74,9 +74,9 @@ class ReferenceProvider(
             return
 
         # Создаём specification с aggregate_provider_accessor для lazy resolve_nested и subqueries
-        if self._input is not None:
+        if self._query is not None:
             specification = self._specification_factory(
-                self._input,
+                self._query,
                 self.aggregate_provider._output_exporter,
                 aggregate_provider_accessor=lambda: self.aggregate_provider,
             )
@@ -92,12 +92,12 @@ class ReferenceProvider(
                 await self.aggregate_provider.populate(session)
             else:
                 # Alternative to "if isinstance(new_query, EqOperator) and new_query.value is None"
-                # self._input = None
+                # self._query = None
                 self.require({'$eq': None})
             # self.require() could reset self._output
             self._output = result
         except ICursor as cursor:
-            if self._input is not None:
+            if self._query is not None:
                 # Propagate constraints to aggregate_provider (already done in require())
                 pass
             await self.aggregate_provider.populate(session)
@@ -148,10 +148,10 @@ class ReferenceProvider(
 
         # EqOperator(None) means "null the reference" - don't wrap, don't merge
         if isinstance(new_query, EqOperator) and new_query.value is None:
-            self._input = new_query
-            self._propagate_to_aggregate(self._input)
+            self._query = new_query
+            self._propagate_to_aggregate(self._query)
             self._output = None
-            self.notify('input', self._input)
+            self.notify('query', self._query)
             return
 
         # Wrap non-$rel into $rel with id
@@ -159,20 +159,20 @@ class ReferenceProvider(
             id_attr = self.aggregate_provider._id_attr
             new_query = RelOperator(CompositeQuery({id_attr: new_query}))
 
-        if self._input is not None:
+        if self._query is not None:
             # If reference is already explicitly null, don't add constraints
             if self._is_null_reference():
                 return
             try:
-                self._input = self._input + new_query
+                self._query = self._query + new_query
             except MergeConflict as e:
                 raise DiamondUpdateConflict(e.existing_value, e.new_value, self.provider_name) from e
         else:
-            self._input = new_query
+            self._query = new_query
 
         self._propagate_to_aggregate(new_query)
         self._output = empty
-        self.notify('input', self._input)
+        self.notify('query', self._query)
 
     def _is_null_reference(self) -> bool:
         """
@@ -180,11 +180,11 @@ class ReferenceProvider(
 
         Returns True if _input is EqOperator(None) or RelOperator with id=None.
         """
-        if isinstance(self._input, EqOperator) and self._input.value is None:
+        if isinstance(self._query, EqOperator) and self._query.value is None:
             return True
-        if isinstance(self._input, RelOperator):
+        if isinstance(self._query, RelOperator):
             id_attr = self.aggregate_provider._id_attr
-            id_constraint = self._input.query.fields.get(id_attr)
+            id_constraint = self._query.query.fields.get(id_attr)
             if isinstance(id_constraint, EqOperator) and id_constraint.value is None:
                 return True
         return False

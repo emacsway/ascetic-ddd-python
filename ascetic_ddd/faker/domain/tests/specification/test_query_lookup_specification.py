@@ -151,7 +151,7 @@ class MockReferenceProvider(IReferenceProvider):
     def __init__(self, repository: MockRepository, aggregate_provider: typing.Any):
         self._repository = repository
         self._aggregate_provider = aggregate_provider
-        self._input = empty
+        self._query = empty
         self._output = empty
         self._provider_name = None
 
@@ -175,7 +175,7 @@ class MockReferenceProvider(IReferenceProvider):
         pass
 
     def require(self, value):
-        self._input = value
+        self._query = value
 
     def get(self):
         return self._output
@@ -187,14 +187,14 @@ class MockReferenceProvider(IReferenceProvider):
         pass
 
     def reset(self):
-        self._input = empty
+        self._query = empty
         self._output = empty
 
     def is_complete(self):
         return self._output is not empty
 
     def is_transient(self):
-        return self._input is empty
+        return self._query is empty
 
     def empty(self, shunt=None):
         return MockReferenceProvider(self._repository, self._aggregate_provider)

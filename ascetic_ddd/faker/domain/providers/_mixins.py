@@ -131,13 +131,13 @@ class BaseProvider(
     typing.Generic[T_Input, T_Output],
     metaclass=abc.ABCMeta
 ):
-    _input: IQueryOperator | None = None
+    _query: IQueryOperator | None = None
     _output: T_Output | Empty = empty
 
     def reset(self) -> None:
-        self._input = None
+        self._query = None
         self._output = empty
-        self.notify('input', self._input)
+        self.notify('query', self._query)
 
     def require(self, query: dict[str, typing.Any]) -> None:
         """
@@ -151,32 +151,32 @@ class BaseProvider(
             provider.require(5)  # implicit $eq
         """
         new_query = parse_query(query)
-        old_input = self._input
-        if self._input is not None:
+        old_input = self._query
+        if self._query is not None:
             try:
-                self._input = self._input + new_query
+                self._query = self._query + new_query
             except MergeConflict as e:
                 raise DiamondUpdateConflict(e.existing_value, e.new_value, self.provider_name) from e
         else:
-            self._input = new_query
+            self._query = new_query
         # Only reset output if input actually changed
-        if self._input != old_input:
+        if self._query != old_input:
             self._output = empty
-        self.notify('input', self._input)
+        self.notify('query', self._query)
 
     def get(self) -> T_Input:
         """Return current query as dict format."""
-        return query_to_dict(self._input) if self._input is not None else {}
+        return query_to_dict(self._query) if self._query is not None else {}
 
     def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
-        clone._input = None
+        clone._query = None
         clone._output = empty
 
     def is_complete(self) -> bool:
         return self._output is not empty
 
     def is_transient(self) -> bool:
-        return self._input is None
+        return self._query is None
 
     async def append(self, session: ISession, value: T_Output):
         pass
@@ -225,7 +225,7 @@ class BaseCompositeProvider(
     metaclass=abc.ABCMeta
 ):
 
-    _input: IQueryOperator | None = None
+    _query: IQueryOperator | None = None
     _output: T_Output | Empty = empty
     _provider_name: str | None = None
 
@@ -239,16 +239,16 @@ class BaseCompositeProvider(
         return any(provider.is_transient() for provider in self.providers.values())
 
     def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
-        clone._input = None
+        clone._query = None
         clone._output = empty
         for attr, provider in self.providers.items():
             setattr(clone, attr, provider.empty(shunt))
         clone.on_init()
 
     def reset(self) -> None:
-        self._input = None
+        self._query = None
         self._output = empty
-        self.notify('input', self._input)
+        self.notify('query', self._query)
         for provider in self.providers.values():
             provider.reset()
 
@@ -263,19 +263,19 @@ class BaseCompositeProvider(
             provider.require({'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}})
         """
         new_query = parse_query(query)
-        old_input = self._input
-        if self._input is not None:
+        old_input = self._query
+        if self._query is not None:
             try:
-                self._input = self._input + new_query
+                self._query = self._query + new_query
             except MergeConflict as e:
                 raise DiamondUpdateConflict(e.existing_value, e.new_value, self.provider_name) from e
         else:
-            self._input = new_query
+            self._query = new_query
         # Only reset output if input actually changed
-        if self._input != old_input:
+        if self._query != old_input:
             self._output = empty
-        self.notify('input', self._input)
-        self._distribute_query(self._input)
+        self.notify('query', self._query)
+        self._distribute_query(self._query)
 
     def _distribute_query(self, query: IQueryOperator) -> None:
         """
@@ -374,7 +374,7 @@ class BaseCompositeDistributionProvider(
     metaclass=abc.ABCMeta
 ):
 
-    _input: IQueryOperator | None = None
+    _query: IQueryOperator | None = None
     _output: T_Output | Empty = empty
     _provider_name: str | None = None
     _distributor: IM2ODistributor[T_Input]
