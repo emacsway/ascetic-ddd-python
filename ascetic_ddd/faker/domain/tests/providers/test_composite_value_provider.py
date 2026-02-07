@@ -244,19 +244,21 @@ class CompositeValueProviderLevel2TestCase(IsolatedAsyncioTestCase):
         self.assertTrue(provider.internal_user_id.is_complete())
 
     async def test_set_propagates_to_nested_providers(self):
-        """set() should propagate values to nested ValueProviders."""
+        """require() should propagate values to nested ValueProviders."""
         distributor = StubDistributor(raise_cursor_at=0)
         provider = UserIdProvider(distributor)
         provider.provider_name = 'user_id'
+        session = MockSession()
 
         provider.require({
             'tenant_id': 99,
             'internal_user_id': 199,
         })
+        await provider.populate(session)
 
-        # get() returns query format with $eq operator
-        self.assertEqual(provider.tenant_id.state(), {'$eq': 99})
-        self.assertEqual(provider.internal_user_id.state(), {'$eq': 199})
+        # state() returns primitive input value
+        self.assertEqual(provider.tenant_id.state(), 99)
+        self.assertEqual(provider.internal_user_id.state(), 199)
 
     async def test_reuse_existing_user_id(self):
         """UserIdProvider should reuse existing UserId from distributor."""
@@ -314,10 +316,11 @@ class CompositeValueProviderLevel3TestCase(IsolatedAsyncioTestCase):
         self.assertTrue(provider.is_complete())
 
     async def test_deep_set_propagates_to_all_levels(self):
-        """set() should propagate values through all nesting levels."""
+        """require() should propagate values through all nesting levels."""
         distributor = StubDistributor(raise_cursor_at=0)
         provider = ResumeIdProvider(distributor)
         provider.provider_name = 'resume_id'
+        session = MockSession()
 
         provider.require({
             'user_id': {
@@ -326,11 +329,12 @@ class CompositeValueProviderLevel3TestCase(IsolatedAsyncioTestCase):
             },
             'internal_resume_id': 1001,
         })
+        await provider.populate(session)
 
-        # get() returns query format with $eq operator
-        self.assertEqual(provider.user_id.tenant_id.state(), {'$eq': 1})
-        self.assertEqual(provider.user_id.internal_user_id.state(), {'$eq': 101})
-        self.assertEqual(provider.internal_resume_id.state(), {'$eq': 1001})
+        # state() returns primitive input value
+        self.assertEqual(provider.user_id.tenant_id.state(), 1)
+        self.assertEqual(provider.user_id.internal_user_id.state(), 101)
+        self.assertEqual(provider.internal_resume_id.state(), 1001)
 
     async def test_get_returns_nested_structure(self):
         """get() should return the full nested structure in query format."""
