@@ -4,14 +4,14 @@ from abc import ABCMeta, abstractmethod
 
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import ICursor, IM2ODistributor
 from ascetic_ddd.faker.domain.providers._mixins import BaseDistributionProvider
+from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 from ascetic_ddd.faker.domain.providers.interfaces import (
     IReferenceProvider, IEntityProvider, ICloningShunt, ISetupable
 )
 from ascetic_ddd.faker.domain.query.operators import (
-    IQueryOperator, EqOperator, RelOperator, CompositeQuery
+    IQueryOperator, EqOperator, RelOperator, CompositeQuery, MergeConflict
 )
-from ascetic_ddd.faker.domain.query.parser import QueryParser
-from ascetic_ddd.faker.domain.query.merger import QueryMerger
+from ascetic_ddd.faker.domain.query.parser import parse_query
 from ascetic_ddd.faker.domain.query.visitors import query_to_dict, dict_to_query
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
@@ -144,30 +144,50 @@ class ReferenceProvider(
 
         Non-$rel values are automatically wrapped into $rel with id.
         """
-        new_query = QueryParser().parse(value)
-        id_attr = self.aggregate_provider._id_attr
-        merger = QueryMerger(id_attr=id_attr)
+        new_query = parse_query(value)
+
+        # EqOperator(None) means "null the reference" - don't wrap, don't merge
+        if isinstance(new_query, EqOperator) and new_query.value is None:
+            self._input = new_query
+            self._propagate_to_aggregate(self._input)
+            self._output = None
+            self.notify('input', self._input)
+            return
+
+        # Wrap non-$rel into $rel with id
+        if not isinstance(new_query, RelOperator):
+            id_attr = self.aggregate_provider._id_attr
+            new_query = RelOperator(CompositeQuery({id_attr: new_query}))
 
         if self._input is not None:
-            # EqOperator(None) means "null the reference" - replace, don't merge
-            if isinstance(new_query, EqOperator) and new_query.value is None:
-                self._input = new_query
-            else:
-                self._input = merger.merge(self._input, new_query, self.provider_name)
+            # If reference is already explicitly null, don't add constraints
+            if self._is_null_reference():
+                return
+            try:
+                self._input = self._input + new_query
+            except MergeConflict as e:
+                raise DiamondUpdateConflict(e.existing_value, e.new_value, self.provider_name) from e
         else:
-            # Wrap non-$rel into $rel
-            if not isinstance(new_query, RelOperator):
-                if isinstance(new_query, EqOperator):
-                    # Scalar PK: {'$eq': 27} -> $rel: {id: {'$eq': 27}}
-                    new_query = RelOperator({id_attr: new_query})
-                else:
-                    # CompositeQuery: {'name': ...} -> $rel: {'name': ...}
-                    new_query = RelOperator(new_query.fields)
             self._input = new_query
 
-        self._propagate_to_aggregate(self._input)
+        self._propagate_to_aggregate(new_query)
         self._output = empty
         self.notify('input', self._input)
+
+    def _is_null_reference(self) -> bool:
+        """
+        Check if this reference is explicitly set to null.
+
+        Returns True if _input is EqOperator(None) or RelOperator with id=None.
+        """
+        if isinstance(self._input, EqOperator) and self._input.value is None:
+            return True
+        if isinstance(self._input, RelOperator):
+            id_attr = self.aggregate_provider._id_attr
+            id_constraint = self._input.query.fields.get(id_attr)
+            if isinstance(id_constraint, EqOperator) and id_constraint.value is None:
+                return True
+        return False
 
     def _propagate_to_aggregate(self, query: IQueryOperator) -> None:
         """
@@ -179,7 +199,7 @@ class ReferenceProvider(
         if not isinstance(query, RelOperator):
             return
 
-        for field, op in query.constraints.items():
+        for field, op in query.query.fields.items():
             provider = getattr(self.aggregate_provider, field, None)
             if provider is None:
                 raise AttributeError(
