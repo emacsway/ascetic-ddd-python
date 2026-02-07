@@ -7,7 +7,8 @@ Eliminates code duplication across providers and specifications.
 import typing
 
 from ascetic_ddd.faker.domain.query.operators import (
-    IQueryVisitor, IQueryOperator, EqOperator, RelOperator, CompositeQuery
+    IQueryVisitor, IQueryOperator, EqOperator, ComparisonOperator, InOperator,
+    AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 
 __all__ = (
@@ -38,6 +39,21 @@ class QueryToDictVisitor(IQueryVisitor[dict]):
             return {'$eq': op.value.accept(self)}
         return {'$eq': op.value}
 
+    def visit_comparison(self, op: ComparisonOperator) -> dict:
+        return {op.op: op.value}
+
+    def visit_in(self, op: InOperator) -> dict:
+        return {'$in': list(op.values)}
+
+    def visit_and(self, op: AndOperator) -> dict:
+        result: dict = {}
+        for operand in op.operands:
+            result.update(operand.accept(self))
+        return result
+
+    def visit_or(self, op: OrOperator) -> dict:
+        return {'$or': [operand.accept(self) for operand in op.operands]}
+
     def visit_rel(self, op: RelOperator) -> dict:
         return {'$rel': op.query.accept(self)}
 
@@ -65,6 +81,21 @@ class QueryToPlainValueVisitor(IQueryVisitor[typing.Any]):
         if isinstance(op.value, IQueryOperator):
             return op.value.accept(self)
         return op.value
+
+    def visit_comparison(self, op: ComparisonOperator) -> typing.Any:
+        return {op.op: op.value}
+
+    def visit_in(self, op: InOperator) -> typing.Any:
+        return {'$in': list(op.values)}
+
+    def visit_and(self, op: AndOperator) -> typing.Any:
+        result: dict = {}
+        for operand in op.operands:
+            result.update(operand.accept(self))
+        return result
+
+    def visit_or(self, op: OrOperator) -> typing.Any:
+        return {'$or': [operand.accept(self) for operand in op.operands]}
 
     def visit_rel(self, op: RelOperator) -> dict:
         return op.query.accept(self)

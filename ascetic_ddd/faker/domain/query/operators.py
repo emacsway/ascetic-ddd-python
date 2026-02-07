@@ -3,12 +3,23 @@ Query operators for MongoDB-like query syntax.
 
 Operators:
 - $eq: equality check
+- $ne: not equal
+- $gt, $gte, $lt, $lte: comparison operators
+- $in: value in list
 - $rel: constraints for related aggregate
+- $or: logical OR of expressions
+
+Multiple operators at same level are implicit AND:
+    {'$gt': 5, '$lt': 10}  -> AndOperator((ComparisonOperator('$gt', 5), ComparisonOperator('$lt', 10)))
 
 Examples:
     {'$eq': 27}                                    # scalar value
+    {'$ne': 'deleted'}                             # not equal
+    {'$gt': 5, '$lt': 10}                          # range (implicit AND)
+    {'$in': ['active', 'pending']}                 # value in list
     {'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}}  # composite PK
     {'$rel': {'is_active': {'$eq': True}}}         # related aggregate criteria
+    {'$or': [{'status': {'$eq': 'active'}}, {'status': {'$eq': 'pending'}}]}
 """
 import typing
 from abc import ABCMeta, abstractmethod
@@ -20,6 +31,10 @@ __all__ = (
     'IQueryVisitor',
     'MergeConflict',
     'EqOperator',
+    'ComparisonOperator',
+    'InOperator',
+    'AndOperator',
+    'OrOperator',
     'RelOperator',
     'CompositeQuery',
 )
@@ -42,6 +57,22 @@ class IQueryVisitor(typing.Generic[T], metaclass=ABCMeta):
 
     @abstractmethod
     def visit_eq(self, op: 'EqOperator') -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def visit_comparison(self, op: 'ComparisonOperator') -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def visit_in(self, op: 'InOperator') -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def visit_and(self, op: 'AndOperator') -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def visit_or(self, op: 'OrOperator') -> T:
         raise NotImplementedError
 
     @abstractmethod
@@ -109,6 +140,156 @@ class EqOperator(IQueryOperator):
 
     def __repr__(self) -> str:
         return f"EqOperator({self.value!r})"
+
+
+class ComparisonOperator(IQueryOperator):
+    """
+    Comparison operator: {'$ne': value}, {'$gt': value}, {'$gte': value}, {'$lt': value}, {'$lte': value}
+
+    Supported ops: '$ne', '$gt', '$gte', '$lt', '$lte'
+    """
+    SUPPORTED_OPS = frozenset(('$ne', '$gt', '$gte', '$lt', '$lte'))
+
+    __slots__ = ('op', 'value', '_hash')
+
+    def __init__(self, op: str, value: typing.Any):
+        self.op = op
+        self.value = value
+        self._hash: int | None = None
+
+    def accept(self, visitor: IQueryVisitor[T]) -> T:
+        return visitor.visit_comparison(self)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ComparisonOperator):
+            return False
+        return self.op == other.op and self.value == other.value
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash((self.op, hashable(self.value)))
+        return self._hash
+
+    def __add__(self, other: 'ComparisonOperator') -> 'ComparisonOperator':
+        if not isinstance(other, ComparisonOperator):
+            return NotImplemented
+        if self.op == other.op and self.value == other.value:
+            return self
+        raise MergeConflict((self.op, self.value), (other.op, other.value))
+
+    def __repr__(self) -> str:
+        return f"ComparisonOperator({self.op!r}, {self.value!r})"
+
+
+class OrOperator(IQueryOperator):
+    """
+    Logical OR: {'$or': [expr1, expr2, ...]}
+
+    Each operand is an IQueryOperator.
+    """
+    __slots__ = ('operands', '_hash')
+
+    def __init__(self, operands: tuple[IQueryOperator, ...]):
+        self.operands = operands
+        self._hash: int | None = None
+
+    def accept(self, visitor: IQueryVisitor[T]) -> T:
+        return visitor.visit_or(self)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, OrOperator):
+            return False
+        return self.operands == other.operands
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(('$or', tuple(hash(op) for op in self.operands)))
+        return self._hash
+
+    def __add__(self, other: 'OrOperator') -> 'OrOperator':
+        if not isinstance(other, OrOperator):
+            return NotImplemented
+        if self.operands == other.operands:
+            return self
+        raise MergeConflict(self.operands, other.operands)
+
+    def __repr__(self) -> str:
+        return f"OrOperator({self.operands!r})"
+
+
+class InOperator(IQueryOperator):
+    """
+    In operator: {'$in': [value1, value2, ...]}
+
+    Represents value membership check.
+    """
+    __slots__ = ('values', '_hash')
+
+    def __init__(self, values: tuple[typing.Any, ...]):
+        self.values = values
+        self._hash: int | None = None
+
+    def accept(self, visitor: IQueryVisitor[T]) -> T:
+        return visitor.visit_in(self)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, InOperator):
+            return False
+        return self.values == other.values
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(('$in', tuple(hashable(v) for v in self.values)))
+        return self._hash
+
+    def __add__(self, other: 'InOperator') -> 'InOperator':
+        if not isinstance(other, InOperator):
+            return NotImplemented
+        if self.values == other.values:
+            return self
+        raise MergeConflict(self.values, other.values)
+
+    def __repr__(self) -> str:
+        return f"InOperator({self.values!r})"
+
+
+class AndOperator(IQueryOperator):
+    """
+    Implicit AND of operators at the same level.
+
+    Created by parser when multiple operators appear at the same level:
+        {'$gt': 5, '$lt': 10} -> AndOperator((ComparisonOperator('$gt', 5), ComparisonOperator('$lt', 10)))
+
+    Not exposed as '$and' in query syntax.
+    """
+    __slots__ = ('operands', '_hash')
+
+    def __init__(self, operands: tuple[IQueryOperator, ...]):
+        self.operands = operands
+        self._hash: int | None = None
+
+    def accept(self, visitor: IQueryVisitor[T]) -> T:
+        return visitor.visit_and(self)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, AndOperator):
+            return False
+        return self.operands == other.operands
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(('$and', tuple(hash(op) for op in self.operands)))
+        return self._hash
+
+    def __add__(self, other: 'AndOperator') -> 'AndOperator':
+        if not isinstance(other, AndOperator):
+            return NotImplemented
+        if self.operands == other.operands:
+            return self
+        raise MergeConflict(self.operands, other.operands)
+
+    def __repr__(self) -> str:
+        return f"AndOperator({self.operands!r})"
 
 
 class RelOperator(IQueryOperator):

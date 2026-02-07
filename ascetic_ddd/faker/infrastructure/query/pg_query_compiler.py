@@ -3,237 +3,256 @@ PostgreSQL query compiler for MongoDB-like query operators.
 
 Compiles IQueryOperator tree into PostgreSQL SQL with JSONB containment (@>).
 
-Features:
-- $eq operators are collapsed into single JSON for efficient GIN index usage
-- $rel operators generate EXISTS subqueries for related aggregates
-- Extensible via Visitor pattern for future operators
+- EqOperator values are collected into single @> for GIN index usage
+- Other operators ($gt, $gte, $lt, $lte, $ne, $in) extract JSON attribute and apply operator
+- RelOperator generates EXISTS subqueries (separate table)
+
+Field context (_field_path) is maintained for nested operators.
 """
 import dataclasses
 import functools
 import json
 import typing
-from collections.abc import Callable
 
 from psycopg.types.json import Jsonb
 
 from ascetic_ddd.faker.domain.query.operators import (
-    IQueryVisitor, IQueryOperator, EqOperator, RelOperator, CompositeQuery
+    IQueryVisitor, IQueryOperator, EqOperator, ComparisonOperator, InOperator,
+    AndOperator, OrOperator, RelOperator, CompositeQuery
 )
+from ascetic_ddd.faker.infrastructure.query.relation_resolver import IRelationResolver
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
 
 __all__ = ('PgQueryCompiler',)
 
-T = typing.TypeVar('T')
-
 
 class PgQueryCompiler(IQueryVisitor[None]):
     """
-    Compiles query operators into PostgreSQL SQL.
+    Compiles IQueryOperator tree into PostgreSQL SQL.
 
-    Uses JSONB containment operator (@>) for efficient indexing.
-    $eq values are collapsed into single JSON for one index lookup.
-
-    Example:
-        compiler = PgQueryCompiler()
-        sql, params = compiler.compile(query)
-        # sql: "value @> %s"
-        # params: (Jsonb({'status': 'active', 'type': 'premium'}),)
+    EqOperator values within CompositeQuery are collapsed into single @>.
+    RelOperator generates EXISTS subqueries for related aggregates.
+    Field context (_field_path) allows future operators to build JSON extraction paths.
     """
 
-    _target_value_expr: str
-    _aggregate_provider_accessor: Callable[[], typing.Any] | None
-    _sql_parts: list[str]
-    _params: list[typing.Any]
-
-    __slots__ = ('_target_value_expr', '_aggregate_provider_accessor', '_sql_parts', '_params')
+    __slots__ = (
+        '_target_value_expr', '_relation_resolver', '_alias_seq',
+        '_field_path', '_eq_values', '_sql_parts', '_params'
+    )
 
     def __init__(
         self,
         target_value_expr: str = "value",
-        aggregate_provider_accessor: Callable[[], typing.Any] | None = None
+        relation_resolver: IRelationResolver | None = None,
+        _alias_seq: list[int] | None = None,
     ):
-        """
-        Args:
-            target_value_expr: SQL expression for the JSONB column (e.g., "value", "rt.value")
-            aggregate_provider_accessor: Accessor for AggregateProvider (for $rel subqueries)
-        """
         self._target_value_expr = target_value_expr
-        self._aggregate_provider_accessor = aggregate_provider_accessor
-        self._sql_parts = []
-        self._params = []
+        self._relation_resolver = relation_resolver
+        self._alias_seq = _alias_seq if _alias_seq is not None else [0]
+        self._field_path: list[str] = []
+        self._eq_values: dict[str, typing.Any] = {}
+        self._sql_parts: list[str] = []
+        self._params: list[typing.Any] = []
+
+    def _next_alias(self) -> str:
+        self._alias_seq[0] += 1
+        return f"rt{self._alias_seq[0]}"
 
     @property
     def sql(self) -> str:
-        """Returns compiled SQL condition."""
-        if not self._sql_parts:
-            return ""
-        return " AND ".join(self._sql_parts)
+        return " AND ".join(self._sql_parts) if self._sql_parts else ""
 
     @property
     def params(self) -> tuple[typing.Any, ...]:
-        """Returns SQL parameters."""
         return tuple(self._params)
 
     def compile(self, query: IQueryOperator) -> tuple[str, tuple[typing.Any, ...]]:
-        """
-        Compile query into SQL.
-
-        Args:
-            query: Query operator tree
-
-        Returns:
-            Tuple of (sql, params)
-        """
+        self._field_path = []
+        self._eq_values = {}
         self._sql_parts = []
         self._params = []
         query.accept(self)
+        self._flush_eq()
         return self.sql, self.params
 
+    # --- Visitor methods ---
+
     def visit_eq(self, op: EqOperator) -> None:
-        """
-        Compile $eq operator.
+        if self._field_path:
+            self._collect_eq(op.value)
+        else:
+            self._sql_parts.append(f"{self._target_value_expr} @> %s")
+            self._params.append(self._encode(op.value))
 
-        $eq compiles to JSONB containment: value @> '{"field": value}'
-        """
-        self._sql_parts.append(f"{self._target_value_expr} @> %s")
-        self._params.append(self._encode(op.value))
+    _SQL_OPS: typing.ClassVar[dict[str, str]] = {
+        '$gt': '>',
+        '$gte': '>=',
+        '$lt': '<',
+        '$lte': '<=',
+    }
 
-    def visit_rel(self, op: RelOperator) -> None:
-        """
-        Compile $rel operator.
+    def visit_comparison(self, op: ComparisonOperator) -> None:
+        if op.op == '$ne':
+            self._compile_ne(op.value)
+        else:
+            sql_op = self._SQL_OPS[op.op]
+            json_path = self._json_path_expr()
+            self._sql_parts.append(f"{json_path} {sql_op} %s")
+            self._params.append(op.value)
 
-        If aggregate_provider_accessor is available:
-        - FK fields generate EXISTS subqueries
-        - Non-FK fields use simple @>
+    def _compile_ne(self, value: typing.Any) -> None:
+        """Compile $ne using negated JSONB containment."""
+        if self._field_path:
+            nested: dict[str, typing.Any] = {}
+            target = nested
+            for key in self._field_path[:-1]:
+                target[key] = {}
+                target = target[key]
+            target[self._field_path[-1]] = value
+            self._sql_parts.append(f"NOT ({self._target_value_expr} @> %s)")
+            self._params.append(self._encode(nested))
+        else:
+            self._sql_parts.append(f"NOT ({self._target_value_expr} @> %s)")
+            self._params.append(self._encode(value))
 
-        Without accessor: all constraints collapsed into one @>.
-        """
-        if self._aggregate_provider_accessor is None:
-            # No accessor - collect all $eq values into one JSON
-            eq_values = self._collect_eq_values(op)
-            if eq_values:
-                self._sql_parts.append(f"{self._target_value_expr} @> %s")
-                self._params.append(self._encode(eq_values))
-            return
+    def visit_in(self, op: InOperator) -> None:
+        or_parts: list[str] = []
+        for value in op.values:
+            if self._field_path:
+                nested: dict[str, typing.Any] = {}
+                target = nested
+                for key in self._field_path[:-1]:
+                    target[key] = {}
+                    target = target[key]
+                target[self._field_path[-1]] = value
+                or_parts.append(f"{self._target_value_expr} @> %s")
+                self._params.append(self._encode(nested))
+            else:
+                or_parts.append(f"{self._target_value_expr} @> %s")
+                self._params.append(self._encode(value))
+        if len(or_parts) == 1:
+            self._sql_parts.append(or_parts[0])
+        else:
+            self._sql_parts.append(f"({' OR '.join(or_parts)})")
 
-        self._compile_rel_with_provider(op)
+    def visit_and(self, op: AndOperator) -> None:
+        for operand in op.operands:
+            operand.accept(self)
+
+    def visit_or(self, op: OrOperator) -> None:
+        or_parts: list[str] = []
+        for operand in op.operands:
+            sub_compiler = PgQueryCompiler(
+                target_value_expr=self._target_value_expr,
+                relation_resolver=self._relation_resolver,
+                _alias_seq=self._alias_seq,
+            )
+            sub_compiler._field_path = list(self._field_path)
+            operand.accept(sub_compiler)
+            sub_compiler._flush_eq()
+            if sub_compiler.sql:
+                or_parts.append(sub_compiler.sql)
+                self._params.extend(sub_compiler.params)
+        if or_parts:
+            self._sql_parts.append(f"({' OR '.join(or_parts)})")
 
     def visit_composite(self, op: CompositeQuery) -> None:
-        """
-        Compile CompositeQuery.
-
-        All $eq values are collapsed into single JSON for one @> check.
-        Non-$eq operators are compiled separately.
-        """
-        eq_values: dict[str, typing.Any] = {}
-        non_eq_ops: list[tuple[str, IQueryOperator]] = []
-
         for field, field_op in op.fields.items():
-            if isinstance(field_op, EqOperator):
-                eq_values[field] = field_op.value
+            if isinstance(field_op, RelOperator):
+                self._compile_rel_field(field, field_op)
             else:
-                non_eq_ops.append((field, field_op))
+                self._field_path.append(field)
+                field_op.accept(self)
+                self._field_path.pop()
 
-        # All $eq in one @>
-        if eq_values:
-            self._sql_parts.append(f"{self._target_value_expr} @> %s")
-            self._params.append(self._encode(eq_values))
+    def visit_rel(self, op: RelOperator) -> None:
+        if self._relation_resolver is None:
+            raise TypeError(
+                "Cannot compile $rel without relation_resolver."
+            )
+        if self._field_path:
+            field = self._field_path.pop()
+            self._compile_rel_field(field, op)
+        else:
+            op.query.accept(self)
 
-        # Non-$eq operators separately
-        for field, field_op in non_eq_ops:
-            field_op.accept(self)
+    # --- Eq collection ---
 
-    def _compile_rel_with_provider(self, op: RelOperator) -> None:
-        """Compile $rel using aggregate_provider for subqueries."""
-        from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
+    def _collect_eq(self, value: typing.Any) -> None:
+        target = self._eq_values
+        for key in self._field_path[:-1]:
+            target = target.setdefault(key, {})
+        target[self._field_path[-1]] = value
 
-        agg_provider = self._aggregate_provider_accessor()
-        providers = agg_provider.providers
+    def _flush_eq(self) -> None:
+        if self._eq_values:
+            self._sql_parts.insert(0, f"{self._target_value_expr} @> %s")
+            self._params.insert(0, self._encode(self._eq_values))
 
-        # Separate simple and FK constraints
-        simple_values: dict[str, typing.Any] = {}
+    # --- $rel compilation ---
 
-        for field, field_op in op.query.fields.items():
-            provider = providers.get(field)
+    def _compile_rel_field(self, field: str, op: RelOperator) -> None:
+        if self._relation_resolver is None:
+            raise TypeError(
+                "Cannot compile $rel without relation_resolver."
+            )
 
-            if isinstance(provider, IReferenceProvider):
-                # FK - build EXISTS subquery
-                self._build_rel_subquery(field, field_op, provider)
-            else:
-                # Non-FK - collect for simple @>
-                eq_value = self._collect_eq_values(field_op)
-                if eq_value is not None:
-                    simple_values[field] = eq_value
+        relation_info = self._relation_resolver.resolve(field)
 
-        # Simple values in one @>
-        if simple_values:
-            self._sql_parts.append(f"{self._target_value_expr} @> %s")
-            self._params.append(self._encode(simple_values))
+        if relation_info is not None:
+            self._build_exists_subquery(field, op, relation_info)
+        else:
+            nested = self._to_dict(op.query)
+            if nested is not None:
+                self._sql_parts.append(f"{self._target_value_expr} @> %s")
+                self._params.append(self._encode({field: nested}))
 
-    def _build_rel_subquery(
+    def _build_exists_subquery(
         self,
         field: str,
-        field_op: IQueryOperator,
-        ref_provider: typing.Any
+        op: RelOperator,
+        relation_info: typing.Any,
     ) -> None:
-        """Build EXISTS subquery for FK field."""
-        related_provider = ref_provider.aggregate_provider
+        alias = self._next_alias()
 
-        if not hasattr(related_provider, '_repository'):
-            # No repository - fallback to simple @>
-            eq_value = self._collect_eq_values(field_op)
-            if eq_value is not None:
-                self._sql_parts.append(f"{self._target_value_expr} @> %s")
-                self._params.append(self._encode({field: eq_value}))
-            return
-
-        related_table = related_provider._repository.table
-
-        # Recursively compile nested query
         nested_compiler = PgQueryCompiler(
-            target_value_expr="rt.value",
-            aggregate_provider_accessor=lambda rp=related_provider: rp
+            target_value_expr=f"{alias}.value",
+            relation_resolver=relation_info.nested_resolver,
+            _alias_seq=self._alias_seq,
         )
-
-        # Convert field_op to pattern for nested compilation
-        if isinstance(field_op, RelOperator):
-            # Already $rel - compile its constraints
-            for nested_field, nested_op in field_op.query.fields.items():
-                nested_compiler._compile_field(nested_field, nested_op)
-        else:
-            # Not $rel - treat as id constraint
-            field_op.accept(nested_compiler)
+        op.query.accept(nested_compiler)
+        nested_compiler._flush_eq()
 
         if nested_compiler.sql:
             sql = (
-                f"EXISTS (SELECT 1 FROM {related_table} rt "
-                f"WHERE {nested_compiler.sql} AND rt.value_id = {self._target_value_expr}->'{field}')"
+                f"EXISTS (SELECT 1 FROM {relation_info.table} {alias} "
+                f"WHERE {nested_compiler.sql} AND "
+                f"{alias}.{relation_info.pk_field} = {self._target_value_expr}->'{field}')"
             )
             self._sql_parts.append(sql)
             self._params.extend(nested_compiler.params)
 
-    def _compile_field(self, field: str, op: IQueryOperator) -> None:
-        """Compile single field constraint."""
-        if isinstance(op, EqOperator):
-            self._sql_parts.append(f"{self._target_value_expr} @> %s")
-            self._params.append(self._encode({field: op.value}))
-        else:
-            op.accept(self)
+    # --- Helpers ---
 
-    def _collect_eq_values(self, op: IQueryOperator) -> typing.Any:
-        """
-        Collect all $eq values from operator tree into dict.
+    def _json_path_expr(self) -> str:
+        """Build JSON extraction expression from _field_path.
 
-        Returns None if no $eq values found.
+        ['status'] -> value->'status'
+        ['address', 'city'] -> value->'address'->'city'
         """
+        expr = self._target_value_expr
+        for key in self._field_path:
+            expr += f"->'{key}'"
+        return expr
+
+    @staticmethod
+    def _to_dict(op: IQueryOperator) -> typing.Any:
         if isinstance(op, EqOperator):
             return op.value
-        elif isinstance(op, RelOperator):
-            return self._collect_eq_values(op.query)
         elif isinstance(op, CompositeQuery):
             result = {}
             for field, field_op in op.fields.items():
-                val = self._collect_eq_values(field_op)
+                val = PgQueryCompiler._to_dict(field_op)
                 if val is not None:
                     result[field] = val
             return result if result else None
@@ -241,7 +260,6 @@ class PgQueryCompiler(IQueryVisitor[None]):
 
     @staticmethod
     def _encode(obj: typing.Any) -> Jsonb:
-        """Encode object as JSONB for psycopg."""
         if dataclasses.is_dataclass(obj):
             obj = dataclasses.asdict(obj)
         dumps = functools.partial(json.dumps, cls=JSONEncoder)

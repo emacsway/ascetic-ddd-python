@@ -3,7 +3,8 @@ import unittest
 
 from ascetic_ddd.faker.domain.query.parser import QueryParser
 from ascetic_ddd.faker.domain.query.operators import (
-    EqOperator, RelOperator, CompositeQuery
+    EqOperator, ComparisonOperator, InOperator, AndOperator, OrOperator,
+    RelOperator, CompositeQuery
 )
 
 
@@ -144,6 +145,201 @@ class TestQueryParserComposite(unittest.TestCase):
         self.assertEqual(result.fields['address'].fields['city'].value, 'Moscow')
 
 
+class TestQueryParserComparison(unittest.TestCase):
+    """Tests for QueryParser.parse() with comparison operators."""
+
+    def setUp(self):
+        self.parser = QueryParser()
+
+    def test_parse_gt(self):
+        result = self.parser.parse({'$gt': 10})
+        self.assertIsInstance(result, ComparisonOperator)
+        self.assertEqual(result.op, '$gt')
+        self.assertEqual(result.value, 10)
+
+    def test_parse_gte(self):
+        result = self.parser.parse({'$gte': 0})
+        self.assertIsInstance(result, ComparisonOperator)
+        self.assertEqual(result.op, '$gte')
+        self.assertEqual(result.value, 0)
+
+    def test_parse_lt(self):
+        result = self.parser.parse({'$lt': 100})
+        self.assertIsInstance(result, ComparisonOperator)
+        self.assertEqual(result.op, '$lt')
+        self.assertEqual(result.value, 100)
+
+    def test_parse_lte(self):
+        result = self.parser.parse({'$lte': 99})
+        self.assertIsInstance(result, ComparisonOperator)
+        self.assertEqual(result.op, '$lte')
+        self.assertEqual(result.value, 99)
+
+    def test_parse_comparison_in_composite(self):
+        result = self.parser.parse({
+            'age': {'$gt': 18},
+            'status': {'$eq': 'active'}
+        })
+        self.assertIsInstance(result, CompositeQuery)
+        self.assertIsInstance(result.fields['age'], ComparisonOperator)
+        self.assertEqual(result.fields['age'].op, '$gt')
+        self.assertEqual(result.fields['age'].value, 18)
+        self.assertIsInstance(result.fields['status'], EqOperator)
+
+
+class TestQueryParserOr(unittest.TestCase):
+    """Tests for QueryParser.parse() with $or operator."""
+
+    def setUp(self):
+        self.parser = QueryParser()
+
+    def test_parse_or_simple(self):
+        result = self.parser.parse({
+            '$or': [
+                {'status': {'$eq': 'active'}},
+                {'status': {'$eq': 'pending'}}
+            ]
+        })
+        self.assertIsInstance(result, OrOperator)
+        self.assertEqual(len(result.operands), 2)
+        self.assertIsInstance(result.operands[0], CompositeQuery)
+        self.assertIsInstance(result.operands[1], CompositeQuery)
+
+    def test_parse_or_with_scalars(self):
+        result = self.parser.parse({
+            '$or': [{'$eq': 1}, {'$eq': 2}]
+        })
+        self.assertIsInstance(result, OrOperator)
+        self.assertEqual(result.operands[0].value, 1)
+        self.assertEqual(result.operands[1].value, 2)
+
+    def test_parse_or_three_operands(self):
+        result = self.parser.parse({
+            '$or': [{'$eq': 'a'}, {'$eq': 'b'}, {'$eq': 'c'}]
+        })
+        self.assertIsInstance(result, OrOperator)
+        self.assertEqual(len(result.operands), 3)
+
+    def test_parse_or_in_composite(self):
+        result = self.parser.parse({
+            'priority': {'$or': [{'$eq': 'high'}, {'$eq': 'critical'}]}
+        })
+        self.assertIsInstance(result, CompositeQuery)
+        self.assertIsInstance(result.fields['priority'], OrOperator)
+
+    def test_parse_or_with_comparison(self):
+        result = self.parser.parse({
+            '$or': [
+                {'age': {'$gt': 18}},
+                {'vip': {'$eq': True}}
+            ]
+        })
+        self.assertIsInstance(result, OrOperator)
+        age_op = result.operands[0].fields['age']
+        self.assertIsInstance(age_op, ComparisonOperator)
+        self.assertEqual(age_op.op, '$gt')
+
+    def test_parse_or_non_list_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            self.parser.parse({'$or': 'invalid'})
+        self.assertIn("$or value must be list", str(cm.exception))
+
+    def test_parse_or_one_operand_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            self.parser.parse({'$or': [{'$eq': 1}]})
+        self.assertIn("at least 2 operands", str(cm.exception))
+
+    def test_parse_or_empty_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            self.parser.parse({'$or': []})
+        self.assertIn("at least 2 operands", str(cm.exception))
+
+
+class TestQueryParserNe(unittest.TestCase):
+    """Tests for QueryParser.parse() with $ne operator."""
+
+    def setUp(self):
+        self.parser = QueryParser()
+
+    def test_parse_ne(self):
+        result = self.parser.parse({'$ne': 'deleted'})
+        self.assertIsInstance(result, ComparisonOperator)
+        self.assertEqual(result.op, '$ne')
+        self.assertEqual(result.value, 'deleted')
+
+    def test_parse_ne_in_composite(self):
+        result = self.parser.parse({'status': {'$ne': 'deleted'}})
+        self.assertIsInstance(result, CompositeQuery)
+        self.assertIsInstance(result.fields['status'], ComparisonOperator)
+        self.assertEqual(result.fields['status'].op, '$ne')
+        self.assertEqual(result.fields['status'].value, 'deleted')
+
+
+class TestQueryParserIn(unittest.TestCase):
+    """Tests for QueryParser.parse() with $in operator."""
+
+    def setUp(self):
+        self.parser = QueryParser()
+
+    def test_parse_in_simple(self):
+        result = self.parser.parse({'$in': ['active', 'pending']})
+        self.assertIsInstance(result, InOperator)
+        self.assertEqual(result.values, ('active', 'pending'))
+
+    def test_parse_in_single(self):
+        result = self.parser.parse({'$in': [42]})
+        self.assertIsInstance(result, InOperator)
+        self.assertEqual(result.values, (42,))
+
+    def test_parse_in_composite(self):
+        result = self.parser.parse({'status': {'$in': ['active', 'pending']}})
+        self.assertIsInstance(result, CompositeQuery)
+        self.assertIsInstance(result.fields['status'], InOperator)
+        self.assertEqual(result.fields['status'].values, ('active', 'pending'))
+
+    def test_parse_in_non_list_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            self.parser.parse({'$in': 'invalid'})
+        self.assertIn("$in value must be list", str(cm.exception))
+
+    def test_parse_in_empty_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            self.parser.parse({'$in': []})
+        self.assertIn("at least 1 value", str(cm.exception))
+
+
+class TestQueryParserAnd(unittest.TestCase):
+    """Tests for QueryParser.parse() with implicit AND (multiple operators)."""
+
+    def setUp(self):
+        self.parser = QueryParser()
+
+    def test_parse_range(self):
+        """{'$gt': 5, '$lt': 10} -> AndOperator."""
+        result = self.parser.parse({'$gt': 5, '$lt': 10})
+        self.assertIsInstance(result, AndOperator)
+        self.assertEqual(len(result.operands), 2)
+        ops = {op.op: op.value for op in result.operands}
+        self.assertEqual(ops, {'$gt': 5, '$lt': 10})
+
+    def test_parse_range_in_composite(self):
+        """{'age': {'$gt': 5, '$lt': 10}} -> CompositeQuery with AndOperator."""
+        result = self.parser.parse({'age': {'$gt': 5, '$lt': 10}})
+        self.assertIsInstance(result, CompositeQuery)
+        self.assertIsInstance(result.fields['age'], AndOperator)
+        self.assertEqual(len(result.fields['age'].operands), 2)
+
+    def test_parse_three_operators(self):
+        result = self.parser.parse({'$gt': 0, '$lt': 100, '$ne': 50})
+        self.assertIsInstance(result, AndOperator)
+        self.assertEqual(len(result.operands), 3)
+
+    def test_parse_ne_with_comparison(self):
+        result = self.parser.parse({'$ne': 'deleted', '$gt': 0})
+        self.assertIsInstance(result, AndOperator)
+        self.assertEqual(len(result.operands), 2)
+
+
 class TestQueryParserErrors(unittest.TestCase):
     """Tests for QueryParser.parse() error cases."""
 
@@ -165,10 +361,11 @@ class TestQueryParserErrors(unittest.TestCase):
             self.parser.parse({'$unknown': 5})
         self.assertIn("Unknown operator", str(cm.exception))
 
-    def test_parse_multiple_operators_raises(self):
-        with self.assertRaises(ValueError) as cm:
-            self.parser.parse({'$eq': 5, '$rel': {}})
-        self.assertIn("Only one operator per level", str(cm.exception))
+    def test_parse_multiple_operators_creates_and(self):
+        """Multiple operators at same level create AndOperator."""
+        result = self.parser.parse({'$gt': 5, '$lt': 10})
+        self.assertIsInstance(result, AndOperator)
+        self.assertEqual(len(result.operands), 2)
 
     def test_parse_rel_with_non_dict_raises(self):
         with self.assertRaises(ValueError) as cm:

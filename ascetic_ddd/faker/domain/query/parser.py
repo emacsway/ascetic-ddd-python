@@ -17,6 +17,10 @@ import typing
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator,
     EqOperator,
+    ComparisonOperator,
+    InOperator,
+    AndOperator,
+    OrOperator,
     RelOperator,
     CompositeQuery,
 )
@@ -79,16 +83,26 @@ class QueryParser:
             return self._parse_fields(fields)
 
     def _parse_operators(self, operators: dict[str, typing.Any]) -> IQueryOperator:
-        """Parse operator dict (e.g., {'$eq': 5} or {'$rel': {...}})."""
-        if len(operators) != 1:
-            raise ValueError(
-                f"Only one operator per level supported, got: {list(operators.keys())}"
-            )
+        """Parse operator dict (e.g., {'$eq': 5} or {'$gt': 5, '$lt': 10})."""
+        if len(operators) == 1:
+            return self._parse_single_operator(*next(iter(operators.items())))
 
-        op_name, op_value = next(iter(operators.items()))
+        # Multiple operators at same level → implicit AND
+        parsed = []
+        for op_name, op_value in operators.items():
+            parsed.append(self._parse_single_operator(op_name, op_value))
+        return AndOperator(tuple(parsed))
 
+    def _parse_single_operator(self, op_name: str, op_value: typing.Any) -> IQueryOperator:
+        """Parse a single operator by name."""
         if op_name == '$eq':
             return self._parse_eq(op_value)
+        elif op_name in ComparisonOperator.SUPPORTED_OPS:
+            return ComparisonOperator(op_name, op_value)
+        elif op_name == '$in':
+            return self._parse_in(op_value)
+        elif op_name == '$or':
+            return self._parse_or(op_value)
         elif op_name == '$rel':
             return self._parse_rel(op_value)
         else:
@@ -106,6 +120,22 @@ class QueryParser:
         if isinstance(value, dict):
             return EqOperator(self.parse(value))
         return EqOperator(value)
+
+    def _parse_or(self, operands: typing.Any) -> OrOperator:
+        """Parse $or operator value into OrOperator."""
+        if not isinstance(operands, list):
+            raise ValueError(f"$or value must be list, got: {type(operands).__name__}")
+        if len(operands) < 2:
+            raise ValueError(f"$or requires at least 2 operands, got: {len(operands)}")
+        return OrOperator(tuple(self.parse(operand) for operand in operands))
+
+    def _parse_in(self, values: typing.Any) -> InOperator:
+        """Parse $in operator value into InOperator."""
+        if not isinstance(values, list):
+            raise ValueError(f"$in value must be list, got: {type(values).__name__}")
+        if len(values) < 1:
+            raise ValueError(f"$in requires at least 1 value, got: {len(values)}")
+        return InOperator(tuple(values))
 
     def _parse_rel(self, constraints: typing.Any) -> RelOperator:
         """Parse $rel operator value into RelOperator."""
@@ -140,6 +170,12 @@ def normalize_query(op: IQueryOperator) -> IQueryOperator:
         normalized = normalize_query(op.query)
         assert isinstance(normalized, CompositeQuery)
         return RelOperator(normalized)
+
+    if isinstance(op, AndOperator):
+        return AndOperator(tuple(normalize_query(operand) for operand in op.operands))
+
+    if isinstance(op, OrOperator):
+        return OrOperator(tuple(normalize_query(operand) for operand in op.operands))
 
     if isinstance(op, CompositeQuery):
         normalized = {k: normalize_query(v) for k, v in op.fields.items()}
