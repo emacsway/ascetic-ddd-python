@@ -217,9 +217,9 @@ class ReferenceProvider(
             aggregate_provider: T_Agg_Provider | Callable[[], T_Agg_Provider]
     ) -> None:
         if callable(aggregate_provider):
-            aggregate_provider_accessor = LazyAggregateProviderAccessor[T_Input, T_Agg_Provider](aggregate_provider)
+            aggregate_provider_accessor = LazyAggregateProviderAccessor[T_Agg_Provider](aggregate_provider)
         else:
-            aggregate_provider_accessor = AggregateProviderAccessor[T_Input, T_Agg_Provider](aggregate_provider)
+            aggregate_provider_accessor = AggregateProviderAccessor[T_Agg_Provider](aggregate_provider)
         self._aggregate_provider_accessor = SubscriptionAggregateProviderAccessor[T_Input, T_Output, T_Agg_Provider](
             self, aggregate_provider_accessor
         )
