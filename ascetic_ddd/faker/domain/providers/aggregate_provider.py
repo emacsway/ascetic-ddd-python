@@ -112,21 +112,24 @@ class AggregateProvider(
         if self.is_complete():
             return
 
+        await self.id_provider.populate(session)
         if self.id_provider.is_complete() and not self.id_provider.is_transient():
             # id_ здесь может быть еще неизвестен, т.к. агрегат не создан.
             # А может быть и известен, если его id_ поступил из ReferenceProvider.
             # Skip repository lookup if id contains empty fields (auto-increment PKs)
             id_ = await self.id_provider.create(session)
             output = await self._repository.get(session, id_)
-            input_ = self._output_exporter(output)
-            self._set_input(input_)
-            for attr, provider in self.providers.items():
-                await provider.populate(session)
-            self._output = output
-        else:
-            await self.do_populate(session)
-            for attr, provider in self.providers.items():
-                await provider.populate(session)
+            if output is not None:
+                input_ = self._output_exporter(output)
+                self._set_input(input_)
+                for attr, provider in self.providers.items():
+                    await provider.populate(session)
+                self._output = output
+                return
+
+        await self.do_populate(session)
+        for attr, provider in self.providers.items():
+            await provider.populate(session)
 
     async def do_populate(self, session: ISession) -> None:
         pass
