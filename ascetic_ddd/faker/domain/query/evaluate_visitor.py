@@ -8,11 +8,11 @@ import typing
 from abc import ABCMeta, abstractmethod
 
 from ascetic_ddd.faker.domain.query.operators import (
-    IQueryOperator, EqOperator, ComparisonOperator, InOperator,
+    IQueryOperator, IQueryVisitor, EqOperator, ComparisonOperator, InOperator,
     AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 
-__all__ = ('IObjectResolver', 'EvaluateVisitor')
+__all__ = ('IObjectResolver', 'EvaluateVisitor', 'QueryEvaluator')
 
 
 class IObjectResolver(metaclass=ABCMeta):
@@ -147,3 +147,120 @@ class EvaluateVisitor:
         return await self.evaluate(
             session, field_op, field_value, _field_context=(field, field_value)
         )
+
+
+T = typing.TypeVar('T')
+
+
+class QueryEvaluator(IQueryVisitor[typing.Awaitable[bool]]):
+    """
+    Visitor-based evaluator: checks if an object state matches query criteria.
+
+    Implements IQueryVisitor[Awaitable[bool]] with double dispatch via accept().
+    State is carried in the instance; recursion creates new instances.
+
+    Usage:
+        evaluator = QueryEvaluator(state, session, object_resolver)
+        result = await query.accept(evaluator)
+    """
+
+    __slots__ = ('_state', '_session', '_object_resolver', '_field_context')
+
+    def __init__(
+            self,
+            state: typing.Any,
+            session: typing.Any,
+            object_resolver: IObjectResolver | None = None,
+            _field_context: tuple[str, typing.Any] | None = None,
+    ):
+        self._state = state
+        self._session = session
+        self._object_resolver = object_resolver
+        self._field_context = _field_context
+
+    def _with_state(
+            self,
+            state: typing.Any,
+            object_resolver: IObjectResolver | None = None,
+            _field_context: tuple[str, typing.Any] | None = None,
+    ) -> 'QueryEvaluator':
+        return QueryEvaluator(
+            state,
+            self._session,
+            object_resolver if object_resolver is not None else self._object_resolver,
+            _field_context,
+        )
+
+    async def visit_eq(self, op: EqOperator) -> bool:
+        return self._state == op.value
+
+    async def visit_comparison(self, op: ComparisonOperator) -> bool:
+        if op.op == '$ne':
+            return self._state != op.value
+        if op.op == '$gt':
+            return self._state > op.value
+        if op.op == '$gte':
+            return self._state >= op.value
+        if op.op == '$lt':
+            return self._state < op.value
+        if op.op == '$lte':
+            return self._state <= op.value
+        return False
+
+    async def visit_in(self, op: InOperator) -> bool:
+        return self._state in op.values
+
+    async def visit_and(self, op: AndOperator) -> bool:
+        for operand in op.operands:
+            evaluator = self._with_state(
+                self._state, _field_context=self._field_context
+            )
+            if not await operand.accept(evaluator):
+                return False
+        return True
+
+    async def visit_or(self, op: OrOperator) -> bool:
+        for operand in op.operands:
+            evaluator = self._with_state(
+                self._state, _field_context=self._field_context
+            )
+            if await operand.accept(evaluator):
+                return True
+        return False
+
+    async def visit_rel(self, op: RelOperator) -> bool:
+        if self._field_context is not None and self._object_resolver is not None:
+            field, fk_value = self._field_context
+            foreign_state, nested_resolver = await self._object_resolver.resolve(
+                self._session, field, fk_value
+            )
+            if foreign_state is None:
+                return False
+            nested = self._with_state(foreign_state, object_resolver=nested_resolver)
+            return await op.query.accept(nested)
+        # RelOperator without field context — delegate to inner query
+        return await op.query.accept(self)
+
+    async def visit_composite(self, op: CompositeQuery) -> bool:
+        if not isinstance(self._state, dict):
+            return False
+        for field, field_op in op.fields.items():
+            field_value = self._state.get(field)
+            # RelOperator on a field — resolve relation directly
+            if isinstance(field_op, RelOperator) and self._object_resolver is not None:
+                foreign_state, nested_resolver = await self._object_resolver.resolve(
+                    self._session, field, field_value
+                )
+                if foreign_state is None:
+                    return False
+                nested = self._with_state(foreign_state, object_resolver=nested_resolver)
+                if not await field_op.query.accept(nested):
+                    return False
+            else:
+                # Pass field context for nested RelOperator inside Or/And
+                evaluator = self._with_state(
+                    field_value, _field_context=(field, field_value)
+                )
+                if not await field_op.accept(evaluator):
+                    return False
+        return True

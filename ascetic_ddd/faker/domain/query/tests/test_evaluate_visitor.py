@@ -4,7 +4,7 @@ import typing
 from unittest import IsolatedAsyncioTestCase
 
 from ascetic_ddd.faker.domain.query.evaluate_visitor import (
-    EvaluateVisitor, IObjectResolver
+    EvaluateVisitor, QueryEvaluator, IObjectResolver
 )
 from ascetic_ddd.faker.domain.query.operators import (
     EqOperator, ComparisonOperator, InOperator, AndOperator, OrOperator,
@@ -769,6 +769,629 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
 
         state_bob = self.user_provider._output_exporter(self.user_bob)
         self.assertFalse(await self.visitor.evaluate(self.session, query, state_bob))
+
+
+# =============================================================================
+# Tests for QueryEvaluator - Basic (no resolver)
+# =============================================================================
+
+class QueryEvaluatorBasicTestCase(IsolatedAsyncioTestCase):
+    """Basic tests for QueryEvaluator without object resolver."""
+
+    def setUp(self):
+        self.session = MockSession()
+
+    def _eval(self, state, query, resolver=None, _field_context=None):
+        return query.accept(QueryEvaluator(state, self.session, resolver, _field_context))
+
+    async def test_eq_matches(self):
+        self.assertTrue(await self._eval(42, EqOperator(42)))
+
+    async def test_eq_not_matches(self):
+        self.assertFalse(await self._eval(99, EqOperator(42)))
+
+    async def test_eq_none(self):
+        self.assertTrue(await self._eval(None, EqOperator(None)))
+
+    async def test_eq_string(self):
+        self.assertTrue(await self._eval('active', EqOperator('active')))
+
+    async def test_comparison_ne(self):
+        op = ComparisonOperator('$ne', 'deleted')
+        self.assertTrue(await self._eval('active', op))
+        self.assertFalse(await self._eval('deleted', op))
+
+    async def test_comparison_gt(self):
+        op = ComparisonOperator('$gt', 10)
+        self.assertTrue(await self._eval(15, op))
+        self.assertFalse(await self._eval(10, op))
+        self.assertFalse(await self._eval(5, op))
+
+    async def test_comparison_gte(self):
+        op = ComparisonOperator('$gte', 10)
+        self.assertTrue(await self._eval(15, op))
+        self.assertTrue(await self._eval(10, op))
+        self.assertFalse(await self._eval(5, op))
+
+    async def test_comparison_lt(self):
+        op = ComparisonOperator('$lt', 10)
+        self.assertTrue(await self._eval(5, op))
+        self.assertFalse(await self._eval(10, op))
+        self.assertFalse(await self._eval(15, op))
+
+    async def test_comparison_lte(self):
+        op = ComparisonOperator('$lte', 10)
+        self.assertTrue(await self._eval(5, op))
+        self.assertTrue(await self._eval(10, op))
+        self.assertFalse(await self._eval(15, op))
+
+    async def test_in_operator_matches(self):
+        op = InOperator(('active', 'pending'))
+        self.assertTrue(await self._eval('active', op))
+        self.assertTrue(await self._eval('pending', op))
+
+    async def test_in_operator_not_matches(self):
+        op = InOperator(('active', 'pending'))
+        self.assertFalse(await self._eval('deleted', op))
+
+    async def test_and_operator_all_true(self):
+        op = AndOperator((
+            ComparisonOperator('$gt', 5),
+            ComparisonOperator('$lt', 10),
+        ))
+        self.assertTrue(await self._eval(7, op))
+
+    async def test_and_operator_one_false(self):
+        op = AndOperator((
+            ComparisonOperator('$gt', 5),
+            ComparisonOperator('$lt', 10),
+        ))
+        self.assertFalse(await self._eval(12, op))
+
+    async def test_or_operator_one_true(self):
+        op = OrOperator((
+            EqOperator('active'),
+            EqOperator('pending'),
+        ))
+        self.assertTrue(await self._eval('pending', op))
+
+    async def test_or_operator_none_true(self):
+        op = OrOperator((
+            EqOperator('active'),
+            EqOperator('pending'),
+        ))
+        self.assertFalse(await self._eval('deleted', op))
+
+    async def test_composite_matches(self):
+        query = CompositeQuery({
+            'status': EqOperator('active'),
+            'name': EqOperator('Alice'),
+        })
+        state = {'status': 'active', 'name': 'Alice', 'extra': 'ignored'}
+        self.assertTrue(await self._eval(state, query))
+
+    async def test_composite_not_matches(self):
+        query = CompositeQuery({
+            'status': EqOperator('active'),
+            'name': EqOperator('Alice'),
+        })
+        state = {'status': 'inactive', 'name': 'Alice'}
+        self.assertFalse(await self._eval(state, query))
+
+    async def test_composite_non_dict_state(self):
+        query = CompositeQuery({'status': EqOperator('active')})
+        self.assertFalse(await self._eval(42, query))
+
+    async def test_nested_composite_without_resolver(self):
+        query = CompositeQuery({
+            'address': CompositeQuery({
+                'city': EqOperator('Moscow'),
+            }),
+        })
+        state = {'address': {'city': 'Moscow', 'street': 'Main'}}
+        self.assertTrue(await self._eval(state, query))
+
+        state_wrong = {'address': {'city': 'London'}}
+        self.assertFalse(await self._eval(state_wrong, query))
+
+    async def test_composite_with_comparison(self):
+        query = CompositeQuery({
+            'name': EqOperator('John'),
+            'age': AndOperator((
+                ComparisonOperator('$gte', 18),
+                ComparisonOperator('$lt', 65),
+            )),
+        })
+        state = {'name': 'John', 'age': 30}
+        self.assertTrue(await self._eval(state, query))
+
+        state_young = {'name': 'John', 'age': 15}
+        self.assertFalse(await self._eval(state_young, query))
+
+    async def test_composite_with_or(self):
+        query = CompositeQuery({
+            'status': OrOperator((
+                EqOperator('active'),
+                EqOperator('pending'),
+            )),
+        })
+        self.assertTrue(await self._eval({'status': 'active'}, query))
+        self.assertTrue(await self._eval({'status': 'pending'}, query))
+        self.assertFalse(await self._eval({'status': 'deleted'}, query))
+
+    async def test_composite_with_in(self):
+        query = CompositeQuery({
+            'status': InOperator(('active', 'pending')),
+        })
+        self.assertTrue(await self._eval({'status': 'active'}, query))
+        self.assertFalse(await self._eval({'status': 'deleted'}, query))
+
+    async def test_parsed_simple_pattern(self):
+        query = QueryParser().parse({'status': 'active'})
+        self.assertTrue(
+            await self._eval({'status': 'active', 'name': 'test'}, query)
+        )
+        self.assertFalse(
+            await self._eval({'status': 'inactive', 'name': 'test'}, query)
+        )
+
+    async def test_rel_without_resolver_delegates_to_inner(self):
+        query = RelOperator(CompositeQuery({
+            'name': EqOperator('Active'),
+        }))
+        self.assertTrue(await self._eval({'name': 'Active'}, query))
+        self.assertFalse(await self._eval({'name': 'Inactive'}, query))
+
+
+# =============================================================================
+# Tests for QueryEvaluator - Nested Lookup (2 levels)
+# =============================================================================
+
+class QueryEvaluatorNestedLookupTestCase(IsolatedAsyncioTestCase):
+    """Tests for QueryEvaluator nested lookup with object resolver."""
+
+    def setUp(self):
+        self.session = MockSession()
+
+        self.status_storage = {
+            'active': {'id': 'active', 'name': 'Active'},
+            'inactive': {'id': 'inactive', 'name': 'Inactive'},
+        }
+
+        status_resolver = StubObjectResolver({})
+        self.resolver = StubObjectResolver({
+            'status_id': (self.status_storage, status_resolver),
+        })
+
+    def _eval(self, state, query):
+        return query.accept(QueryEvaluator(state, self.session, self.resolver))
+
+    async def test_nested_lookup_matches(self):
+        query = CompositeQuery({
+            'status_id': RelOperator(CompositeQuery({
+                'name': EqOperator('Active'),
+            })),
+        })
+        state = {'id': 1, 'status_id': 'active', 'name': 'Alice'}
+        self.assertTrue(await self._eval(state, query))
+
+    async def test_nested_lookup_not_matches(self):
+        query = CompositeQuery({
+            'status_id': RelOperator(CompositeQuery({
+                'name': EqOperator('Active'),
+            })),
+        })
+        state = {'id': 2, 'status_id': 'inactive', 'name': 'Bob'}
+        self.assertFalse(await self._eval(state, query))
+
+    async def test_nested_lookup_fk_is_none(self):
+        query = CompositeQuery({
+            'status_id': RelOperator(CompositeQuery({
+                'name': EqOperator('Active'),
+            })),
+        })
+        state = {'id': 3, 'status_id': None, 'name': 'Charlie'}
+        self.assertFalse(await self._eval(state, query))
+
+    async def test_nested_lookup_foreign_not_found(self):
+        query = CompositeQuery({
+            'status_id': RelOperator(CompositeQuery({
+                'name': EqOperator('Active'),
+            })),
+        })
+        state = {'id': 4, 'status_id': 'unknown', 'name': 'Dave'}
+        self.assertFalse(await self._eval(state, query))
+
+    async def test_simple_value_with_nested_lookup(self):
+        query = CompositeQuery({
+            'name': EqOperator('Alice'),
+            'status_id': RelOperator(CompositeQuery({
+                'name': EqOperator('Active'),
+            })),
+        })
+        state_alice = {'id': 1, 'status_id': 'active', 'name': 'Alice'}
+        self.assertTrue(await self._eval(state_alice, query))
+
+        state_bob = {'id': 2, 'status_id': 'inactive', 'name': 'Bob'}
+        self.assertFalse(await self._eval(state_bob, query))
+
+    async def test_nested_lookup_with_comparison(self):
+        self.status_storage['high'] = {'id': 'high', 'name': 'High', 'priority': 10}
+        self.status_storage['low'] = {'id': 'low', 'name': 'Low', 'priority': 1}
+
+        query = CompositeQuery({
+            'status_id': RelOperator(CompositeQuery({
+                'priority': ComparisonOperator('$gte', 5),
+            })),
+        })
+
+        state_high = {'id': 1, 'status_id': 'high', 'name': 'Alice'}
+        self.assertTrue(await self._eval(state_high, query))
+
+        state_low = {'id': 2, 'status_id': 'low', 'name': 'Bob'}
+        self.assertFalse(await self._eval(state_low, query))
+
+    async def test_non_relation_field_with_resolver(self):
+        query = CompositeQuery({
+            'name': EqOperator('Alice'),
+        })
+        state = {'id': 1, 'status_id': 'active', 'name': 'Alice'}
+        self.assertTrue(await self._eval(state, query))
+
+
+# =============================================================================
+# Tests for QueryEvaluator - Three Table Cascade
+# =============================================================================
+
+class QueryEvaluatorThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
+    """Three-table cascade for QueryEvaluator: Employee -> Company -> Country."""
+
+    def setUp(self):
+        self.session = MockSession()
+
+        self.country_storage = {
+            'US': {'id': 'US', 'code': 'US', 'continent': 'America'},
+            'UK': {'id': 'UK', 'code': 'UK', 'continent': 'Europe'},
+            'JP': {'id': 'JP', 'code': 'JP', 'continent': 'Asia'},
+        }
+
+        self.company_storage = {
+            1: {
+                'id': 1, 'country_id': 'US', 'name': 'Acme',
+                'type': 'tech', 'revenue': 2000000,
+            },
+            2: {
+                'id': 2, 'country_id': 'UK', 'name': 'BritCo',
+                'type': 'finance', 'revenue': 500000,
+            },
+            3: {
+                'id': 3, 'country_id': 'JP', 'name': 'TokyoTech',
+                'type': 'tech', 'revenue': 800000,
+            },
+        }
+
+        country_resolver = StubObjectResolver({})
+        company_resolver = StubObjectResolver({
+            'country_id': (self.country_storage, country_resolver),
+        })
+        self.resolver = StubObjectResolver({
+            'company_id': (self.company_storage, company_resolver),
+        })
+
+    def _eval(self, state, query):
+        return query.accept(QueryEvaluator(state, self.session, self.resolver))
+
+    async def test_three_table_cascade_matches(self):
+        query = CompositeQuery({
+            'name': EqOperator('John'),
+            'status': EqOperator('active'),
+            'company_id': RelOperator(CompositeQuery({
+                'type': EqOperator('tech'),
+                'country_id': RelOperator(CompositeQuery({
+                    'code': EqOperator('US'),
+                })),
+            })),
+        })
+
+        employee = {
+            'id': 1, 'company_id': 1, 'name': 'John',
+            'age': 30, 'status': 'active',
+        }
+        self.assertTrue(await self._eval(employee, query))
+
+    async def test_three_table_cascade_not_matches_middle(self):
+        query = CompositeQuery({
+            'company_id': RelOperator(CompositeQuery({
+                'type': EqOperator('tech'),
+            })),
+        })
+
+        employee = {'id': 2, 'company_id': 2, 'name': 'Jane', 'age': 25, 'status': 'active'}
+        self.assertFalse(await self._eval(employee, query))
+
+    async def test_three_table_cascade_not_matches_deepest(self):
+        query = CompositeQuery({
+            'company_id': RelOperator(CompositeQuery({
+                'country_id': RelOperator(CompositeQuery({
+                    'code': EqOperator('UK'),
+                })),
+            })),
+        })
+
+        # Employee at Acme (US) — should fail
+        employee = {'id': 1, 'company_id': 1, 'name': 'John', 'age': 30, 'status': 'active'}
+        self.assertFalse(await self._eval(employee, query))
+
+        # Employee at BritCo (UK) — should match
+        employee_uk = {'id': 2, 'company_id': 2, 'name': 'Jane', 'age': 25, 'status': 'active'}
+        self.assertTrue(await self._eval(employee_uk, query))
+
+    async def test_or_in_cascade(self):
+        query = CompositeQuery({
+            'company_id': RelOperator(CompositeQuery({
+                'country_id': OrOperator((
+                    RelOperator(CompositeQuery({
+                        'code': EqOperator('US'),
+                    })),
+                    RelOperator(CompositeQuery({
+                        'code': EqOperator('UK'),
+                    })),
+                )),
+            })),
+        })
+
+        employee_us = {'id': 1, 'company_id': 1, 'name': 'John', 'age': 30, 'status': 'active'}
+        self.assertTrue(await self._eval(employee_us, query))
+
+        employee_uk = {'id': 2, 'company_id': 2, 'name': 'Jane', 'age': 25, 'status': 'active'}
+        self.assertTrue(await self._eval(employee_uk, query))
+
+        employee_jp = {'id': 3, 'company_id': 3, 'name': 'Yuki', 'age': 28, 'status': 'active'}
+        self.assertFalse(await self._eval(employee_jp, query))
+
+    async def test_cascade_with_all_operators(self):
+        query = CompositeQuery({
+            'name': EqOperator('John'),
+            'age': ComparisonOperator('$gt', 25),
+            'company_id': RelOperator(CompositeQuery({
+                'type': EqOperator('tech'),
+                'revenue': ComparisonOperator('$gte', 1000000),
+                'country_id': RelOperator(CompositeQuery({
+                    'code': EqOperator('US'),
+                })),
+            })),
+        })
+
+        employee = {'id': 1, 'company_id': 1, 'name': 'John', 'age': 30, 'status': 'active'}
+        self.assertTrue(await self._eval(employee, query))
+
+        employee2 = {'id': 4, 'company_id': 3, 'name': 'John', 'age': 30, 'status': 'active'}
+        self.assertFalse(await self._eval(employee2, query))
+
+    async def test_cascade_company_not_found(self):
+        query = CompositeQuery({
+            'company_id': RelOperator(CompositeQuery({
+                'type': EqOperator('tech'),
+            })),
+        })
+
+        employee = {'id': 5, 'company_id': 999, 'name': 'Ghost', 'age': 0, 'status': 'unknown'}
+        self.assertFalse(await self._eval(employee, query))
+
+
+# =============================================================================
+# Sociable Tests for QueryEvaluator
+# =============================================================================
+
+class QueryEvaluatorSociableTestCase(IsolatedAsyncioTestCase):
+    """
+    Sociable tests using real AggregateProvider and ProviderObjectResolver
+    for QueryEvaluator.
+    """
+
+    def setUp(self):
+        from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
+        from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+        from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
+        from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
+        from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
+        from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
+        from ascetic_ddd.faker.infrastructure.query.object_resolver import ProviderObjectResolver
+        from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+
+        class StubDistributor(IM2ODistributor):
+            def __init__(self, values=None, raise_cursor=False):
+                self._values = values or []
+                self._index = 0
+                self._raise_cursor = raise_cursor
+                self._appended = []
+                self._provider_name = None
+                self._observers = []
+
+            async def next(self, session, specification=None):
+                if self._raise_cursor or self._index >= len(self._values):
+                    raise Cursor(position=self._index, callback=self._do_append)
+                value = self._values[self._index]
+                self._index += 1
+                return value
+
+            async def _do_append(self, session, value, position):
+                self._appended.append(value)
+
+            async def append(self, session, value):
+                self._appended.append(value)
+
+            @property
+            def provider_name(self):
+                return self._provider_name
+
+            @provider_name.setter
+            def provider_name(self, value):
+                self._provider_name = value
+
+            async def setup(self, session):
+                pass
+
+            async def cleanup(self, session):
+                pass
+
+            def bind_external_source(self, external_source):
+                pass
+
+            def attach(self, aspect, observer, id_=None):
+                self._observers.append((aspect, observer))
+                return lambda: self._observers.remove((aspect, observer))
+
+            def detach(self, aspect, observer, id_=None):
+                self._observers = [(a, o) for a, o in self._observers if o != observer]
+
+            def notify(self, aspect, *args, **kwargs):
+                pass
+
+            async def anotify(self, aspect, *args, **kwargs):
+                pass
+
+            def __copy__(self):
+                return self
+
+            def __deepcopy__(self, memodict={}):
+                return self
+
+        class StatusFaker(AggregateProvider):
+            _id_attr = 'id'
+            id: ValueProvider
+            name: ValueProvider
+
+            def __init__(self, repository, distributor):
+                self.id = ValueProvider(
+                    distributor=distributor,
+                    input_generator=lambda session, query=None, pos=None: "status_%s" % (pos or 0),
+                    output_factory=StatusId,
+                )
+                self.name = ValueProvider(
+                    distributor=StubDistributor(values=["Active", "Inactive"]),
+                    input_generator=lambda session, query=None, pos=None: "Status %s" % (pos or 0),
+                )
+                super().__init__(
+                    repository=repository,
+                    output_factory=Status,
+                    output_exporter=self._export,
+                )
+
+            @staticmethod
+            def _export(status):
+                return {
+                    'id': status.id.value if hasattr(status.id, 'value') else status.id,
+                    'name': status.name,
+                }
+
+        class UserFaker(AggregateProvider):
+            _id_attr = 'id'
+            id: ValueProvider
+            status_id: ReferenceProvider
+            name: ValueProvider
+
+            def __init__(self, repository, distributor, status_provider):
+                self.id = ValueProvider(
+                    distributor=StubDistributor(raise_cursor=True),
+                    input_generator=lambda session, query=None, pos=None: pos or 1,
+                    output_factory=UserId,
+                )
+                self.status_id = ReferenceProvider(
+                    distributor=distributor,
+                    aggregate_provider=status_provider,
+                )
+                self.name = ValueProvider(
+                    distributor=StubDistributor(values=["Alice", "Bob"]),
+                    input_generator=lambda session, query=None, pos=None: "User %s" % (pos or 0),
+                )
+                super().__init__(
+                    repository=repository,
+                    output_factory=User,
+                    output_exporter=self._export,
+                )
+
+            @staticmethod
+            def _export(user):
+                return {
+                    'id': user.id.value if hasattr(user.id, 'value') else user.id,
+                    'status_id': user.status_id.value if hasattr(user.status_id, 'value') else user.status_id,
+                    'name': user.name,
+                }
+
+        self.status_repo = InMemoryRepository(
+            agg_exporter=StatusFaker._export,
+            id_attr='id'
+        )
+        self.user_repo = InMemoryRepository(
+            agg_exporter=UserFaker._export,
+            id_attr='id'
+        )
+
+        self.status_distributor = StubDistributor(
+            values=[
+                Status(StatusId("active"), "Active"),
+                Status(StatusId("inactive"), "Inactive"),
+            ]
+        )
+        self.status_provider = StatusFaker(self.status_repo, self.status_distributor)
+        self.status_provider.provider_name = "status"
+
+        self.user_distributor = StubDistributor()
+        self.user_provider = UserFaker(
+            self.user_repo,
+            self.user_distributor,
+            self.status_provider
+        )
+        self.user_provider.provider_name = "user"
+
+        self.status_active = Status(StatusId("active"), "Active")
+        self.status_inactive = Status(StatusId("inactive"), "Inactive")
+        self.user_alice = User(UserId(1), StatusId("active"), "Alice")
+        self.user_bob = User(UserId(2), StatusId("inactive"), "Bob")
+
+        self.object_resolver = ProviderObjectResolver(lambda: self.user_provider)
+        self.session = MockSession()
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        session = MockSession()
+
+        await self.status_repo.insert(session, self.status_active)
+        await self.status_repo.insert(session, self.status_inactive)
+        await self.user_repo.insert(session, self.user_alice)
+        await self.user_repo.insert(session, self.user_bob)
+
+    async def test_nested_lookup_with_real_providers(self):
+        query = CompositeQuery({
+            'status_id': RelOperator(CompositeQuery({
+                'name': EqOperator('Active'),
+            })),
+        })
+
+        state_alice = self.user_provider._output_exporter(self.user_alice)
+        evaluator = QueryEvaluator(state_alice, self.session, self.object_resolver)
+        self.assertTrue(await query.accept(evaluator))
+
+        state_bob = self.user_provider._output_exporter(self.user_bob)
+        evaluator = QueryEvaluator(state_bob, self.session, self.object_resolver)
+        self.assertFalse(await query.accept(evaluator))
+
+    async def test_combined_pattern_with_real_providers(self):
+        query = CompositeQuery({
+            'name': EqOperator('Alice'),
+            'status_id': RelOperator(CompositeQuery({
+                'name': EqOperator('Active'),
+            })),
+        })
+
+        state_alice = self.user_provider._output_exporter(self.user_alice)
+        evaluator = QueryEvaluator(state_alice, self.session, self.object_resolver)
+        self.assertTrue(await query.accept(evaluator))
+
+        state_bob = self.user_provider._output_exporter(self.user_bob)
+        evaluator = QueryEvaluator(state_bob, self.session, self.object_resolver)
+        self.assertFalse(await query.accept(evaluator))
 
 
 if __name__ == '__main__':
