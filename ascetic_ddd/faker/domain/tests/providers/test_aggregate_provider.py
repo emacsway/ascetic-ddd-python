@@ -315,8 +315,8 @@ class AggregateProviderAutoIncrementTestCase(IsolatedAsyncioTestCase):
         await provider.populate(session)
         await provider.create(session)
 
-        # get() returns query format with $eq operator
-        self.assertEqual(provider.id.state(), {'$eq': 10})
+        # state() returns primitive input value
+        self.assertEqual(provider.id.state(), 10)
 
     async def test_populate_populates_all_providers(self):
         """populate() should populate all nested providers."""
@@ -431,11 +431,13 @@ class AggregateProviderPresetPKTestCase(IsolatedAsyncioTestCase):
             'name': 'Custom Name',
             'email': 'custom@example.com',
         })
+        session = MockSession()
+        await provider.populate(session)
 
-        # get() returns query format with $eq operator
-        self.assertEqual(provider.id.state(), {'$eq': 999})
-        self.assertEqual(provider.name.state(), {'$eq': 'Custom Name'})
-        self.assertEqual(provider.email.state(), {'$eq': 'custom@example.com'})
+        # state() returns primitive input value
+        self.assertEqual(provider.id.state(), 999)
+        self.assertEqual(provider.name.state(), 'Custom Name')
+        self.assertEqual(provider.email.state(), 'custom@example.com')
 
     async def test_get_returns_state(self):
         """get() should return current state of all providers."""
@@ -473,7 +475,7 @@ class AggregateProviderResetTestCase(IsolatedAsyncioTestCase):
 
         self.assertFalse(provider.is_complete())
         # _input is now IQueryOperator | None, not Empty
-        self.assertIsNone(provider._query)
+        self.assertIsNone(provider._criteria)
         self.assertEqual(provider._output, empty)
 
     async def test_reset_clears_nested_providers(self):
