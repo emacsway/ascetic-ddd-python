@@ -968,10 +968,13 @@ class ReferenceProviderPresetPKMultiLevelTestCase(IsolatedAsyncioTestCase):
             'username': 'custom_user',
         })
 
-        # get() returns query format with $eq operator
-        self.assertEqual(user_provider.id.tenant_id.state(), {'$eq': 999})
-        self.assertEqual(user_provider.id.internal_user_id.state(), {'$eq': 888})
-        self.assertEqual(user_provider.username.state(), {'$eq': 'custom_user'})
+        session = MockSession()
+        await user_provider.populate(session)
+
+        # state() returns primitive input value
+        self.assertEqual(user_provider.id.tenant_id.state(), 999)
+        self.assertEqual(user_provider.id.internal_user_id.state(), 888)
+        self.assertEqual(user_provider.username.state(), 'custom_user')
 
 
 # =============================================================================
@@ -1039,8 +1042,8 @@ class ReferenceProviderResetTestCase(IsolatedAsyncioTestCase):
         user_provider.reset()
 
         self.assertFalse(user_provider.tenant_id.is_complete())
-        # _query is now IQueryOperator | None, not Empty
-        self.assertIsNone(user_provider.tenant_id._query)
+        # _criteria is now IQueryOperator | None, not Empty
+        self.assertIsNone(user_provider.tenant_id._criteria)
 
 
 # =============================================================================
