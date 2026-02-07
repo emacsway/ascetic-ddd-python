@@ -170,7 +170,7 @@ class DependentProvider(
                     raise AttributeError(
                         f"Provider '{self.provider_name}': child has no provider '{self._dependency_field}'"
                     )
-                related_provider.require(self._dependency_id)
+                related_provider.require({'$eq': self._dependency_id})
 
         # Populate each provider
         for provider in providers:
