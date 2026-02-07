@@ -287,8 +287,8 @@ class ValueProviderWithFactoriesTestCase(IsolatedAsyncioTestCase):
 
         await provider.populate(session)
 
-        # get() returns query format with $eq operator
-        self.assertEqual(provider.state(), {'$eq': 'test'})
+        # state() returns primitive input value
+        self.assertEqual(provider.state(), 'test')
         self.assertEqual(provider._output, {'id': 1, 'name': 'test'})
 
 
@@ -383,23 +383,26 @@ class ValueProviderSetGetTestCase(IsolatedAsyncioTestCase):
     """Tests for set() and get() methods."""
 
     async def test_set_updates_input(self):
-        """set() should update the input value using query format."""
+        """require() should update the query, state() returns input after populate()."""
         distributor = MockDistributor(values=['output'])
         generator = AsyncMock()
+        session = MockSession()
 
         provider = ValueProvider(
             distributor=distributor,
             input_generator=generator,
         )
+        provider.provider_name = 'test_provider'
 
         # require() accepts plain values (implicit $eq) or query format
         provider.require('manual_value')
+        await provider.populate(session)
 
-        # get() returns query format with $eq operator
-        self.assertEqual(provider.state(), {'$eq': 'manual_value'})
+        # state() returns primitive input value
+        self.assertEqual(provider.state(), 'manual_value')
 
     async def test_get_returns_input(self):
-        """get() should return the input value set during populate() in query format."""
+        """state() should return the input value set during populate()."""
         distributor = MockDistributor(values=['output_value'])
         generator = AsyncMock()
         session = MockSession()
@@ -412,8 +415,8 @@ class ValueProviderSetGetTestCase(IsolatedAsyncioTestCase):
 
         await provider.populate(session)
 
-        # get() returns query format with $eq operator
-        self.assertEqual(provider.state(), {'$eq': 'output_value'})
+        # state() returns primitive input value
+        self.assertEqual(provider.state(), 'output_value')
 
 
 class ValueProviderProviderNameTestCase(IsolatedAsyncioTestCase):

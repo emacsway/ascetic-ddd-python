@@ -7,6 +7,8 @@ from ascetic_ddd.faker.domain.providers.interfaces import IValueProvider
 from ascetic_ddd.faker.domain.query.operators import EqOperator
 from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
+from ascetic_ddd.faker.domain.specification import QueryResolvableSpecification
+from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.values.empty import empty
@@ -50,6 +52,7 @@ class ValueProvider(
     _input_generator: IInputGenerator[T_Input] | None = None
     _output_factory: typing.Callable[[T_Input], T_Output] = None  # T_Output of each nested Provider.
     _output_exporter: typing.Callable[[T_Output], T_Input] = None
+    _specification_factory: typing.Callable[..., ISpecification]
 
     def __init__(
             self,
@@ -57,6 +60,7 @@ class ValueProvider(
             input_generator: IInputGenerator[T_Input] | None = None,
             output_factory: typing.Callable[[T_Input], T_Output] | None = None,
             output_exporter: typing.Callable[[T_Output], T_Input] | None = None,
+            specification_factory: typing.Callable[..., ISpecification] = QueryResolvableSpecification,
     ):
         if distributor is None:
             distributor = DummyDistributor()
@@ -83,6 +87,8 @@ class ValueProvider(
         super().__init__(distributor=distributor)
 
     async def create(self, session: ISession) -> T_Output:
+        if self._output is empty:
+            raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
         return self._output
 
     async def populate(self, session: ISession) -> None:
@@ -91,27 +97,35 @@ class ValueProvider(
 
         if self._query is not None:
             # Extract value from EqOperator
-            input_value = self._query.value if isinstance(self._query, EqOperator) else None
-            self._output = self._output_factory(input_value)
+            self._set_input(self._query.value if isinstance(self._query, EqOperator) else None)
+            self.notify('input', self._query)
+        if self._input is not empty:
+            self._output = self._output_factory(self._input)
             # await cursor.append(session, self._output)
             return
 
+        if self._query is not None:
+            specification = self._specification_factory(self._query)
+        else:
+            specification = EmptySpecification()
+        specification = None  # FIXE: check how it works
+
         try:
-            result = await self._distributor.next(session, self._make_specification())
-            value = self._output_exporter(result)
-            self.require({'$eq': value})
-            # self.require() could reset self._output
-            self._output = result
+            # EqOperator забьет индекс BaseDistributor, его нельзя сюда пускать.
+            self._output = await self._distributor.next(session, specification)
+            self._input = self._output_exporter(self._output)
         except ICursor as cursor:
             if self._input_generator is None:
                 self._output = self._output_factory(None)
+                self._input = None
             else:
-                value = await self._input_generator(session, self._query, cursor.position)
-                result = self._output_factory(value)
-                await cursor.append(session, result)
-                self.require({'$eq': value})
-                # self.require() could reset self._output
-                self._output = result
+                self._input = await self._input_generator(session, self._query, cursor.position)
+                self._output = self._output_factory(self._input)
+                await cursor.append(session, self._output)
+
+    def _set_input(self, input_: T_Input):
+        self._input = input_
+        self.notify('input', self._query)
 
     def _make_specification(self) -> ISpecification | None:
         return None

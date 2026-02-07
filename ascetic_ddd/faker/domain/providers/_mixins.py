@@ -300,7 +300,7 @@ class BaseCompositeProvider(
         value = dict()
         for attr, provider in self.providers.items():
             val = provider.state()
-            if val:  # not empty dict
+            if val is not empty:
                 value[attr] = val
         return value
 
