@@ -86,10 +86,10 @@ class TestPgQueryCompilerRel(unittest.TestCase):
     def test_compile_rel_without_provider_collapses(self):
         """Without provider, $rel collapses to @>."""
         compiler = PgQueryCompiler()
-        query = RelOperator({
+        query = RelOperator(CompositeQuery({
             'status': EqOperator('active'),
             'type': EqOperator('premium')
-        })
+        }))
         sql, params = compiler.compile(query)
 
         self.assertEqual(sql, "value @> %s")
@@ -98,11 +98,11 @@ class TestPgQueryCompilerRel(unittest.TestCase):
     def test_compile_rel_nested_without_provider(self):
         """Nested $rel without provider."""
         compiler = PgQueryCompiler()
-        query = RelOperator({
-            'department': RelOperator({
+        query = RelOperator(CompositeQuery({
+            'department': RelOperator(CompositeQuery({
                 'name': EqOperator('IT')
-            })
-        })
+            }))
+        }))
         sql, params = compiler.compile(query)
 
         self.assertEqual(sql, "value @> %s")
@@ -119,10 +119,10 @@ class TestPgQueryCompilerCollectEqValues(unittest.TestCase):
 
     def test_collect_from_rel(self):
         compiler = PgQueryCompiler()
-        query = RelOperator({
+        query = RelOperator(CompositeQuery({
             'status': EqOperator('active'),
             'count': EqOperator(10)
-        })
+        }))
         result = compiler._collect_eq_values(query)
         self.assertEqual(result, {'status': 'active', 'count': 10})
 
@@ -137,13 +137,13 @@ class TestPgQueryCompilerCollectEqValues(unittest.TestCase):
 
     def test_collect_nested(self):
         compiler = PgQueryCompiler()
-        query = RelOperator({
-            'department': RelOperator({
+        query = RelOperator(CompositeQuery({
+            'department': RelOperator(CompositeQuery({
                 'name': EqOperator('IT'),
                 'code': EqOperator('IT001')
-            }),
+            })),
             'status': EqOperator('active')
-        })
+        }))
         result = compiler._collect_eq_values(query)
         self.assertEqual(result, {
             'department': {'name': 'IT', 'code': 'IT001'},

@@ -114,18 +114,7 @@ class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
             return True
 
         elif isinstance(query, RelOperator):
-            # RelOperator - check constraints against state
-            if isinstance(state, dict):
-                for field, field_op in query.constraints.items():
-                    field_value = state.get(field)
-                    if not await self._matches(session, field_op, field_value, {}):
-                        return False
-            else:
-                for field, field_op in query.constraints.items():
-                    field_value = getattr(state, field, None)
-                    if not await self._matches(session, field_op, field_value, {}):
-                        return False
-            return True
+            return await self._matches(session, query.query, state, {})
 
         return False
 

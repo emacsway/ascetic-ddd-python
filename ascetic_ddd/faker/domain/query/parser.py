@@ -9,7 +9,7 @@ Examples:
     parse_query({'$eq': 5})                    -> EqOperator(5)
     parse_query(5)                             -> EqOperator(5)  # implicit $eq
     parse_query({'$rel': {'status': {'$eq': 'active'}}})
-                                               -> RelOperator({'status': EqOperator('active')})
+                                               -> RelOperator(CompositeQuery({'status': EqOperator('active')}))
     parse_query({'tenant_id': {'$eq': 15}})    -> CompositeQuery({'tenant_id': EqOperator(15)})
 """
 import typing
@@ -54,7 +54,7 @@ class QueryParser:
             >>> parser.parse(5)
             EqOperator(5)
             >>> parser.parse({'$rel': {'is_active': {'$eq': True}}})
-            RelOperator({'is_active': EqOperator(True)})
+            RelOperator(CompositeQuery({'is_active': EqOperator(True)}))
         """
         if not isinstance(query, dict):
             # Scalar value - implicit $eq
@@ -112,10 +112,7 @@ class QueryParser:
         if not isinstance(constraints, dict):
             raise ValueError(f"$rel value must be dict, got: {type(constraints).__name__}")
 
-        parsed: dict[str, IQueryOperator] = {}
-        for field, value in constraints.items():
-            parsed[field] = self.parse(value)
-        return RelOperator(parsed)
+        return RelOperator(self._parse_fields(constraints))
 
     def _parse_fields(self, fields: dict[str, typing.Any]) -> CompositeQuery:
         """Parse field dict into CompositeQuery."""
@@ -140,7 +137,8 @@ def normalize_query(op: IQueryOperator) -> IQueryOperator:
         return op
 
     if isinstance(op, RelOperator):
-        normalized = {k: normalize_query(v) for k, v in op.constraints.items()}
+        normalized = normalize_query(op.query)
+        assert isinstance(normalized, CompositeQuery)
         return RelOperator(normalized)
 
     if isinstance(op, CompositeQuery):

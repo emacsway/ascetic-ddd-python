@@ -117,11 +117,13 @@ class RelOperator(IQueryOperator):
 
     Represents constraints on a related aggregate.
     Used by ReferenceProvider to specify criteria for the referenced aggregate.
+    Wraps a CompositeQuery with the semantic meaning "these constraints
+    are for a related aggregate, not for the current one".
     """
-    __slots__ = ('constraints', '_hash')
+    __slots__ = ('query', '_hash')
 
-    def __init__(self, constraints: dict[str, IQueryOperator]):
-        self.constraints = constraints
+    def __init__(self, query: 'CompositeQuery'):
+        self.query = query
         self._hash: int | None = None
 
     def accept(self, visitor: IQueryVisitor[T]) -> T:
@@ -130,27 +132,20 @@ class RelOperator(IQueryOperator):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, RelOperator):
             return False
-        return self.constraints == other.constraints
+        return self.query == other.query
 
     def __hash__(self) -> int:
         if self._hash is None:
-            items = tuple(sorted((k, hash(v)) for k, v in self.constraints.items()))
-            self._hash = hash(('$rel', items))
+            self._hash = hash(('$rel', hash(self.query)))
         return self._hash
 
     def __add__(self, other: 'RelOperator') -> 'RelOperator':
         if not isinstance(other, RelOperator):
             return NotImplemented
-        merged: dict[str, IQueryOperator] = dict(self.constraints)
-        for field, op in other.constraints.items():
-            if field in merged:
-                merged[field] = merged[field] + op
-            else:
-                merged[field] = op
-        return RelOperator(merged)
+        return RelOperator(self.query + other.query)
 
     def __repr__(self) -> str:
-        return f"RelOperator({self.constraints!r})"
+        return f"RelOperator({self.query!r})"
 
 
 class CompositeQuery(IQueryOperator):

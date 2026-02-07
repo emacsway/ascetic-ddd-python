@@ -33,10 +33,10 @@ class QueryResolvableSpecification(IResolvableSpecification[T], typing.Generic[T
     - Nested resolution via resolve_nested()
 
     Example with operators:
-        query = RelOperator({
+        query = RelOperator(CompositeQuery({
             'status': EqOperator('active'),
-            'department': RelOperator({'name': EqOperator('IT')})
-        })
+            'department': RelOperator(CompositeQuery({'name': EqOperator('IT')}))
+        }))
         spec = QueryResolvableSpecification(
             query,
             lambda obj: {'status': obj.status, 'department': obj.department_id},
@@ -144,8 +144,8 @@ class QueryResolvableSpecification(IResolvableSpecification[T], typing.Generic[T
         providers = aggregate_provider.providers if aggregate_provider else {}
 
         if isinstance(query, RelOperator):
-            resolved = await self._resolve_fields(session, query.constraints, providers)
-            return RelOperator(resolved)
+            resolved = await self._resolve_fields(session, query.query.fields, providers)
+            return RelOperator(CompositeQuery(resolved))
 
         if isinstance(query, CompositeQuery):
             resolved = await self._resolve_fields(session, query.fields, providers)
@@ -188,26 +188,17 @@ class QueryResolvableSpecification(IResolvableSpecification[T], typing.Generic[T
             return state == query.value
 
         elif isinstance(query, CompositeQuery):
-            if not isinstance(state, dict):
-                return False
             for field, field_op in query.fields.items():
-                field_value = state.get(field)
+                if isinstance(state, dict):
+                    field_value = state.get(field)
+                else:
+                    field_value = getattr(state, field, None)
                 if not self._matches(field_op, field_value):
                     return False
             return True
 
         elif isinstance(query, RelOperator):
-            if isinstance(state, dict):
-                for field, field_op in query.constraints.items():
-                    field_value = state.get(field)
-                    if not self._matches(field_op, field_value):
-                        return False
-            else:
-                for field, field_op in query.constraints.items():
-                    field_value = getattr(state, field, None)
-                    if not self._matches(field_op, field_value):
-                        return False
-            return True
+            return self._matches(query.query, state)
 
         return False
 

@@ -25,7 +25,7 @@ class QueryToDictVisitor(IQueryVisitor[dict]):
 
     Example:
         EqOperator(5) -> {'$eq': 5}
-        RelOperator({'status': EqOperator('active')}) -> {'$rel': {'status': {'$eq': 'active'}}}
+        RelOperator(CompositeQuery({'status': EqOperator('active')})) -> {'$rel': {'status': {'$eq': 'active'}}}
         CompositeQuery({'a': EqOperator(1)}) -> {'a': {'$eq': 1}}
     """
 
@@ -39,7 +39,7 @@ class QueryToDictVisitor(IQueryVisitor[dict]):
         return {'$eq': op.value}
 
     def visit_rel(self, op: RelOperator) -> dict:
-        return {'$rel': {k: v.accept(self) for k, v in op.constraints.items()}}
+        return {'$rel': op.query.accept(self)}
 
     def visit_composite(self, op: CompositeQuery) -> dict:
         return {k: v.accept(self) for k, v in op.fields.items()}
@@ -53,7 +53,7 @@ class QueryToPlainValueVisitor(IQueryVisitor[typing.Any]):
 
     Example:
         EqOperator(5) -> 5
-        RelOperator({'status': EqOperator('active')}) -> {'status': 'active'}
+        RelOperator(CompositeQuery({'status': EqOperator('active')})) -> {'status': 'active'}
         CompositeQuery({'a': EqOperator(1), 'b': EqOperator(2)}) -> {'a': 1, 'b': 2}
     """
 
@@ -67,7 +67,7 @@ class QueryToPlainValueVisitor(IQueryVisitor[typing.Any]):
         return op.value
 
     def visit_rel(self, op: RelOperator) -> dict:
-        return {k: v.accept(self) for k, v in op.constraints.items()}
+        return op.query.accept(self)
 
     def visit_composite(self, op: CompositeQuery) -> dict:
         return {k: v.accept(self) for k, v in op.fields.items()}

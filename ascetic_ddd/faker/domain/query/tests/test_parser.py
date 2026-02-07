@@ -68,9 +68,9 @@ class TestQueryParserRel(unittest.TestCase):
     def test_parse_rel_operator_simple(self):
         result = self.parser.parse({'$rel': {'status': {'$eq': 'active'}}})
         self.assertIsInstance(result, RelOperator)
-        self.assertIn('status', result.constraints)
-        self.assertIsInstance(result.constraints['status'], EqOperator)
-        self.assertEqual(result.constraints['status'].value, 'active')
+        self.assertIn('status', result.query.fields)
+        self.assertIsInstance(result.query.fields['status'], EqOperator)
+        self.assertEqual(result.query.fields['status'].value, 'active')
 
     def test_parse_rel_operator_multiple_fields(self):
         result = self.parser.parse({
@@ -80,9 +80,9 @@ class TestQueryParserRel(unittest.TestCase):
             }
         })
         self.assertIsInstance(result, RelOperator)
-        self.assertEqual(len(result.constraints), 2)
-        self.assertEqual(result.constraints['status'].value, 'active')
-        self.assertEqual(result.constraints['type'].value, 'premium')
+        self.assertEqual(len(result.query.fields), 2)
+        self.assertEqual(result.query.fields['status'].value, 'active')
+        self.assertEqual(result.query.fields['type'].value, 'premium')
 
     def test_parse_rel_operator_nested(self):
         """$rel can contain nested $rel."""
@@ -94,15 +94,15 @@ class TestQueryParserRel(unittest.TestCase):
             }
         })
         self.assertIsInstance(result, RelOperator)
-        self.assertIsInstance(result.constraints['department'], RelOperator)
-        self.assertEqual(result.constraints['department'].constraints['name'].value, 'IT')
+        self.assertIsInstance(result.query.fields['department'], RelOperator)
+        self.assertEqual(result.query.fields['department'].query.fields['name'].value, 'IT')
 
     def test_parse_rel_operator_with_implicit_eq(self):
         """$rel with scalar value uses implicit $eq."""
         result = self.parser.parse({'$rel': {'id': 42}})
         self.assertIsInstance(result, RelOperator)
-        self.assertIsInstance(result.constraints['id'], EqOperator)
-        self.assertEqual(result.constraints['id'].value, 42)
+        self.assertIsInstance(result.query.fields['id'], EqOperator)
+        self.assertEqual(result.query.fields['id'].value, 42)
 
 
 class TestQueryParserComposite(unittest.TestCase):
@@ -205,18 +205,18 @@ class TestRelOperatorEquality(unittest.TestCase):
     """Tests for RelOperator equality and hashing."""
 
     def test_rel_operators_equal(self):
-        rel1 = RelOperator({'status': EqOperator('active')})
-        rel2 = RelOperator({'status': EqOperator('active')})
+        rel1 = RelOperator(CompositeQuery({'status': EqOperator('active')}))
+        rel2 = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         self.assertEqual(rel1, rel2)
 
     def test_rel_operators_not_equal(self):
-        rel1 = RelOperator({'status': EqOperator('active')})
-        rel2 = RelOperator({'status': EqOperator('inactive')})
+        rel1 = RelOperator(CompositeQuery({'status': EqOperator('active')}))
+        rel2 = RelOperator(CompositeQuery({'status': EqOperator('inactive')}))
         self.assertNotEqual(rel1, rel2)
 
     def test_rel_operators_hashable(self):
-        rel1 = RelOperator({'status': EqOperator('active')})
-        rel2 = RelOperator({'status': EqOperator('active')})
+        rel1 = RelOperator(CompositeQuery({'status': EqOperator('active')}))
+        rel2 = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         self.assertEqual(hash(rel1), hash(rel2))
 
 

@@ -33,16 +33,16 @@ class TestQueryToDictVisitor(unittest.TestCase):
 
     def test_visit_rel(self):
         visitor = QueryToDictVisitor()
-        query = RelOperator({'status': EqOperator('active')})
+        query = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         result = visitor.visit(query)
         self.assertEqual(result, {'$rel': {'status': {'$eq': 'active'}}})
 
     def test_visit_rel_multiple_fields(self):
         visitor = QueryToDictVisitor()
-        query = RelOperator({
+        query = RelOperator(CompositeQuery({
             'status': EqOperator('active'),
             'type': EqOperator('premium')
-        })
+        }))
         result = visitor.visit(query)
         self.assertEqual(result, {
             '$rel': {
@@ -53,9 +53,9 @@ class TestQueryToDictVisitor(unittest.TestCase):
 
     def test_visit_rel_nested(self):
         visitor = QueryToDictVisitor()
-        query = RelOperator({
-            'department': RelOperator({'name': EqOperator('IT')})
-        })
+        query = RelOperator(CompositeQuery({
+            'department': RelOperator(CompositeQuery({'name': EqOperator('IT')}))
+        }))
         result = visitor.visit(query)
         self.assertEqual(result, {
             '$rel': {
@@ -107,24 +107,24 @@ class TestQueryToPlainValueVisitor(unittest.TestCase):
 
     def test_visit_rel(self):
         visitor = QueryToPlainValueVisitor()
-        query = RelOperator({'status': EqOperator('active')})
+        query = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         result = visitor.visit(query)
         self.assertEqual(result, {'status': 'active'})
 
     def test_visit_rel_multiple_fields(self):
         visitor = QueryToPlainValueVisitor()
-        query = RelOperator({
+        query = RelOperator(CompositeQuery({
             'status': EqOperator('active'),
             'type': EqOperator('premium')
-        })
+        }))
         result = visitor.visit(query)
         self.assertEqual(result, {'status': 'active', 'type': 'premium'})
 
     def test_visit_rel_nested(self):
         visitor = QueryToPlainValueVisitor()
-        query = RelOperator({
-            'department': RelOperator({'name': EqOperator('IT')})
-        })
+        query = RelOperator(CompositeQuery({
+            'department': RelOperator(CompositeQuery({'name': EqOperator('IT')}))
+        }))
         result = visitor.visit(query)
         self.assertEqual(result, {'department': {'name': 'IT'}})
 
@@ -154,7 +154,7 @@ class TestConvenienceFunctions(unittest.TestCase):
         self.assertEqual(result, {'$eq': 5})
 
     def test_query_to_dict_rel(self):
-        query = RelOperator({'status': EqOperator('active')})
+        query = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         result = query_to_dict(query)
         self.assertEqual(result, {'$rel': {'status': {'$eq': 'active'}}})
 
@@ -168,7 +168,7 @@ class TestConvenienceFunctions(unittest.TestCase):
         self.assertEqual(result, 5)
 
     def test_query_to_plain_value_rel(self):
-        query = RelOperator({'status': EqOperator('active')})
+        query = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         result = query_to_plain_value(query)
         self.assertEqual(result, {'status': 'active'})
 

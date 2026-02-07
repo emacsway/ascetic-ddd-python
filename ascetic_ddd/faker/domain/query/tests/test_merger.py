@@ -40,7 +40,7 @@ class TestEqOperatorAdd(unittest.TestCase):
         self.assertEqual(result, inner)
 
     def test_add_wrong_type_returns_not_implemented(self):
-        result = EqOperator(5).__add__(RelOperator({'a': EqOperator(1)}))
+        result = EqOperator(5).__add__(RelOperator(CompositeQuery({'a': EqOperator(1)})))
         self.assertIs(result, NotImplemented)
 
 
@@ -48,48 +48,48 @@ class TestRelOperatorAdd(unittest.TestCase):
     """Tests for RelOperator.__add__."""
 
     def test_add_different_fields(self):
-        left = RelOperator({'status': EqOperator('active')})
-        right = RelOperator({'type': EqOperator('premium')})
+        left = RelOperator(CompositeQuery({'status': EqOperator('active')}))
+        right = RelOperator(CompositeQuery({'type': EqOperator('premium')}))
         result = left + right
 
         self.assertIsInstance(result, RelOperator)
-        self.assertEqual(len(result.constraints), 2)
-        self.assertEqual(result.constraints['status'].value, 'active')
-        self.assertEqual(result.constraints['type'].value, 'premium')
+        self.assertEqual(len(result.query.fields), 2)
+        self.assertEqual(result.query.fields['status'].value, 'active')
+        self.assertEqual(result.query.fields['type'].value, 'premium')
 
     def test_add_same_field_same_value(self):
-        left = RelOperator({'status': EqOperator('active')})
-        right = RelOperator({'status': EqOperator('active')})
+        left = RelOperator(CompositeQuery({'status': EqOperator('active')}))
+        right = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         result = left + right
 
         self.assertIsInstance(result, RelOperator)
-        self.assertEqual(result.constraints['status'].value, 'active')
+        self.assertEqual(result.query.fields['status'].value, 'active')
 
     def test_add_same_field_different_value_raises(self):
-        left = RelOperator({'status': EqOperator('active')})
-        right = RelOperator({'status': EqOperator('inactive')})
+        left = RelOperator(CompositeQuery({'status': EqOperator('active')}))
+        right = RelOperator(CompositeQuery({'status': EqOperator('inactive')}))
 
         with self.assertRaises(MergeConflict):
             left + right
 
     def test_add_nested(self):
         """Deep merge nested RelOperators."""
-        left = RelOperator({
-            'department': RelOperator({'name': EqOperator('IT')})
-        })
-        right = RelOperator({
-            'department': RelOperator({'code': EqOperator('IT001')})
-        })
+        left = RelOperator(CompositeQuery({
+            'department': RelOperator(CompositeQuery({'name': EqOperator('IT')}))
+        }))
+        right = RelOperator(CompositeQuery({
+            'department': RelOperator(CompositeQuery({'code': EqOperator('IT001')}))
+        }))
         result = left + right
 
         self.assertIsInstance(result, RelOperator)
-        dept = result.constraints['department']
+        dept = result.query.fields['department']
         self.assertIsInstance(dept, RelOperator)
-        self.assertEqual(dept.constraints['name'].value, 'IT')
-        self.assertEqual(dept.constraints['code'].value, 'IT001')
+        self.assertEqual(dept.query.fields['name'].value, 'IT')
+        self.assertEqual(dept.query.fields['code'].value, 'IT001')
 
     def test_add_wrong_type_returns_not_implemented(self):
-        result = RelOperator({'a': EqOperator(1)}).__add__(EqOperator(5))
+        result = RelOperator(CompositeQuery({'a': EqOperator(1)})).__add__(EqOperator(5))
         self.assertIs(result, NotImplemented)
 
 
@@ -146,7 +146,7 @@ class TestCrossTypeAdd(unittest.TestCase):
 
     def test_eq_plus_rel_raises(self):
         with self.assertRaises(TypeError):
-            EqOperator(5) + RelOperator({'a': EqOperator(1)})
+            EqOperator(5) + RelOperator(CompositeQuery({'a': EqOperator(1)}))
 
     def test_composite_plus_eq_raises(self):
         with self.assertRaises(TypeError):
@@ -154,7 +154,7 @@ class TestCrossTypeAdd(unittest.TestCase):
 
     def test_composite_plus_rel_raises(self):
         with self.assertRaises(TypeError):
-            CompositeQuery({'a': EqOperator(1)}) + RelOperator({'b': EqOperator(2)})
+            CompositeQuery({'a': EqOperator(1)}) + RelOperator(CompositeQuery({'b': EqOperator(2)}))
 
 
 class TestNormalizeQuery(unittest.TestCase):
@@ -199,11 +199,11 @@ class TestNormalizeQuery(unittest.TestCase):
     def test_normalize_rel_with_nested_eq_wrapping_composite(self):
         """RelOperator normalizes EqOperator(CompositeQuery) in constraints."""
         inner = CompositeQuery({'x': EqOperator(1), 'y': EqOperator(2)})
-        op = RelOperator({'a': EqOperator(inner)})
+        op = RelOperator(CompositeQuery({'a': EqOperator(inner)}))
         result = normalize_query(op)
 
         self.assertIsInstance(result, RelOperator)
-        a = result.constraints['a']
+        a = result.query.fields['a']
         self.assertIsInstance(a, CompositeQuery)
         self.assertEqual(a.fields['x'].value, 1)
         self.assertEqual(a.fields['y'].value, 2)

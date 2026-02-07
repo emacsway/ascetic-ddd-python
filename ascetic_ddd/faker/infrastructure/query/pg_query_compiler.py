@@ -153,7 +153,7 @@ class PgQueryCompiler(IQueryVisitor[None]):
         # Separate simple and FK constraints
         simple_values: dict[str, typing.Any] = {}
 
-        for field, field_op in op.constraints.items():
+        for field, field_op in op.query.fields.items():
             provider = providers.get(field)
 
             if isinstance(provider, IReferenceProvider):
@@ -198,7 +198,7 @@ class PgQueryCompiler(IQueryVisitor[None]):
         # Convert field_op to pattern for nested compilation
         if isinstance(field_op, RelOperator):
             # Already $rel - compile its constraints
-            for nested_field, nested_op in field_op.constraints.items():
+            for nested_field, nested_op in field_op.query.fields.items():
                 nested_compiler._compile_field(nested_field, nested_op)
         else:
             # Not $rel - treat as id constraint
@@ -229,12 +229,7 @@ class PgQueryCompiler(IQueryVisitor[None]):
         if isinstance(op, EqOperator):
             return op.value
         elif isinstance(op, RelOperator):
-            result = {}
-            for field, field_op in op.constraints.items():
-                val = self._collect_eq_values(field_op)
-                if val is not None:
-                    result[field] = val
-            return result if result else None
+            return self._collect_eq_values(op.query)
         elif isinstance(op, CompositeQuery):
             result = {}
             for field, field_op in op.fields.items():

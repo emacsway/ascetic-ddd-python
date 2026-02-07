@@ -356,44 +356,44 @@ class QueryResolvableSpecificationMatchesRelOperatorTestCase(IsolatedAsyncioTest
     async def test_matches_rel_operator_dict_state(self):
         """RelOperator matches dict state."""
         spec = QueryResolvableSpecification(
-            RelOperator({'status': EqOperator('active')}),
+            RelOperator(CompositeQuery({'status': EqOperator('active')})),
             lambda obj: obj
         )
-        query = RelOperator({'status': EqOperator('active')})
+        query = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         state = {'status': 'active', 'name': 'test'}
         self.assertTrue(spec._matches(query, state))
 
     async def test_matches_rel_operator_object_state(self):
         """RelOperator matches object state via getattr."""
         spec = QueryResolvableSpecification(
-            RelOperator({'status': EqOperator('active')}),
+            RelOperator(CompositeQuery({'status': EqOperator('active')})),
             lambda obj: obj
         )
-        query = RelOperator({'status': EqOperator('active')})
+        query = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         state = MockObject(status='active', name='test')
         self.assertTrue(spec._matches(query, state))
 
     async def test_matches_rel_operator_object_wrong_value(self):
         """RelOperator does not match object with wrong value."""
         spec = QueryResolvableSpecification(
-            RelOperator({'status': EqOperator('active')}),
+            RelOperator(CompositeQuery({'status': EqOperator('active')})),
             lambda obj: obj
         )
-        query = RelOperator({'status': EqOperator('active')})
+        query = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         state = MockObject(status='inactive', name='test')
         self.assertFalse(spec._matches(query, state))
 
     async def test_matches_rel_operator_nested(self):
         """RelOperator matches nested constraints."""
         spec = QueryResolvableSpecification(
-            RelOperator({}),
+            RelOperator(CompositeQuery({})),
             lambda obj: obj
         )
-        query = RelOperator({
-            'department': RelOperator({
+        query = RelOperator(CompositeQuery({
+            'department': RelOperator(CompositeQuery({
                 'name': EqOperator('IT')
-            })
-        })
+            }))
+        }))
         state = {'department': {'name': 'IT', 'code': 'D01'}}
         self.assertTrue(spec._matches(query, state))
 
@@ -448,7 +448,7 @@ class QueryResolvableSpecificationResolveNestedTestCase(IsolatedAsyncioTestCase)
 
     async def test_resolve_nested_recreates_rel_operator(self):
         """RelOperator is recreated with resolved constraints."""
-        query = RelOperator({'status': EqOperator('active')})
+        query = RelOperator(CompositeQuery({'status': EqOperator('active')}))
         spec = QueryResolvableSpecification(
             query,
             lambda obj: obj,
@@ -460,7 +460,7 @@ class QueryResolvableSpecificationResolveNestedTestCase(IsolatedAsyncioTestCase)
         # Should be a new RelOperator (not same object)
         self.assertIsInstance(spec._resolved_query, RelOperator)
         self.assertEqual(
-            spec._resolved_query.constraints['status'],
+            spec._resolved_query.query.fields['status'],
             EqOperator('active')
         )
 
