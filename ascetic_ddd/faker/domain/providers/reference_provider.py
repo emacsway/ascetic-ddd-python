@@ -74,9 +74,9 @@ class ReferenceProvider(
             return
 
         # Создаём specification с aggregate_provider_accessor для lazy resolve_nested и subqueries
-        if self._query is not None:
+        if self._criteria is not None:
             specification = self._specification_factory(
-                self._query,
+                self._criteria,
                 self.aggregate_provider._output_exporter,
                 aggregate_provider_accessor=lambda: self.aggregate_provider,
             )
@@ -91,13 +91,13 @@ class ReferenceProvider(
                 self.aggregate_provider.require(dict_to_query(value))
                 await self.aggregate_provider.populate(session)
             else:
-                # Alternative to "if isinstance(new_query, EqOperator) and new_query.value is None"
-                # self._query = None
+                # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
+                # self._criteria = None
                 self.require({'$eq': None})
             # self.require() could reset self._output
             self._output = result
         except ICursor as cursor:
-            if self._query is not None:
+            if self._criteria is not None:
                 # Propagate constraints to aggregate_provider (already done in require())
                 pass
             await self.aggregate_provider.populate(session)
@@ -133,7 +133,7 @@ class ReferenceProvider(
             return None
         return await self.aggregate_provider.id_provider.create(session)
 
-    def require(self, query: dict[str, typing.Any]) -> None:
+    def require(self, criteria: dict[str, typing.Any]) -> None:
         """
         Set reference provider value using query format.
 
@@ -144,35 +144,35 @@ class ReferenceProvider(
 
         Non-$rel values are automatically wrapped into $rel with id.
         """
-        new_query = parse_query(query)
+        new_criteria = parse_query(criteria)
 
         # EqOperator(None) means "null the reference" - don't wrap, don't merge
-        if isinstance(new_query, EqOperator) and new_query.value is None:
-            self._query = new_query
-            self._propagate_to_aggregate(self._query)
+        if isinstance(new_criteria, EqOperator) and new_criteria.value is None:
+            self._criteria = new_criteria
+            self._propagate_to_aggregate(self._criteria)
             self._output = None
-            self.notify('query', self._query)
+            self.notify('criteria', self._criteria)
             return
 
         # Wrap non-$rel into $rel with id
-        if not isinstance(new_query, RelOperator):
+        if not isinstance(new_criteria, RelOperator):
             id_attr = self.aggregate_provider._id_attr
-            new_query = RelOperator(CompositeQuery({id_attr: new_query}))
+            new_criteria = RelOperator(CompositeQuery({id_attr: new_criteria}))
 
-        if self._query is not None:
+        if self._criteria is not None:
             # If reference is already explicitly null, don't add constraints
             if self._is_null_reference():
                 return
             try:
-                self._query = self._query + new_query
+                self._criteria = self._criteria + new_criteria
             except MergeConflict as e:
                 raise DiamondUpdateConflict(e.existing_value, e.new_value, self.provider_name) from e
         else:
-            self._query = new_query
+            self._criteria = new_criteria
 
-        self._propagate_to_aggregate(new_query)
+        self._propagate_to_aggregate(new_criteria)
         self._output = empty
-        self.notify('query', self._query)
+        self.notify('criteria', self._criteria)
 
     def _is_null_reference(self) -> bool:
         """
@@ -180,11 +180,11 @@ class ReferenceProvider(
 
         Returns True if _input is EqOperator(None) or RelOperator with id=None.
         """
-        if isinstance(self._query, EqOperator) and self._query.value is None:
+        if isinstance(self._criteria, EqOperator) and self._criteria.value is None:
             return True
-        if isinstance(self._query, RelOperator):
+        if isinstance(self._criteria, RelOperator):
             id_attr = self.aggregate_provider._id_attr
-            id_constraint = self._query.query.fields.get(id_attr)
+            id_constraint = self._criteria.query.fields.get(id_attr)
             if isinstance(id_constraint, EqOperator) and id_constraint.value is None:
                 return True
         return False

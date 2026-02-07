@@ -114,7 +114,7 @@ class IInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def require(self, query: dict[str, typing.Any]) -> None:
+    def require(self, criteria: dict[str, typing.Any]) -> None:
         """
         Для CompositeProvider не используем **kwargs,
         т.к. иначе придется инспектировать сигнатуру каждого вложенного вызываемого сеттера

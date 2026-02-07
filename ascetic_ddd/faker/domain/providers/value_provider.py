@@ -95,16 +95,16 @@ class ValueProvider(
         if self.is_complete():
             return
 
-        if self._query is not None:
+        if self._criteria is not None:
             # Extract value from EqOperator
-            self._set_input(self._query.value if isinstance(self._query, EqOperator) else None)
+            self._set_input(self._criteria.value if isinstance(self._criteria, EqOperator) else None)
         if self._input is not empty:
             self._output = self._output_factory(self._input)
             # await cursor.append(session, self._output)
             return
 
-        if self._query is not None:
-            specification = self._specification_factory(self._query)
+        if self._criteria is not None:
+            specification = self._specification_factory(self._criteria)
         else:
             specification = EmptySpecification()
         specification = None  # FIXE: check how it works
@@ -119,7 +119,7 @@ class ValueProvider(
                 self._set_input(None)
                 self._output = self._output_factory(None)
             else:
-                self._set_input(await self._input_generator(session, self._query, cursor.position))
+                self._set_input(await self._input_generator(session, self._criteria, cursor.position))
                 self._output = self._output_factory(self._input)
                 await cursor.append(session, self._output)
 

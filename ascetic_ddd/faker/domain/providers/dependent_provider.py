@@ -126,7 +126,7 @@ class DependentProvider(
         self._value_selector = None
         self._dependency_id = None
         self._aggregate_providers_accessor.reset()
-        self.notify('query', self._inputs)
+        self.notify('criteria', self._inputs)
 
     async def populate(self, session: ISession) -> None:
         """
@@ -235,7 +235,7 @@ class DependentProvider(
                 self._value_selector = None
                 self._count = len(values) if values else None
 
-            self.notify('query', self._inputs)
+            self.notify('criteria', self._inputs)
 
     def state(self) -> list[T_Input]:
         """

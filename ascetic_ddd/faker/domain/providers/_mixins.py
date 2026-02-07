@@ -131,18 +131,18 @@ class BaseProvider(
     typing.Generic[T_Input, T_Output],
     metaclass=abc.ABCMeta
 ):
-    _query: IQueryOperator | None = None
+    _criteria: IQueryOperator | None = None
     _input: T_Input | Empty = empty
     _output: T_Output | Empty = empty
 
     def reset(self) -> None:
-        self._query = None
+        self._criteria = None
         self._input = empty
         self._output = empty
-        self.notify('query', self._query)
+        self.notify('criteria', self._criteria)
         self.notify('input', self._input)
 
-    def require(self, query: dict[str, typing.Any]) -> None:
+    def require(self, criteria: dict[str, typing.Any]) -> None:
         """
         Set provider value using query format.
 
@@ -153,27 +153,27 @@ class BaseProvider(
             provider.require({'$eq': 5})
             provider.require(5)  # implicit $eq
         """
-        new_query = parse_query(query)
-        old_input = self._query
-        if self._query is not None:
+        new_criteria = parse_query(criteria)
+        old_criteria = self._criteria
+        if self._criteria is not None:
             try:
-                self._query = self._query + new_query
+                self._criteria = self._criteria + new_criteria
             except MergeConflict as e:
                 raise DiamondUpdateConflict(e.existing_value, e.new_value, self.provider_name) from e
         else:
-            self._query = new_query
+            self._criteria = new_criteria
         # Only reset output if input actually changed
-        if self._query != old_input:
+        if self._criteria != old_criteria:
             self._input = empty
             self._output = empty
-            self.notify('query', self._query)
+            self.notify('criteria', self._criteria)
 
     def state(self) -> T_Input:
         """Return current query as dict format."""
         return self._input
 
     def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
-        clone._query = None
+        clone._criteria = None
         clone._input = empty
         clone._output = empty
 
@@ -234,7 +234,7 @@ class BaseCompositeProvider(
     metaclass=abc.ABCMeta
 ):
 
-    _query: IQueryOperator | None = None
+    _criteria: IQueryOperator | None = None
     _output: T_Output | Empty = empty
     _provider_name: str | None = None
 
@@ -248,20 +248,20 @@ class BaseCompositeProvider(
         return any(provider.is_transient() for provider in self.providers.values())
 
     def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
-        clone._query = None
+        clone._criteria = None
         clone._output = empty
         for attr, provider in self.providers.items():
             setattr(clone, attr, provider.empty(shunt))
         clone.on_init()
 
     def reset(self) -> None:
-        self._query = None
+        self._criteria = None
         self._output = empty
         for provider in self.providers.values():
             provider.reset()
-        self.notify('query', self._query)
+        self.notify('criteria', self._criteria)
 
-    def require(self, query: dict[str, typing.Any]) -> None:
+    def require(self, criteria: dict[str, typing.Any]) -> None:
         """
         Set composite provider value using query format.
 
@@ -271,22 +271,22 @@ class BaseCompositeProvider(
         Examples:
             provider.require({'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}})
         """
-        new_query = parse_query(query)
-        old_query = self._query
-        if self._query is not None:
+        new_criteria = parse_query(criteria)
+        old_criteria = self._criteria
+        if self._criteria is not None:
             try:
-                self._query = self._query + new_query
+                self._criteria = self._criteria + new_criteria
             except MergeConflict as e:
                 raise DiamondUpdateConflict(e.existing_value, e.new_value, self.provider_name) from e
         else:
-            self._query = new_query
+            self._criteria = new_criteria
         # Only reset output if input actually changed
-        if self._query != old_query:
+        if self._criteria != old_criteria:
             self._output = empty
-            self._distribute_query(self._query)
-            self.notify('query', self._query)
+            self._distribute_criteria(self._criteria)
+            self.notify('criteria', self._criteria)
 
-    def _distribute_query(self, query: IQueryOperator) -> None:
+    def _distribute_criteria(self, query: IQueryOperator) -> None:
         """
         Distribute query to nested providers.
 
@@ -396,7 +396,7 @@ class BaseCompositeDistributionProvider(
     metaclass=abc.ABCMeta
 ):
 
-    _query: IQueryOperator | None = None
+    _criteria: IQueryOperator | None = None
     _output: T_Output | Empty = empty
     _provider_name: str | None = None
     _distributor: IM2ODistributor[T_Input]
