@@ -7,7 +7,7 @@ import operator
 from hypothesis import strategies
 
 from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator
-from ascetic_ddd.faker.domain.query.operators import IQueryOperator
+from ascetic_ddd.faker.domain.query.operators import IQueryOperator, EqOperator
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 
 
@@ -19,6 +19,7 @@ __all__ = (
     "SequenceGenerator",
     "RangeGenerator",
     "TemplateGenerator",
+    "RequiredGenerator",
     "prepare_input_generator",
 )
 
@@ -35,6 +36,7 @@ def prepare_input_generator(input_generator):
             # Check if already wrapped
             if not isinstance(input_generator, CallableGenerator):
                 input_generator = CallableGenerator(input_generator)
+        input_generator = RequiredGenerator(input_generator)
     return input_generator
 
 
@@ -128,6 +130,17 @@ class RangeGenerator(typing.Generic[T]):
         value = self._lower + self._range * (position % base) / base
         assert self._lower <= value < self._upper
         return value
+
+
+class RequiredGenerator(typing.Generic[T]):
+
+    def __init__(self, delegate: IInputGenerator[T]):
+        self._delegate = delegate
+
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> T:
+        if isinstance(query, EqOperator):
+            return query.value
+        return await self._delegate(session, query, position)
 
 
 class TemplateGenerator(typing.Generic[T]):
