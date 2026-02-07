@@ -1,104 +1,78 @@
-"""Tests for QueryMerger."""
+"""Tests for query operator __add__ (merge) and normalize_query."""
 import unittest
 
-from ascetic_ddd.faker.domain.query.merger import QueryMerger
 from ascetic_ddd.faker.domain.query.parser import normalize_query
 from ascetic_ddd.faker.domain.query.operators import (
-    EqOperator, RelOperator, CompositeQuery
+    MergeConflict, EqOperator, RelOperator, CompositeQuery
 )
-from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 
 
-class TestQueryMergerBasic(unittest.TestCase):
-    """Basic merge tests."""
+class TestEqOperatorAdd(unittest.TestCase):
+    """Tests for EqOperator.__add__."""
 
-    def setUp(self):
-        self.merger = QueryMerger(id_attr='id')
-
-    def test_merge_none_left(self):
-        right = EqOperator(5)
-        result = self.merger.merge(None, right, 'test')
-        self.assertEqual(result, right)
-
-    def test_merge_none_right(self):
-        left = EqOperator(5)
-        result = self.merger.merge(left, None, 'test')
-        self.assertEqual(result, left)
-
-    def test_merge_both_none(self):
-        result = self.merger.merge(None, None, 'test')
-        self.assertIsNone(result)
-
-
-class TestQueryMergerEqOperator(unittest.TestCase):
-    """Tests for merging EqOperators."""
-
-    def setUp(self):
-        self.merger = QueryMerger(id_attr='id')
-
-    def test_merge_eq_eq_same_value(self):
+    def test_add_same_value(self):
         left = EqOperator(5)
         right = EqOperator(5)
-        result = self.merger.merge(left, right, 'test')
+        result = left + right
         self.assertIsInstance(result, EqOperator)
         self.assertEqual(result.value, 5)
 
-    def test_merge_eq_eq_different_value_raises(self):
+    def test_add_different_value_raises(self):
         left = EqOperator(5)
         right = EqOperator(10)
-        with self.assertRaises(DiamondUpdateConflict) as cm:
-            self.merger.merge(left, right, 'test_provider')
+        with self.assertRaises(MergeConflict) as cm:
+            left + right
 
         self.assertEqual(cm.exception.existing_value, 5)
         self.assertEqual(cm.exception.new_value, 10)
-        self.assertEqual(cm.exception.provider_name, 'test_provider')
 
-    def test_merge_eq_eq_none_values(self):
+    def test_add_none_values(self):
         left = EqOperator(None)
         right = EqOperator(None)
-        result = self.merger.merge(left, right, 'test')
+        result = left + right
         self.assertIsInstance(result, EqOperator)
         self.assertIsNone(result.value)
 
-    def test_merge_eq_eq_complex_values(self):
+    def test_add_composite_values(self):
         """CompositeQuery (normalized composite PK) merges with itself."""
         inner = CompositeQuery({'tenant': EqOperator(1), 'local': EqOperator(2)})
-        result = self.merger.merge(inner, inner, 'test')
+        result = inner + inner
         self.assertEqual(result, inner)
 
+    def test_add_wrong_type_returns_not_implemented(self):
+        result = EqOperator(5).__add__(RelOperator({'a': EqOperator(1)}))
+        self.assertIs(result, NotImplemented)
 
-class TestQueryMergerRelOperator(unittest.TestCase):
-    """Tests for merging RelOperators."""
 
-    def setUp(self):
-        self.merger = QueryMerger(id_attr='id')
+class TestRelOperatorAdd(unittest.TestCase):
+    """Tests for RelOperator.__add__."""
 
-    def test_merge_rel_rel_different_fields(self):
+    def test_add_different_fields(self):
         left = RelOperator({'status': EqOperator('active')})
         right = RelOperator({'type': EqOperator('premium')})
-        result = self.merger.merge(left, right, 'test')
+        result = left + right
 
         self.assertIsInstance(result, RelOperator)
         self.assertEqual(len(result.constraints), 2)
         self.assertEqual(result.constraints['status'].value, 'active')
         self.assertEqual(result.constraints['type'].value, 'premium')
 
-    def test_merge_rel_rel_same_field_same_value(self):
+    def test_add_same_field_same_value(self):
         left = RelOperator({'status': EqOperator('active')})
         right = RelOperator({'status': EqOperator('active')})
-        result = self.merger.merge(left, right, 'test')
+        result = left + right
 
         self.assertIsInstance(result, RelOperator)
         self.assertEqual(result.constraints['status'].value, 'active')
 
-    def test_merge_rel_rel_same_field_different_value_raises(self):
+    def test_add_same_field_different_value_raises(self):
         left = RelOperator({'status': EqOperator('active')})
         right = RelOperator({'status': EqOperator('inactive')})
 
-        with self.assertRaises(DiamondUpdateConflict):
-            self.merger.merge(left, right, 'test')
+        with self.assertRaises(MergeConflict):
+            left + right
 
-    def test_merge_rel_rel_nested(self):
+    def test_add_nested(self):
         """Deep merge nested RelOperators."""
         left = RelOperator({
             'department': RelOperator({'name': EqOperator('IT')})
@@ -106,7 +80,7 @@ class TestQueryMergerRelOperator(unittest.TestCase):
         right = RelOperator({
             'department': RelOperator({'code': EqOperator('IT001')})
         })
-        result = self.merger.merge(left, right, 'test')
+        result = left + right
 
         self.assertIsInstance(result, RelOperator)
         dept = result.constraints['department']
@@ -114,96 +88,39 @@ class TestQueryMergerRelOperator(unittest.TestCase):
         self.assertEqual(dept.constraints['name'].value, 'IT')
         self.assertEqual(dept.constraints['code'].value, 'IT001')
 
-
-class TestQueryMergerEqRel(unittest.TestCase):
-    """Tests for merging EqOperator with RelOperator."""
-
-    def setUp(self):
-        self.merger = QueryMerger(id_attr='id')
-
-    def test_merge_eq_into_rel(self):
-        eq = EqOperator(27)
-        rel = RelOperator({'status': EqOperator('active')})
-        result = self.merger.merge(eq, rel, 'test')
-
-        self.assertIsInstance(result, RelOperator)
-        self.assertEqual(result.constraints['status'].value, 'active')
-        self.assertEqual(result.constraints['id'].value, 27)
-
-    def test_merge_rel_eq(self):
-        """Order shouldn't matter."""
-        rel = RelOperator({'status': EqOperator('active')})
-        eq = EqOperator(27)
-        result = self.merger.merge(rel, eq, 'test')
-
-        self.assertIsInstance(result, RelOperator)
-        self.assertEqual(result.constraints['status'].value, 'active')
-        self.assertEqual(result.constraints['id'].value, 27)
-
-    def test_merge_eq_into_rel_with_existing_id(self):
-        """If id already exists in $rel, merge them."""
-        eq = EqOperator(27)
-        rel = RelOperator({
-            'status': EqOperator('active'),
-            'id': EqOperator(27)  # same value
-        })
-        result = self.merger.merge(eq, rel, 'test')
-
-        self.assertIsInstance(result, RelOperator)
-        self.assertEqual(result.constraints['id'].value, 27)
-
-    def test_merge_eq_into_rel_with_conflicting_id_raises(self):
-        eq = EqOperator(27)
-        rel = RelOperator({
-            'status': EqOperator('active'),
-            'id': EqOperator(99)  # different value
-        })
-
-        with self.assertRaises(DiamondUpdateConflict):
-            self.merger.merge(eq, rel, 'test')
-
-    def test_merge_with_custom_id_attr(self):
-        """Use custom id_attr for composite PKs."""
-        merger = QueryMerger(id_attr='pk')
-        composite_pk = CompositeQuery({'tenant': EqOperator(1), 'local': EqOperator(2)})
-        rel = RelOperator({'status': EqOperator('active')})
-        result = merger.merge(composite_pk, rel, 'test')
-
-        self.assertIsInstance(result, RelOperator)
-        self.assertEqual(result.constraints['pk'], composite_pk)
+    def test_add_wrong_type_returns_not_implemented(self):
+        result = RelOperator({'a': EqOperator(1)}).__add__(EqOperator(5))
+        self.assertIs(result, NotImplemented)
 
 
-class TestQueryMergerCompositeQuery(unittest.TestCase):
-    """Tests for merging CompositeQueries."""
+class TestCompositeQueryAdd(unittest.TestCase):
+    """Tests for CompositeQuery.__add__."""
 
-    def setUp(self):
-        self.merger = QueryMerger(id_attr='id')
-
-    def test_merge_composite_composite_different_fields(self):
+    def test_add_different_fields(self):
         left = CompositeQuery({'a': EqOperator(1)})
         right = CompositeQuery({'b': EqOperator(2)})
-        result = self.merger.merge(left, right, 'test')
+        result = left + right
 
         self.assertIsInstance(result, CompositeQuery)
         self.assertEqual(result.fields['a'].value, 1)
         self.assertEqual(result.fields['b'].value, 2)
 
-    def test_merge_composite_composite_same_field_same_value(self):
+    def test_add_same_field_same_value(self):
         left = CompositeQuery({'a': EqOperator(1)})
         right = CompositeQuery({'a': EqOperator(1)})
-        result = self.merger.merge(left, right, 'test')
+        result = left + right
 
         self.assertIsInstance(result, CompositeQuery)
         self.assertEqual(result.fields['a'].value, 1)
 
-    def test_merge_composite_composite_same_field_different_value_raises(self):
+    def test_add_same_field_different_value_raises(self):
         left = CompositeQuery({'a': EqOperator(1)})
         right = CompositeQuery({'a': EqOperator(2)})
 
-        with self.assertRaises(DiamondUpdateConflict):
-            self.merger.merge(left, right, 'test')
+        with self.assertRaises(MergeConflict):
+            left + right
 
-    def test_merge_composite_composite_nested(self):
+    def test_add_nested(self):
         """Deep merge nested CompositeQueries."""
         left = CompositeQuery({
             'address': CompositeQuery({'city': EqOperator('Moscow')})
@@ -211,7 +128,7 @@ class TestQueryMergerCompositeQuery(unittest.TestCase):
         right = CompositeQuery({
             'address': CompositeQuery({'country': EqOperator('Russia')})
         })
-        result = self.merger.merge(left, right, 'test')
+        result = left + right
 
         self.assertIsInstance(result, CompositeQuery)
         addr = result.fields['address']
@@ -219,35 +136,25 @@ class TestQueryMergerCompositeQuery(unittest.TestCase):
         self.assertEqual(addr.fields['city'].value, 'Moscow')
         self.assertEqual(addr.fields['country'].value, 'Russia')
 
+    def test_add_wrong_type_returns_not_implemented(self):
+        result = CompositeQuery({'a': EqOperator(1)}).__add__(EqOperator(5))
+        self.assertIs(result, NotImplemented)
 
-class TestQueryMergerIncompatibleTypes(unittest.TestCase):
-    """Tests for merging incompatible operator types."""
 
-    def setUp(self):
-        self.merger = QueryMerger(id_attr='id')
+class TestCrossTypeAdd(unittest.TestCase):
+    """Tests for cross-type __add__ raises TypeError."""
 
-    def test_merge_composite_eq_keeps_eq(self):
-        """EqOperator is more specific than CompositeQuery, keep EqOperator."""
-        left = CompositeQuery({'a': EqOperator(1)})
-        right = EqOperator(5)
+    def test_eq_plus_rel_raises(self):
+        with self.assertRaises(TypeError):
+            EqOperator(5) + RelOperator({'a': EqOperator(1)})
 
-        result = self.merger.merge(left, right, 'test')
+    def test_composite_plus_eq_raises(self):
+        with self.assertRaises(TypeError):
+            CompositeQuery({'a': EqOperator(1)}) + EqOperator(5)
 
-        # EqOperator wins as more specific value
-        self.assertIsInstance(result, EqOperator)
-        self.assertEqual(result.value, 5)
-
-    def test_merge_composite_rel_places_under_id(self):
-        """CompositeQuery + RelOperator -> places CompositeQuery under $rel.id."""
-        left = CompositeQuery({'a': EqOperator(1)})
-        right = RelOperator({'status': EqOperator('active')})
-
-        result = self.merger.merge(left, right, 'test')
-
-        self.assertIsInstance(result, RelOperator)
-        self.assertIn('id', result.constraints)
-        self.assertIn('status', result.constraints)
-        self.assertEqual(result.constraints['id'], left)
+    def test_composite_plus_rel_raises(self):
+        with self.assertRaises(TypeError):
+            CompositeQuery({'a': EqOperator(1)}) + RelOperator({'b': EqOperator(2)})
 
 
 class TestNormalizeQuery(unittest.TestCase):

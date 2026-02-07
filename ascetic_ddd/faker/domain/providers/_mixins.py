@@ -11,11 +11,11 @@ from ascetic_ddd.faker.domain.providers.interfaces import (
     ICompositeValueProvider, IDependentProvider
 )
 from ascetic_ddd.faker.domain.query.operators import (
-    IQueryOperator, CompositeQuery
+    IQueryOperator, CompositeQuery, MergeConflict
 )
 from ascetic_ddd.faker.domain.query.parser import parse_query
-from ascetic_ddd.faker.domain.query.merger import QueryMerger
 from ascetic_ddd.faker.domain.query.visitors import query_to_dict
+from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty, Empty
 from ascetic_ddd.observable.interfaces import IObservable
@@ -153,7 +153,10 @@ class BaseProvider(
         new_query = parse_query(value)
         old_input = self._input
         if self._input is not None:
-            self._input = QueryMerger().merge(self._input, new_query, self.provider_name)
+            try:
+                self._input = self._input + new_query
+            except MergeConflict as e:
+                raise DiamondUpdateConflict(e.existing_value, e.new_value, self.provider_name) from e
         else:
             self._input = new_query
         # Only reset output if input actually changed
@@ -262,7 +265,10 @@ class BaseCompositeProvider(
         new_query = parse_query(value)
         old_input = self._input
         if self._input is not None:
-            self._input = QueryMerger().merge(self._input, new_query, self.provider_name)
+            try:
+                self._input = self._input + new_query
+            except MergeConflict as e:
+                raise DiamondUpdateConflict(e.existing_value, e.new_value, self.provider_name) from e
         else:
             self._input = new_query
         # Only reset output if input actually changed

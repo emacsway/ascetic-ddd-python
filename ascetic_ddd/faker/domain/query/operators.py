@@ -18,10 +18,21 @@ from ascetic_ddd.seedwork.domain.utils.data import hashable
 __all__ = (
     'IQueryOperator',
     'IQueryVisitor',
+    'MergeConflict',
     'EqOperator',
     'RelOperator',
     'CompositeQuery',
 )
+
+
+class MergeConflict(Exception):
+    """Raised when merging two operators with incompatible values."""
+
+    def __init__(self, existing_value: typing.Any, new_value: typing.Any):
+        self.existing_value = existing_value
+        self.new_value = new_value
+        super().__init__(f"Cannot merge {existing_value!r} with {new_value!r}")
+
 
 T = typing.TypeVar('T')
 
@@ -57,6 +68,10 @@ class IQueryOperator(metaclass=ABCMeta):
     def __hash__(self) -> int:
         raise NotImplementedError
 
+    @abstractmethod
+    def __add__(self, other: 'IQueryOperator') -> 'IQueryOperator':
+        raise NotImplementedError
+
 
 class EqOperator(IQueryOperator):
     """
@@ -84,6 +99,13 @@ class EqOperator(IQueryOperator):
         if self._hash is None:
             self._hash = hash(('$eq', hashable(self.value)))
         return self._hash
+
+    def __add__(self, other: 'EqOperator') -> 'EqOperator':
+        if not isinstance(other, EqOperator):
+            return NotImplemented
+        if self.value == other.value:
+            return self
+        raise MergeConflict(self.value, other.value)
 
     def __repr__(self) -> str:
         return f"EqOperator({self.value!r})"
@@ -116,6 +138,17 @@ class RelOperator(IQueryOperator):
             self._hash = hash(('$rel', items))
         return self._hash
 
+    def __add__(self, other: 'RelOperator') -> 'RelOperator':
+        if not isinstance(other, RelOperator):
+            return NotImplemented
+        merged: dict[str, IQueryOperator] = dict(self.constraints)
+        for field, op in other.constraints.items():
+            if field in merged:
+                merged[field] = merged[field] + op
+            else:
+                merged[field] = op
+        return RelOperator(merged)
+
     def __repr__(self) -> str:
         return f"RelOperator({self.constraints!r})"
 
@@ -146,6 +179,17 @@ class CompositeQuery(IQueryOperator):
             items = tuple(sorted((k, hash(v)) for k, v in self.fields.items()))
             self._hash = hash(('composite', items))
         return self._hash
+
+    def __add__(self, other: 'CompositeQuery') -> 'CompositeQuery':
+        if not isinstance(other, CompositeQuery):
+            return NotImplemented
+        merged: dict[str, IQueryOperator] = dict(self.fields)
+        for field, op in other.fields.items():
+            if field in merged:
+                merged[field] = merged[field] + op
+            else:
+                merged[field] = op
+        return CompositeQuery(merged)
 
     def __repr__(self) -> str:
         return f"CompositeQuery({self.fields!r})"

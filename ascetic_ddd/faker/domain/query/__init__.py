@@ -26,8 +26,8 @@ from ascetic_ddd.faker.domain.query.operators import (
     RelOperator,
     CompositeQuery,
 )
-from ascetic_ddd.faker.domain.query.parser import QueryParser
-from ascetic_ddd.faker.domain.query.merger import QueryMerger
+from ascetic_ddd.faker.domain.query.operators import MergeConflict
+from ascetic_ddd.faker.domain.query.parser import QueryParser, parse_query
 from ascetic_ddd.faker.domain.query.visitors import (
     QueryToDictVisitor,
     QueryToPlainValueVisitor,
@@ -41,8 +41,9 @@ __all__ = (
     'EqOperator',
     'RelOperator',
     'CompositeQuery',
+    'MergeConflict',
     'QueryParser',
-    'QueryMerger',
+    'parse_query',
     'QueryToDictVisitor',
     'QueryToPlainValueVisitor',
     'query_to_dict',
