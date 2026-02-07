@@ -8,10 +8,10 @@ import typing
 
 from ascetic_ddd.faker.domain.query.evaluate_visitor import IObjectResolver
 
-__all__ = ('ProviderObjectResolver',)
+__all__ = ('RepositoryObjectResolver',)
 
 
-class ProviderObjectResolver(IObjectResolver):
+class RepositoryObjectResolver(IObjectResolver):
     """Adapter: wraps AggregateProvider to implement IObjectResolver."""
 
     __slots__ = ('_aggregate_provider_accessor',)
@@ -43,5 +43,5 @@ class ProviderObjectResolver(IObjectResolver):
             return None, None
 
         state = related_provider._output_exporter(obj)
-        nested = ProviderObjectResolver(lambda rp=related_provider: rp)
+        nested = RepositoryObjectResolver(lambda rp=related_provider: rp)
         return state, nested
