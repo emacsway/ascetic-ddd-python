@@ -528,7 +528,7 @@ class EvaluateWalkerThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
 
 
 # =============================================================================
-# Sociable Tests - Using Real Providers via RepositoryObjectResolver
+# Sociable Tests - Using Real Providers via ProviderObjectResolver
 # =============================================================================
 
 @dataclasses.dataclass(frozen=True)
@@ -556,10 +556,10 @@ class User:
 
 class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
     """
-    Sociable tests using real AggregateProvider and RepositoryObjectResolver.
+    Sociable tests using real AggregateProvider and ProviderObjectResolver.
 
     Verifies that EvaluateWalker works correctly with the real
-    provider infrastructure via RepositoryObjectResolver adapter.
+    provider infrastructure via ProviderObjectResolver adapter.
     """
 
     def setUp(self):
@@ -569,7 +569,7 @@ class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
         from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
         from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
         from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
-        from ascetic_ddd.faker.infrastructure.query.object_resolver import RepositoryObjectResolver
+        from ascetic_ddd.faker.infrastructure.query.object_resolver import ProviderObjectResolver
         from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 
         class StubDistributor(IM2ODistributor):
@@ -726,8 +726,8 @@ class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
         self.user_alice = User(UserId(1), StatusId("active"), "Alice")
         self.user_bob = User(UserId(2), StatusId("inactive"), "Bob")
 
-        # Create RepositoryObjectResolver
-        self.object_resolver = RepositoryObjectResolver(lambda: self.user_provider)
+        # Create ProviderObjectResolver
+        self.object_resolver = ProviderObjectResolver(lambda: self.user_provider)
         self.visitor = EvaluateWalker(self.object_resolver)
         self.session = MockSession()
 
@@ -742,7 +742,7 @@ class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
         await self.user_repo.insert(session, self.user_bob)
 
     async def test_nested_lookup_with_real_providers(self):
-        """Nested lookup should work with real providers via RepositoryObjectResolver."""
+        """Nested lookup should work with real providers via ProviderObjectResolver."""
         query = CompositeQuery({
             'status_id': RelOperator(CompositeQuery({
                 'name': EqOperator('Active'),
@@ -1185,7 +1185,7 @@ class EvaluateVisitorThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
 
 class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
     """
-    Sociable tests using real AggregateProvider and RepositoryObjectResolver
+    Sociable tests using real AggregateProvider and ProviderObjectResolver
     for EvaluateVisitor.
     """
 
@@ -1196,7 +1196,7 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
         from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
         from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
         from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
-        from ascetic_ddd.faker.infrastructure.query.object_resolver import RepositoryObjectResolver
+        from ascetic_ddd.faker.infrastructure.query.object_resolver import ProviderObjectResolver
         from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 
         class StubDistributor(IM2ODistributor):
@@ -1350,7 +1350,7 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
         self.user_alice = User(UserId(1), StatusId("active"), "Alice")
         self.user_bob = User(UserId(2), StatusId("inactive"), "Bob")
 
-        self.object_resolver = RepositoryObjectResolver(lambda: self.user_provider)
+        self.object_resolver = ProviderObjectResolver(lambda: self.user_provider)
         self.session = MockSession()
 
     async def asyncSetUp(self):
