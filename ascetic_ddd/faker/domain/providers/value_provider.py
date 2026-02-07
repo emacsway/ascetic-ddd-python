@@ -106,7 +106,7 @@ class ValueProvider(
             if self._input_generator is None:
                 self._output = self._output_factory(None)
             else:
-                value = await self._input_generator(session, cursor.position)
+                value = await self._input_generator(session, self._query, cursor.position)
                 result = self._output_factory(value)
                 await cursor.append(session, result)
                 self.require({'$eq': value})

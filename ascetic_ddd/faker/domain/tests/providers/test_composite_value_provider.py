@@ -121,15 +121,15 @@ class MockSession:
 # Value Generators
 # =============================================================================
 
-async def tenant_id_generator(session: ISession, position: int | None = None) -> int:
+async def tenant_id_generator(session: ISession, query=None, position: int | None = None) -> int:
     return position if position is not None else 1
 
 
-async def internal_user_id_generator(session: ISession, position: int | None = None) -> int:
+async def internal_user_id_generator(session: ISession, query=None, position: int | None = None) -> int:
     return (position if position is not None else 1) + 100
 
 
-async def internal_resume_id_generator(session: ISession, position: int | None = None) -> int:
+async def internal_resume_id_generator(session: ISession, query=None, position: int | None = None) -> int:
     return (position if position is not None else 1) + 1000
 
 

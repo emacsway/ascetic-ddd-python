@@ -322,27 +322,27 @@ class MockSession:
 # Value Generators
 # =============================================================================
 
-async def tenant_id_generator(session: ISession, position: int | None = None) -> int:
+async def tenant_id_generator(session: ISession, query=None, position: int | None = None) -> int:
     return (position if position is not None else 0) + 100
 
 
-async def internal_user_id_generator(session: ISession, position: int | None = None) -> int:
+async def internal_user_id_generator(session: ISession, query=None, position: int | None = None) -> int:
     return (position if position is not None else 0) + 200
 
 
-async def internal_resume_id_generator(session: ISession, position: int | None = None) -> int:
+async def internal_resume_id_generator(session: ISession, query=None, position: int | None = None) -> int:
     return (position if position is not None else 0) + 300
 
 
-async def tenant_name_generator(session: ISession, position: int | None = None) -> str:
+async def tenant_name_generator(session: ISession, query=None, position: int | None = None) -> str:
     return f"Tenant_{position if position is not None else 0}"
 
 
-async def username_generator(session: ISession, position: int | None = None) -> str:
+async def username_generator(session: ISession, query=None, position: int | None = None) -> str:
     return f"user_{position if position is not None else 0}"
 
 
-async def resume_title_generator(session: ISession, position: int | None = None) -> str:
+async def resume_title_generator(session: ISession, query=None, position: int | None = None) -> str:
     return f"Resume_{position if position is not None else 0}"
 
 

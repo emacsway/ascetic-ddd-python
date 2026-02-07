@@ -102,7 +102,7 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
         distributor = MockDistributor(values=[], raise_cursor_at=0)
         call_count = 0
 
-        async def generator(session, position=None):
+        async def generator(session, query=None, position=None):
             nonlocal call_count
             call_count += 1
             return 'generated_value'
@@ -193,7 +193,7 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
         distributor = MockDistributor(raise_cursor_at=0)
         session = MockSession()
 
-        async def generator(session, position=None):
+        async def generator(session, query=None, position=None):
             return 'generated_value'
 
         provider = ValueProvider(
@@ -254,7 +254,7 @@ class ValueProviderWithFactoriesTestCase(IsolatedAsyncioTestCase):
         """output_factory should transform the generated value to output."""
         distributor = MockDistributor(values=[], raise_cursor_at=0)
 
-        async def generator(session, position=None):
+        async def generator(session, query=None, position=None):
             return 42
 
         output_factory = lambda x: f"transformed_{x}"
@@ -337,7 +337,7 @@ class ValueProviderGeneratorTypesTestCase(IsolatedAsyncioTestCase):
         """ValueProvider should work with async callable."""
         distributor = MockDistributor(values=[], raise_cursor_at=0)
 
-        async def async_generator(session, position=None):
+        async def async_generator(session, query=None, position=None):
             return f"async_value_{position}"
 
         session = MockSession()
@@ -361,7 +361,7 @@ class ValueProviderCursorPositionTestCase(IsolatedAsyncioTestCase):
         distributor = MockDistributor(values=[], raise_cursor_at=0)
         received_positions = []
 
-        async def generator(session, position=None):
+        async def generator(session, query=None, position=None):
             received_positions.append(position)
             return f"value_at_{position}"
 

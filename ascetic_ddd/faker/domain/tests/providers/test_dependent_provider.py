@@ -179,13 +179,13 @@ class MockSession:
 _name_counter = 0
 
 
-async def name_generator(session: ISession, position: int | None = None) -> str:
+async def name_generator(session: ISession, query=None, position: int | None = None) -> str:
     global _name_counter
     _name_counter += 1
     return f"Employee_{_name_counter}"
 
 
-async def company_id_generator(session: ISession, position: int | None = None) -> int:
+async def company_id_generator(session: ISession, query=None, position: int | None = None) -> int:
     return 1  # Fixed company_id for testing
 
 
@@ -611,7 +611,7 @@ class StubCompanyRepository(IAggregateRepository[Company]):
         pass
 
 
-async def company_name_generator(session: ISession, position: int | None = None) -> str:
+async def company_name_generator(session: ISession, query=None, position: int | None = None) -> str:
     return f"Company_{position if position is not None else 0}"
 
 

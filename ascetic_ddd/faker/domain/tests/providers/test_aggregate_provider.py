@@ -157,16 +157,16 @@ class MockSession:
 # Value Generators
 # =============================================================================
 
-async def user_id_generator(session: ISession, position: int | None = None) -> int:
+async def user_id_generator(session: ISession, query=None, position: int | None = None) -> int:
     """Generates user ID values starting from 100."""
     return (position if position is not None else 0) + 100
 
 
-async def name_generator(session: ISession, position: int | None = None) -> str:
+async def name_generator(session: ISession, query=None, position: int | None = None) -> str:
     return f"User_{position if position is not None else 0}"
 
 
-async def email_generator(session: ISession, position: int | None = None) -> str:
+async def email_generator(session: ISession, query=None, position: int | None = None) -> str:
     return f"user_{position if position is not None else 0}@example.com"
 
 

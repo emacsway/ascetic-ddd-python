@@ -205,13 +205,13 @@ class Attr2ValueGenerator:
     def __init__(self):
         self._count = 0
 
-    async def __call__(self, session: ISession, position: int | None = None):
+    async def __call__(self, session: ISession, query=None, position: int | None = None):
         val = "attr2_%s" % self._count
         self._count += 1
         return val
 
 
-async def uuid_generator(session: ISession, position: int | None = None):
+async def uuid_generator(session: ISession, query=None, position: int | None = None):
     return uuid.uuid4()
 
 
