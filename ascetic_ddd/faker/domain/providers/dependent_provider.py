@@ -109,24 +109,19 @@ class DependentProvider(
         """Set dependency's ID to be used for related_field in dependents."""
         self._dependency_id = dependency_id
 
-    def do_empty(self, clone: typing.Self, shunt: ICloningShunt | None = None):
-        clone._inputs = empty
-        clone._outputs = empty
-        clone._count = None
-        clone._weights = None
-        clone._value_selector = None
-        clone._dependency_id = None
-        clone._aggregate_providers_accessor = self._aggregate_providers_accessor.empty(shunt)
+    async def create(self, session: ISession) -> list[T_Output]:
+        """
+        Returns list of IDs of created children.
+        """
+        if self._outputs is empty:
+            return []
 
-    def reset(self) -> None:
-        self._inputs = empty
-        self._outputs = empty
-        self._count = None
-        self._weights = None
-        self._value_selector = None
-        self._dependency_id = None
-        self._aggregate_providers_accessor.reset()
-        self.notify('criteria', self._inputs)
+        results = []
+        for provider in self.aggregate_providers:
+            if provider._output is not empty:
+                id_result = await provider.id_provider.create(session)
+                results.append(id_result)
+        return results
 
     async def populate(self, session: ISession) -> None:
         """
@@ -181,20 +176,6 @@ class DependentProvider(
         for provider in providers:
             result = await provider.create(session)
             self._outputs.append(result)
-
-    async def create(self, session: ISession) -> list[T_Output]:
-        """
-        Returns list of IDs of created children.
-        """
-        if self._outputs is empty:
-            return []
-
-        results = []
-        for provider in self.aggregate_providers:
-            if provider._output is not empty:
-                id_result = await provider.id_provider.create(session)
-                results.append(id_result)
-        return results
 
     def set(self, values: list[T_Input], weights: list[float] | None = None) -> None:
         """
@@ -281,6 +262,25 @@ class DependentProvider(
             # It's a factory callable
             accessor = LazyAggregateProvidersAccessor[T_Agg_Provider](aggregate_provider)
         self._aggregate_providers_accessor = accessor
+
+    def do_empty(self, clone: typing.Self, shunt: ICloningShunt | None = None):
+        clone._inputs = empty
+        clone._outputs = empty
+        clone._count = None
+        clone._weights = None
+        clone._value_selector = None
+        clone._dependency_id = None
+        clone._aggregate_providers_accessor = self._aggregate_providers_accessor.empty(shunt)
+
+    def reset(self) -> None:
+        self._inputs = empty
+        self._outputs = empty
+        self._count = None
+        self._weights = None
+        self._value_selector = None
+        self._dependency_id = None
+        self._aggregate_providers_accessor.reset()
+        self.notify('criteria', self._inputs)
 
     async def setup(self, session: ISession):
         await self._aggregate_providers_accessor.setup(session)
