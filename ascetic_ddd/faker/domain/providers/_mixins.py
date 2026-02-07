@@ -166,7 +166,7 @@ class BaseProvider(
         if self._criteria != old_criteria:
             self._input = empty
             self._output = empty
-            self.notify('criteria', self._criteria)
+            self.notify('criteria', new_criteria)
 
     def state(self) -> T_Input:
         """Return current query as dict format."""
@@ -298,8 +298,8 @@ class BaseCompositeProvider(
         # Only reset output if input actually changed
         if self._criteria != old_criteria:
             self._output = empty
-            self._distribute_criteria(self._criteria)
-            self.notify('criteria', self._criteria)
+            self._distribute_criteria(new_criteria)
+            self.notify('criteria', new_criteria)
 
     def _distribute_criteria(self, query: IQueryOperator) -> None:
         """

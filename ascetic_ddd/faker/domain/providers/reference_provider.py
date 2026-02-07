@@ -117,14 +117,7 @@ class ReferenceProvider(
         Non-$rel values are automatically wrapped into $rel with id.
         """
         new_criteria = parse_query(criteria)
-
-        # EqOperator(None) means "null the reference" - don't wrap, don't merge
-        if isinstance(new_criteria, EqOperator) and new_criteria.value is None:
-            self._criteria = new_criteria
-            self._propagate_to_aggregate(self._criteria)
-            self._output = None
-            self.notify('criteria', self._criteria)
-            return
+        old_criteria = self._criteria
 
         # Wrap non-$rel into $rel with id
         if not isinstance(new_criteria, RelOperator):
@@ -132,52 +125,28 @@ class ReferenceProvider(
             new_criteria = RelOperator(CompositeQuery({id_attr: new_criteria}))
 
         if self._criteria is not None:
-            # If reference is already explicitly null, don't add constraints
-            if self._is_null_reference():
-                return
             try:
                 self._criteria = self._criteria + new_criteria
             except MergeConflict as e:
                 raise DiamondUpdateConflict(e.existing_value, e.new_value, self.provider_name) from e
         else:
             self._criteria = new_criteria
+        # Only reset output if input actually changed
+        if self._criteria != old_criteria:
+            self._input = empty
+            self._output = empty
+            self._propagate_to_aggregate(new_criteria)
+            self.notify('criteria', new_criteria)
 
-        self._propagate_to_aggregate(new_criteria)
-        self._output = empty
-        self.notify('criteria', self._criteria)
-
-    def _is_null_reference(self) -> bool:
-        """
-        Check if this reference is explicitly set to null.
-
-        Returns True if _input is EqOperator(None) or RelOperator with id=None.
-        """
-        if isinstance(self._criteria, EqOperator) and self._criteria.value is None:
-            return True
-        if isinstance(self._criteria, RelOperator):
-            id_attr = self.aggregate_provider._id_attr
-            id_constraint = self._criteria.query.fields.get(id_attr)
-            if isinstance(id_constraint, EqOperator) and id_constraint.value is None:
-                return True
-        return False
-
-    def _propagate_to_aggregate(self, query: IQueryOperator) -> None:
+    def _propagate_to_aggregate(self, criteria: IQueryOperator) -> None:
         """
         Propagate $rel constraints to aggregate_provider.
 
         infinite recursion prevention:
         We only propagate once during require(), not recursively.
         """
-        if not isinstance(query, RelOperator):
-            return
-
-        for field, op in query.query.fields.items():
-            provider = getattr(self.aggregate_provider, field, None)
-            if provider is None:
-                raise AttributeError(
-                    f"Provider '{self.provider_name}': aggregate has no provider '{field}'"
-                )
-            provider.require(query_to_dict(op))
+        if isinstance(criteria, RelOperator):
+            self.aggregate_provider.require(query_to_dict(criteria.query))
 
     @property
     def aggregate_provider(self) -> T_Agg_Provider:
