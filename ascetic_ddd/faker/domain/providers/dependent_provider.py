@@ -16,19 +16,19 @@ from ascetic_ddd.faker.domain.values.empty import empty, Empty
 __all__ = ('DependentProvider',)
 
 
-T_Id_Output = typing.TypeVar("T_Id_Output")
 T_Input = typing.TypeVar("T_Input")
 T_Output = typing.TypeVar("T_Output")
+T_Agg_Provider = typing.TypeVar("T_Agg_Provider")
 
 
-class IAggregateProvidersAccessor(ISetupable, typing.Generic[T_Input, T_Output], metaclass=ABCMeta):
+class IAggregateProvidersAccessor(ISetupable, typing.Generic[T_Agg_Provider], metaclass=ABCMeta):
     """
     Accessor for managing list of aggregate providers.
     Supports lazy resolution and cloning.
     """
 
     @abstractmethod
-    def __call__(self, count: int) -> list[IEntityProvider[T_Input, T_Output]]:
+    def __call__(self, count: int) -> list[T_Agg_Provider]:
         """
         Returns list of aggregate providers for creating N children.
         Creates/clones providers if needed to match the requested count.
@@ -48,8 +48,8 @@ class DependentProvider(
     NameableMixin,
     ObservableMixin,
     CloneableMixin,
-    IDependentProvider[T_Input, T_Output, T_Id_Output],
-    typing.Generic[T_Input, T_Output, T_Id_Output]
+    IDependentProvider[T_Input, T_Output, T_Agg_Provider],
+    typing.Generic[T_Input, T_Output, T_Agg_Provider]
 ):
     """
     Provider for 1:M relationships (one parent to many children).
@@ -78,9 +78,9 @@ class DependentProvider(
     """
 
     _distributor: IO2MDistributor
-    _aggregate_providers_accessor: IAggregateProvidersAccessor[T_Input, T_Output]
+    _aggregate_providers_accessor: IAggregateProvidersAccessor[T_Agg_Provider]
     _inputs: list[T_Input] | Empty = empty
-    _outputs: list[T_Output] | Empty = empty
+    _outputs: list[T_Agg_Provider] | Empty = empty
     _count: int | None = None
     _weights: list[float] | None = None
     _value_selector: WeightedRangeDistributor | None = None
@@ -90,7 +90,7 @@ class DependentProvider(
     def __init__(
             self,
             distributor: IO2MDistributor,
-            aggregate_provider: IEntityProvider[T_Input, T_Output] | Callable[[], IEntityProvider[T_Input, T_Output]],
+            aggregate_provider: T_Agg_Provider | Callable[[], T_Agg_Provider],
             dependency_field: str | None = None,
     ):
         """
@@ -182,7 +182,7 @@ class DependentProvider(
             result = await provider.create(session)
             self._outputs.append(result)
 
-    async def create(self, session: ISession) -> list[T_Id_Output]:
+    async def create(self, session: ISession) -> list[T_Output]:
         """
         Returns list of IDs of created children.
         """
@@ -251,12 +251,12 @@ class DependentProvider(
     def is_transient(self) -> bool:
         return self._inputs is empty
 
-    async def append(self, session: ISession, value: T_Output):
+    async def append(self, session: ISession, value: T_Agg_Provider):
         """Not used for O2M - children are created, not appended to distributor."""
         pass
 
     @property
-    def aggregate_providers(self) -> list[IEntityProvider[T_Input, T_Output]]:
+    def aggregate_providers(self) -> list[T_Agg_Provider]:
         """
         Returns list of aggregate providers for creating children.
         Count is determined by distributor or pre-set values.
@@ -267,7 +267,7 @@ class DependentProvider(
     @aggregate_providers.setter
     def aggregate_providers(
             self,
-            aggregate_provider: IEntityProvider[T_Input, T_Output] | Callable[[], IEntityProvider[T_Input, T_Output]]
+            aggregate_provider: T_Agg_Provider | Callable[[], T_Agg_Provider]
     ) -> None:
         """
         Sets the template aggregate provider.
@@ -276,10 +276,10 @@ class DependentProvider(
         # Check if it's a provider object (has 'empty' method) or a factory callable
         if hasattr(aggregate_provider, 'empty'):
             # It's already a provider object
-            accessor = EagerAggregateProvidersAccessor[T_Input, T_Output](aggregate_provider)
+            accessor = EagerAggregateProvidersAccessor[T_Agg_Provider](aggregate_provider)
         else:
             # It's a factory callable
-            accessor = LazyAggregateProvidersAccessor[T_Input, T_Output](aggregate_provider)
+            accessor = LazyAggregateProvidersAccessor[T_Agg_Provider](aggregate_provider)
         self._aggregate_providers_accessor = accessor
 
     async def setup(self, session: ISession):
@@ -289,19 +289,19 @@ class DependentProvider(
         await self._aggregate_providers_accessor.cleanup(session)
 
 
-class EagerAggregateProvidersAccessor(IAggregateProvidersAccessor, typing.Generic[T_Input, T_Output]):
+class EagerAggregateProvidersAccessor(IAggregateProvidersAccessor[T_Agg_Provider], typing.Generic[T_Agg_Provider]):
     """
     Accessor that holds a direct reference to template provider.
     Clones the provider to create multiple children.
     """
-    _template_provider: IEntityProvider[T_Input, T_Output]
-    _providers: list[IEntityProvider[T_Input, T_Output]]
+    _template_provider: T_Agg_Provider
+    _providers: list[T_Agg_Provider]
 
-    def __init__(self, template_provider: IEntityProvider[T_Input, T_Output]):
+    def __init__(self, template_provider: T_Agg_Provider):
         self._template_provider = template_provider
         self._providers = []
 
-    def __call__(self, count: int) -> list[IEntityProvider[T_Input, T_Output]]:
+    def __call__(self, count: int) -> list[T_Agg_Provider]:
         # Extend list if needed by cloning template
         while len(self._providers) < count:
             cloned = self._template_provider.empty()
@@ -325,25 +325,25 @@ class EagerAggregateProvidersAccessor(IAggregateProvidersAccessor, typing.Generi
             await provider.cleanup(session)
 
 
-class LazyAggregateProvidersAccessor(IAggregateProvidersAccessor, typing.Generic[T_Input, T_Output]):
+class LazyAggregateProvidersAccessor(IAggregateProvidersAccessor[T_Agg_Provider], typing.Generic[T_Agg_Provider]):
     """
     Accessor with lazy resolution of template provider.
     Useful for cyclic dependencies.
     """
-    _template_provider: IEntityProvider[T_Input, T_Output] | None = None
-    _template_provider_factory: Callable[[], IEntityProvider[T_Input, T_Output]]
-    _providers: list[IEntityProvider[T_Input, T_Output]]
+    _template_provider: T_Agg_Provider | None = None
+    _template_provider_factory: Callable[[], T_Agg_Provider]
+    _providers: list[T_Agg_Provider]
 
-    def __init__(self, template_provider_factory: Callable[[], IEntityProvider[T_Input, T_Output]]):
+    def __init__(self, template_provider_factory: Callable[[], T_Agg_Provider]):
         self._template_provider_factory = template_provider_factory
         self._providers = []
 
-    def _get_template(self) -> IEntityProvider[T_Input, T_Output]:
+    def _get_template(self) -> T_Agg_Provider:
         if self._template_provider is None:
             self._template_provider = self._template_provider_factory()
         return self._template_provider
 
-    def __call__(self, count: int) -> list[IEntityProvider[T_Input, T_Output]]:
+    def __call__(self, count: int) -> list[T_Agg_Provider]:
         template = self._get_template()
         while len(self._providers) < count:
             cloned = template.empty()

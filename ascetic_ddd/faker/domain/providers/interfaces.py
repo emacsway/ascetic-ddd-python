@@ -26,7 +26,7 @@ __all__ = (
 T_Input = typing.TypeVar("T_Input")
 T_Output = typing.TypeVar("T_Output")
 T_Cloneable = typing.TypeVar("T_Cloneable")
-T_Id_Output = typing.TypeVar("T_Id_Output")
+T_Agg_Provider = typing.TypeVar("T_Agg_Provider")
 
 
 class INameable(metaclass=ABCMeta):
@@ -181,20 +181,20 @@ class IAggregateProvider(
 
 
 class IReferenceProvider(
-    IValueProvider[T_Input, T_Id_Output],
-    typing.Generic[T_Input, T_Output, T_Id_Output], metaclass=ABCMeta
+    IValueProvider[T_Input, T_Output],
+    typing.Generic[T_Input, T_Output, T_Agg_Provider], metaclass=ABCMeta
 ):
 
     @property
     @abstractmethod
-    def aggregate_provider(self) -> IAggregateProvider[T_Input, T_Output]:
+    def aggregate_provider(self) -> IAggregateProvider[T_Input, T_Agg_Provider]:
         raise NotImplementedError
 
     @aggregate_provider.setter
     @abstractmethod
     def aggregate_provider(
             self,
-            aggregate_provider: IAggregateProvider[T_Input, T_Output] | Callable[[], IAggregateProvider[T_Input, T_Output]]
+            aggregate_provider: IAggregateProvider[T_Input, T_Agg_Provider] | Callable[[], IAggregateProvider[T_Input, T_Agg_Provider]]
     ) -> None:
         raise NotImplementedError
 
@@ -215,8 +215,8 @@ class IDependentInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta
 
 
 class IDependentProvider(
-    IDependentInputOutput[T_Input, T_Id_Output], IProvidable, IObservable, INameable, ICloneable,
-    ISetupable, typing.Generic[T_Input, T_Output, T_Id_Output], metaclass=ABCMeta
+    IDependentInputOutput[T_Input, T_Output], IProvidable, IObservable, INameable, ICloneable,
+    ISetupable, typing.Generic[T_Input, T_Output, T_Agg_Provider], metaclass=ABCMeta
 ):
     """
     Я думал над тем, чтоб разбить providers на m2o и o2m, но это было бы неуместно потому,
@@ -229,15 +229,15 @@ class IDependentProvider(
 
     @property
     @abstractmethod
-    def aggregate_providers(self) -> list[IAggregateProvider[T_Input, T_Output]]:
+    def aggregate_providers(self) -> list[IAggregateProvider[T_Input, T_Agg_Provider]]:
         raise NotImplementedError
 
     @aggregate_providers.setter
     @abstractmethod
     def aggregate_providers(
             self,
-            aggregate_provider: list[IAggregateProvider[T_Input, T_Output] |
-                                     Callable[[], IAggregateProvider[T_Input, T_Output]]]
+            aggregate_provider: list[IAggregateProvider[T_Input, T_Agg_Provider] |
+                                     Callable[[], IAggregateProvider[T_Input, T_Agg_Provider]]]
     ) -> None:
         raise NotImplementedError
 
