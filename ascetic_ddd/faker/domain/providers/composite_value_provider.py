@@ -82,6 +82,8 @@ class CompositeValueProvider(
         pass
 
     async def create(self, session: ISession) -> T_Output:
+        if self._output is empty:
+            raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
         return self._output
 
     async def populate(self, session: ISession) -> None:
@@ -90,30 +92,25 @@ class CompositeValueProvider(
                 self._output = await self._default_factory(session)
             return
 
-        if self._query is None:
-            specification = EmptySpecification()
-        else:
+        if self._query is not None:
             specification = self._specification_factory(self._query, self._output_exporter)
+        else:
+            specification = EmptySpecification()
 
         try:
-            result = await self._distributor.next(session, specification)
-            if result is not None:
-                value = self._output_exporter(result)
-                self.require(dict_to_query(value))
-            else:
-                self.require({'$eq': None})
-            # self.require() could reset self._output
-            self._output = result
+            output = await self._distributor.next(session, specification)
+            if output is not None:
+                input_ = self._output_exporter(output)
+                self._set_input(input_)
+            self._output = output
         except ICursor as cursor:
             await self.do_populate(session)
             for attr, provider in self.providers.items():
                 await provider.populate(session)
-            result = await self._default_factory(session, cursor.position)
-            self._output = result
+            output = await self._default_factory(session, cursor.position)
+            self._output = output
             if not self.is_transient():
                 await cursor.append(session, self._output)
-            # infinite recursion
-            # await self.populate(session)
 
     async def _default_factory(self, session: ISession, position: typing.Optional[int] = None):
         data = dict()

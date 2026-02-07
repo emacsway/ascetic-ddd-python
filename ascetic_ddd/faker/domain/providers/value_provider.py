@@ -98,7 +98,6 @@ class ValueProvider(
         if self._query is not None:
             # Extract value from EqOperator
             self._set_input(self._query.value if isinstance(self._query, EqOperator) else None)
-            self.notify('input', self._query)
         if self._input is not empty:
             self._output = self._output_factory(self._input)
             # await cursor.append(session, self._output)
@@ -112,20 +111,17 @@ class ValueProvider(
 
         try:
             # EqOperator забьет индекс BaseDistributor, его нельзя сюда пускать.
-            self._output = await self._distributor.next(session, specification)
-            self._input = self._output_exporter(self._output)
+            output = await self._distributor.next(session, specification)
+            self._set_input(self._output_exporter(self._output))
+            self._output = output
         except ICursor as cursor:
             if self._input_generator is None:
+                self._set_input(None)
                 self._output = self._output_factory(None)
-                self._input = None
             else:
-                self._input = await self._input_generator(session, self._query, cursor.position)
+                self._set_input(await self._input_generator(session, self._query, cursor.position))
                 self._output = self._output_factory(self._input)
                 await cursor.append(session, self._output)
-
-    def _set_input(self, input_: T_Input):
-        self._input = input_
-        self.notify('input', self._query)
 
     def _make_specification(self) -> ISpecification | None:
         return None

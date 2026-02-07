@@ -140,6 +140,7 @@ class BaseProvider(
         self._input = empty
         self._output = empty
         self.notify('query', self._query)
+        self.notify('input', self._input)
 
     def require(self, query: dict[str, typing.Any]) -> None:
         """
@@ -163,8 +164,9 @@ class BaseProvider(
             self._query = new_query
         # Only reset output if input actually changed
         if self._query != old_input:
+            self._input = empty
             self._output = empty
-        self.notify('query', self._query)
+            self.notify('query', self._query)
 
     def state(self) -> T_Input:
         """Return current query as dict format."""
@@ -180,6 +182,10 @@ class BaseProvider(
 
     def is_transient(self) -> bool:
         return self._input is None
+
+    def _set_input(self, input_: T_Input):
+        self._input = input_
+        self.notify('input', self._input)
 
     async def append(self, session: ISession, value: T_Output):
         pass
@@ -251,9 +257,9 @@ class BaseCompositeProvider(
     def reset(self) -> None:
         self._query = None
         self._output = empty
-        self.notify('query', self._query)
         for provider in self.providers.values():
             provider.reset()
+        self.notify('query', self._query)
 
     def require(self, query: dict[str, typing.Any]) -> None:
         """
@@ -277,8 +283,8 @@ class BaseCompositeProvider(
         # Only reset output if input actually changed
         if self._query != old_query:
             self._output = empty
-        self.notify('query', self._query)
-        self._distribute_query(self._query)
+            self._distribute_query(self._query)
+            self.notify('query', self._query)
 
     def _distribute_query(self, query: IQueryOperator) -> None:
         """
@@ -294,6 +300,19 @@ class BaseCompositeProvider(
                         f"Provider '{self.provider_name}': has no nested provider '{attr}'"
                     )
                 provider.require(query_to_dict(field_query))
+
+    def _set_input(self, input_: T_Input) -> None:
+        """
+        Unidirectional flow only. Don't call self.set()
+        """
+        for attr, val in input_.items():
+            provider = getattr(self, attr, None)
+            if provider is None:
+                raise AttributeError(
+                    f"Provider '{self.provider_name}': has no nested provider '{attr}'"
+                )
+            provider.require({'$eq': val})
+        self.notify('input', input_)
 
     def state(self) -> T_Input:
         """Return current query as dict format, composed from nested providers."""
