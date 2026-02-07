@@ -236,7 +236,22 @@ class BaseCompositeProvider(
 
     _criteria: IQueryOperator | None = None
     _output: T_Output | Empty = empty
+    _output_factory: typing.Callable[[...], T_Output] = None  # T_Output of each nested Provider.
     _provider_name: str | None = None
+
+    def __init__(
+            self,
+            output_factory: typing.Callable[[...], T_Output] | None = None,
+    ):
+
+        if self._output_factory is None:
+            if output_factory is None:
+
+                def output_factory(**kwargs):
+                    return kwargs
+
+            self._output_factory = output_factory
+        super().__init__()
 
     def is_complete(self) -> bool:
         return (
@@ -323,6 +338,12 @@ class BaseCompositeProvider(
                 value[attr] = val
         return value
 
+    async def _default_factory(self, session: ISession, position: typing.Optional[int] = None):
+        data = dict()
+        for attr, provider in self.providers.items():
+            data[attr] = await provider.create(session)
+        return self._output_factory(**data)
+
     async def append(self, session: ISession, value: T_Output):
         pass
 
@@ -401,9 +422,13 @@ class BaseCompositeDistributionProvider(
     _provider_name: str | None = None
     _distributor: IM2ODistributor[T_Input]
 
-    def __init__(self, distributor: IM2ODistributor[T_Input]):
+    def __init__(
+            self,
+            distributor: IM2ODistributor[T_Input],
+            output_factory: typing.Callable[[...], T_Output] | None = None,
+    ):
         self._distributor = distributor
-        super().__init__()
+        super().__init__(output_factory=output_factory)
 
     async def append(self, session: ISession, value: T_Output):
         await self._distributor.append(session, value)

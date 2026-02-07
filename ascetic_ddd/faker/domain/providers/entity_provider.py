@@ -24,7 +24,6 @@ class EntityProvider(
     Mutable output - composite Entity. Saved as part of aggregate.
     """
     _id_attr: str
-    _output_factory: typing.Callable[[...], T_Output] = None
     _output_exporter: typing.Callable[[T_Output], T_Input] = None
 
     def __init__(
@@ -32,14 +31,6 @@ class EntityProvider(
             output_factory: typing.Callable[[...], T_Output] | None = None,  # T_Output of each nested Provider.
             output_exporter: typing.Callable[[T_Output], T_Input] | None = None,
     ):
-
-        if self._output_factory is None:
-            if output_factory is None:
-
-                def output_factory(**kwargs):
-                    return kwargs
-
-            self._output_factory = output_factory
 
         if self._output_exporter is None:
             if output_exporter is None:
@@ -49,7 +40,7 @@ class EntityProvider(
 
             self._output_exporter = output_exporter
 
-        super().__init__()
+        super().__init__(output_factory=output_factory)
         self.on_init()
 
     def on_init(self):
@@ -59,12 +50,6 @@ class EntityProvider(
         if self._output is empty:
             self._output = await self._default_factory(session)
         return self._output
-
-    async def _default_factory(self, session: ISession, position: typing.Optional[int] = None):
-        data = dict()
-        for attr, provider in self.providers.items():
-            data[attr] = await provider.create(session)
-        return self._output_factory(**data)
 
     @property
     def id_provider(self):
