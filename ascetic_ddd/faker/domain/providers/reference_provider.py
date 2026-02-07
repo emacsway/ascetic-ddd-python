@@ -83,11 +83,11 @@ class ReferenceProvider(
         try:
             output = await self._distributor.next(session, specification)
             if output is not None:
-                value = self.aggregate_provider._output_exporter(output)
-                self.aggregate_provider.require(dict_to_query(value))
+                input_ = self.aggregate_provider._output_exporter(output)
+                self.aggregate_provider.require(dict_to_query(input_))
                 await self.aggregate_provider.populate(session)
                 self._set_input(self.aggregate_provider.id_provider.state())
-                self._output = await self.aggregate_provider.create(session)
+                self._output = await self.aggregate_provider.id_provider.create(session)
             else:
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
                 # self._criteria = None
@@ -103,7 +103,7 @@ class ReferenceProvider(
             await cursor.append(session, output)
             self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
-            self._output = output
+            self._output = await self.aggregate_provider.id_provider.create(session)
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
