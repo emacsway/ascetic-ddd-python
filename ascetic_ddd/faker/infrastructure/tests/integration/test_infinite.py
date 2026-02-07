@@ -174,6 +174,7 @@ class ThirdModel:
     id: ThirdModelPk
     second_model_id: SecondModelPk
     attr2: str
+    parent_id: ThirdModelPk
 
     def __hash__(self):
         return hash(self.id)
@@ -377,6 +378,7 @@ class ThirdModelFaker(AggregateProvider[dict, ThirdModel]):
     id: ThirdModelPkFaker
     attr2: ValueProvider[str, str]
     second_model_id: ReferenceProvider
+    parent_id: ReferenceProvider
     _id_attr = 'id'
 
     def __init__(
@@ -402,6 +404,14 @@ class ThirdModelFaker(AggregateProvider[dict, ThirdModel]):
             ),
             input_generator=Attr2ValueGenerator(),
         )
+        self.parent_id = ReferenceProvider(
+            distributor=make_distributor(
+                weights=[0.9, 0.5, 0.1, 0.01],
+                null_weight=0.3,
+                mean=10,
+            ),
+            aggregate_provider=lambda: self.empty()  # Lazy clone for self-reference
+        )
         super().__init__(
             repository=repository,
             output_factory=ThirdModel,
@@ -414,21 +424,14 @@ class ThirdModelFaker(AggregateProvider[dict, ThirdModel]):
             'id': ThirdModelPkFaker._export(agg.id),
             'second_model_id': SecondModelPkFaker._export(agg.second_model_id) if agg.second_model_id and agg.second_model_id is not empty else None,
             'attr2': agg.attr2,
+            'parent_id': ThirdModelPkFaker._export(agg.parent_id) if agg.parent_id and agg.parent_id is not empty else None,
         }
 
-    async def populate(self, session: ISession) -> None:
-        if self.is_complete():
-            return
-        await self.do_populate(session)
+    async def do_populate(self, session: ISession) -> None:
         await self.id.populate(session)
         id_ = await self.id.create(session)
-        self.second_model_id.set({
-            'id': {'first_model_id': id_.first_model_id},
-        })
-        for attr, provider in self.providers.items():
-            if attr == 'id':
-                continue
-            await provider.populate(session)
+        self.second_model_id.set({'$rel': {'id': {'first_model_id': {'$eq': id_.first_model_id}}}})
+        self.parent_id.set({'$rel': {'id': {'first_model_id': {'$eq': id_.first_model_id}}}})
 
 
 # ################## Mock Server ################################################
