@@ -81,10 +81,10 @@ class ReferenceProvider(
             specification = EmptySpecification()
 
         try:
-            output = await self._distributor.next(session, specification)
-            if output is not None:
-                input_ = self.aggregate_provider._output_exporter(output)
-                self.aggregate_provider.require(dict_to_query(input_))
+            agg = await self._distributor.next(session, specification)
+            if agg is not None:
+                agg_state = self.aggregate_provider._output_exporter(agg)
+                self.aggregate_provider.require(dict_to_query(agg_state))
                 await self.aggregate_provider.populate(session)
                 self._set_input(self.aggregate_provider.id_provider.state())
                 self._output = await self.aggregate_provider.id_provider.create(session)
@@ -92,15 +92,14 @@ class ReferenceProvider(
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
                 # self._criteria = None
                 self._set_input(None)
-            # self.require() could reset self._output
-            self._output = output
+                self._output = None
         except ICursor as cursor:
             if self._criteria is not None:
                 # Propagate constraints to aggregate_provider (already done in require())
                 pass
             await self.aggregate_provider.populate(session)
-            output = await self.aggregate_provider.create(session)
-            await cursor.append(session, output)
+            agg = await self.aggregate_provider.create(session)
+            await cursor.append(session, agg)
             self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
             self._output = await self.aggregate_provider.id_provider.create(session)
