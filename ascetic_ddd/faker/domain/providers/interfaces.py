@@ -206,7 +206,7 @@ class IDependentInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta
         raise NotImplementedError
 
     @abstractmethod
-    def set(self, value: list[T_Input], weights: list[float] | None = None) -> None:
+    def require(self, criteria: list[dict], weights: list[float] | None = None) -> None:
         raise NotImplementedError
 
     @abstractmethod

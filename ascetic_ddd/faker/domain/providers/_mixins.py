@@ -318,7 +318,7 @@ class BaseCompositeProvider(
 
     def _set_input(self, input_: T_Input) -> None:
         """
-        Unidirectional flow only. Don't call self.set()
+        Unidirectional flow only. Don't call self.require()
         """
         for attr, val in input_.items():
             provider = getattr(self, attr, None)

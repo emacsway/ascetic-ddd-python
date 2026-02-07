@@ -79,8 +79,8 @@ class DependentProvider(
 
     _distributor: IO2MDistributor
     _aggregate_providers_accessor: IAggregateProvidersAccessor[T_Agg_Provider]
-    _inputs: list[T_Input] | Empty = empty
-    _outputs: list[T_Agg_Provider] | Empty = empty
+    _criteria: list[dict] | None = None
+    _outputs: list[T_Output] | Empty = empty
     _count: int | None = None
     _weights: list[float] | None = None
     _value_selector: WeightedRangeDistributor | None = None
@@ -129,7 +129,7 @@ class DependentProvider(
 
         Uses distributor to determine count, then populates each child provider.
 
-        If weights were provided via set(), uses WeightedRangeDistributor to select
+        If weights were provided via require(), uses WeightedRangeDistributor to select
         which value to use for each child (for creating hundreds of thousands of
         children from a small set of template values).
         """
@@ -145,17 +145,17 @@ class DependentProvider(
         providers = self.aggregate_providers
 
         # Set values on providers
-        if self._inputs is not empty:
+        if self._criteria is not None:
             if self._value_selector is not None:
                 # Weighted mode: select value for each child using WeightedRangeDistributor
                 for provider in providers:
                     index = self._value_selector.distribute()
-                    provider.require(self._inputs[index])
+                    provider.require(self._criteria[index])
             else:
                 # Direct mode: values[i] → child[i]
                 for i, provider in enumerate(providers):
-                    if i < len(self._inputs):
-                        provider.require(self._inputs[i])
+                    if i < len(self._criteria):
+                        provider.require(self._criteria[i])
 
         # Set dependency's ID on dependency_field for each child (FK)
         if self._dependency_field is not None and self._dependency_id:
@@ -177,12 +177,12 @@ class DependentProvider(
             result = await provider.create(session)
             self._outputs.append(result)
 
-    def set(self, values: list[T_Input], weights: list[float] | None = None) -> None:
+    def require(self, criteria: list[dict], weights: list[float] | None = None) -> None:
         """
         Set input values for children.
 
         Args:
-            values: List of input values (templates) for children.
+            criteria: List of criteria for children.
             weights: Optional list of weights for selecting values.
                      If not provided, each value corresponds to one child (direct mode).
                      If provided, WeightedRangeDistributor selects which value to use
@@ -190,16 +190,16 @@ class DependentProvider(
 
         Examples:
             # Direct mode: 3 children with specific values
-            provider.set([{'name': 'A'}, {'name': 'B'}, {'name': 'C'}])
+            provider.require([{'name': 'A'}, {'name': 'B'}, {'name': 'C'}])
 
             # Weighted mode: N children (from distributor), 70% get value[0], 30% get value[1]
-            provider.set(
+            provider.require(
                 [{'department': 'IT'}, {'department': 'HR'}],
                 weights=[0.7, 0.3]
             )
         """
-        if self._inputs != values or self._weights != weights:
-            self._inputs = values
+        if self._criteria != criteria or self._weights != weights:
+            self._criteria = criteria
             self._weights = weights
             self._outputs = empty
 
@@ -207,16 +207,16 @@ class DependentProvider(
                 # Weighted mode: create selector, count from distributor
                 self._value_selector = WeightedRangeDistributor(
                     min_val=0,
-                    max_val=len(values) - 1,
+                    max_val=len(criteria) - 1,
                     weights=weights
                 )
                 self._count = None  # Will be determined by distributor
             else:
                 # Direct mode: no selector, count from values
                 self._value_selector = None
-                self._count = len(values) if values else None
+                self._count = len(criteria) if criteria else None
 
-            self.notify('criteria', self._inputs)
+            self.notify('criteria', self._criteria)
 
     def state(self) -> list[T_Input]:
         """
@@ -224,13 +224,13 @@ class DependentProvider(
         """
         if self._count is None or self._count == 0:
             return []
-        return [provider.state() for provider in self.aggregate_providers]
+        return [provider.id_provider.state() for provider in self.aggregate_providers]
 
     def is_complete(self) -> bool:
         return self._outputs is not empty
 
     def is_transient(self) -> bool:
-        return self._inputs is empty
+        return False
 
     async def append(self, session: ISession, value: T_Agg_Provider):
         """Not used for O2M - children are created, not appended to distributor."""
@@ -264,7 +264,7 @@ class DependentProvider(
         self._aggregate_providers_accessor = accessor
 
     def do_empty(self, clone: typing.Self, shunt: ICloningShunt | None = None):
-        clone._inputs = empty
+        clone._criteria = None
         clone._outputs = empty
         clone._count = None
         clone._weights = None
@@ -273,14 +273,14 @@ class DependentProvider(
         clone._aggregate_providers_accessor = self._aggregate_providers_accessor.empty(shunt)
 
     def reset(self) -> None:
-        self._inputs = empty
+        self._criteria = None
         self._outputs = empty
         self._count = None
         self._weights = None
         self._value_selector = None
         self._dependency_id = None
         self._aggregate_providers_accessor.reset()
-        self.notify('criteria', self._inputs)
+        self.notify('criteria', self._criteria)
 
     async def setup(self, session: ISession):
         await self._aggregate_providers_accessor.setup(session)

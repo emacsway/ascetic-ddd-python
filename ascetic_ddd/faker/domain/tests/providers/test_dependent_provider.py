@@ -356,7 +356,7 @@ class DependentProviderSetGetTestCase(IsolatedAsyncioTestCase):
         session = MockSession()
 
         # Pre-set 2 values (should override distributor's count of 5)
-        provider.set([
+        provider.require([
             {'name': 'John', 'company_id': 1},
             {'name': 'Jane', 'company_id': 1},
         ])
@@ -384,8 +384,8 @@ class DependentProviderSetGetTestCase(IsolatedAsyncioTestCase):
         values = provider.state()
 
         self.assertEqual(len(values), 2)
-        self.assertIn('name', values[0])
-        self.assertIn('company_id', values[0])
+        self.assertEqual(values[0], 1)
+        self.assertEqual(values[1], 2)
 
 
 # =============================================================================
@@ -418,7 +418,7 @@ class DependentProviderResetTestCase(IsolatedAsyncioTestCase):
         provider.reset()
 
         self.assertFalse(provider.is_complete())
-        self.assertEqual(provider._inputs, empty)
+        self.assertIsNone(provider._criteria)
         self.assertEqual(provider._outputs, empty)
         self.assertIsNone(provider._count)
 
@@ -487,8 +487,8 @@ class DependentProviderTransientTestCase(IsolatedAsyncioTestCase):
         global _name_counter
         _name_counter = 0
 
-    async def test_is_transient_true_before_set(self):
-        """is_transient() should return True when no values set."""
+    async def test_is_transient_always_false(self):
+        """is_transient() should always return False - DependentProvider can always create children."""
         repository = StubEmployeeRepository()
         template = EmployeeProvider(repository)
         distributor = StubO2MDistributor(count=2)
@@ -498,20 +498,9 @@ class DependentProviderTransientTestCase(IsolatedAsyncioTestCase):
             aggregate_provider=template,
         )
 
-        self.assertTrue(provider.is_transient())
+        self.assertFalse(provider.is_transient())
 
-    async def test_is_transient_false_after_set(self):
-        """is_transient() should return False after set()."""
-        repository = StubEmployeeRepository()
-        template = EmployeeProvider(repository)
-        distributor = StubO2MDistributor(count=2)
-
-        provider = DependentProvider(
-            distributor=distributor,
-            aggregate_provider=template,
-        )
-
-        provider.set([{'name': 'Test', 'company_id': 1}])
+        provider.require([{'name': 'Test', 'company_id': 1}])
 
         self.assertFalse(provider.is_transient())
 
@@ -546,7 +535,7 @@ class DependentProviderCloneTestCase(IsolatedAsyncioTestCase):
         clone = provider.empty()
 
         self.assertFalse(clone.is_complete())
-        self.assertEqual(clone._inputs, empty)
+        self.assertEqual(clone._criteria, None)
         self.assertEqual(clone._outputs, empty)
 
 
@@ -732,7 +721,7 @@ class DependentProviderWeightedTestCase(IsolatedAsyncioTestCase):
         session = MockSession()
 
         # Only 2 template values, but 100 children should be created
-        provider.set(
+        provider.require(
             [{'name': 'IT Employee', 'company_id': 1}, {'name': 'HR Employee', 'company_id': 1}],
             weights=[0.7, 0.3]
         )
@@ -757,7 +746,7 @@ class DependentProviderWeightedTestCase(IsolatedAsyncioTestCase):
         session = MockSession()
 
         # 90% should get 'IT', 10% should get 'HR'
-        provider.set(
+        provider.require(
             [{'name': 'IT', 'company_id': 1}, {'name': 'HR', 'company_id': 1}],
             weights=[0.9, 0.1]
         )
@@ -787,7 +776,7 @@ class DependentProviderWeightedTestCase(IsolatedAsyncioTestCase):
         session = MockSession()
 
         # 4 departments with different weights
-        provider.set(
+        provider.require(
             [
                 {'name': 'Engineering', 'company_id': 1},
                 {'name': 'Sales', 'company_id': 1},
@@ -817,7 +806,7 @@ class DependentProviderWeightedTestCase(IsolatedAsyncioTestCase):
         )
         provider.provider_name = 'employees'
 
-        provider.set(
+        provider.require(
             [{'name': 'A', 'company_id': 1}, {'name': 'B', 'company_id': 1}],
             weights=[0.5, 0.5]
         )
@@ -829,7 +818,7 @@ class DependentProviderWeightedTestCase(IsolatedAsyncioTestCase):
 
         self.assertIsNone(provider._value_selector)
         self.assertIsNone(provider._weights)
-        self.assertEqual(provider._inputs, empty)
+        self.assertIsNone(provider._criteria)
 
     async def test_switch_from_weighted_to_direct_mode(self):
         """Calling set() without weights should switch to direct mode."""
@@ -845,14 +834,14 @@ class DependentProviderWeightedTestCase(IsolatedAsyncioTestCase):
         session = MockSession()
 
         # First, set with weights
-        provider.set(
+        provider.require(
             [{'name': 'A', 'company_id': 1}],
             weights=[1.0]
         )
         self.assertIsNotNone(provider._value_selector)
 
         # Now switch to direct mode
-        provider.set([{'name': 'Direct1', 'company_id': 1}, {'name': 'Direct2', 'company_id': 1}])
+        provider.require([{'name': 'Direct1', 'company_id': 1}, {'name': 'Direct2', 'company_id': 1}])
         self.assertIsNone(provider._value_selector)
         self.assertEqual(provider._count, 2)
 
@@ -872,7 +861,7 @@ class DependentProviderWeightedTestCase(IsolatedAsyncioTestCase):
         )
         provider.provider_name = 'employees'
 
-        provider.set(
+        provider.require(
             [{'name': 'A', 'company_id': 1}],
             weights=[1.0]
         )
@@ -881,7 +870,7 @@ class DependentProviderWeightedTestCase(IsolatedAsyncioTestCase):
 
         self.assertIsNone(clone._value_selector)
         self.assertIsNone(clone._weights)
-        self.assertEqual(clone._inputs, empty)
+        self.assertEqual(clone._criteria, None)
 
 
 if __name__ == '__main__':
