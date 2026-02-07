@@ -969,9 +969,9 @@ class ReferenceProviderPresetPKMultiLevelTestCase(IsolatedAsyncioTestCase):
         })
 
         # get() returns query format with $eq operator
-        self.assertEqual(user_provider.id.tenant_id.get(), {'$eq': 999})
-        self.assertEqual(user_provider.id.internal_user_id.get(), {'$eq': 888})
-        self.assertEqual(user_provider.username.get(), {'$eq': 'custom_user'})
+        self.assertEqual(user_provider.id.tenant_id.state(), {'$eq': 999})
+        self.assertEqual(user_provider.id.internal_user_id.state(), {'$eq': 888})
+        self.assertEqual(user_provider.username.state(), {'$eq': 'custom_user'})
 
 
 # =============================================================================

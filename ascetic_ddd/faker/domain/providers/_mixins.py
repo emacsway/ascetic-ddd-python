@@ -164,7 +164,7 @@ class BaseProvider(
             self._output = empty
         self.notify('query', self._query)
 
-    def get(self) -> T_Input:
+    def state(self) -> T_Input:
         """Return current query as dict format."""
         return query_to_dict(self._query) if self._query is not None else {}
 
@@ -292,11 +292,11 @@ class BaseCompositeProvider(
                     )
                 provider.require(query_to_dict(field_query))
 
-    def get(self) -> T_Input:
+    def state(self) -> T_Input:
         """Return current query as dict format, composed from nested providers."""
         value = dict()
         for attr, provider in self.providers.items():
-            val = provider.get()
+            val = provider.state()
             if val:  # not empty dict
                 value[attr] = val
         return value

@@ -166,7 +166,7 @@ class QueryResolvableSpecification(IResolvableSpecification[T], typing.Generic[T
             if isinstance(provider, IReferenceProvider) and not isinstance(field_op, EqOperator):
                 provider.require(query_to_dict(field_op))
                 await provider.populate(session)
-                resolved[field] = QueryParser().parse(provider.get())
+                resolved[field] = QueryParser().parse(provider.state())
             else:
                 resolved[field] = field_op
         return resolved

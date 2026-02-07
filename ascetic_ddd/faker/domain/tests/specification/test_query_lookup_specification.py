@@ -177,7 +177,7 @@ class MockReferenceProvider(IReferenceProvider):
     def require(self, value):
         self._query = value
 
-    def get(self):
+    def state(self):
         return self._output
 
     async def create(self, session):

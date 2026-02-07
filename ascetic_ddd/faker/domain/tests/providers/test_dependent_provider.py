@@ -381,7 +381,7 @@ class DependentProviderSetGetTestCase(IsolatedAsyncioTestCase):
         session = MockSession()
 
         await provider.populate(session)
-        values = provider.get()
+        values = provider.state()
 
         self.assertEqual(len(values), 2)
         self.assertIn('name', values[0])

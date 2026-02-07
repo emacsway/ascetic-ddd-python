@@ -121,7 +121,7 @@ class AggregateProvider(
 
         # Create dependent entities AFTER this aggregate is created (they need its ID for FK)
         if self.dependent_providers:
-            dependency_id = self.id_provider.get()
+            dependency_id = self.id_provider.state()
             for attr, dep_provider in self.dependent_providers.items():
                 dep_provider.set_dependency_id(dependency_id)
                 await dep_provider.populate(session)

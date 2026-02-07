@@ -237,13 +237,13 @@ class DependentProvider(
 
             self.notify('query', self._inputs)
 
-    def get(self) -> list[T_Input]:
+    def state(self) -> list[T_Input]:
         """
         Get input values from all children providers.
         """
         if self._count is None or self._count == 0:
             return []
-        return [provider.get() for provider in self.aggregate_providers]
+        return [provider.state() for provider in self.aggregate_providers]
 
     def is_complete(self) -> bool:
         return self._outputs is not empty

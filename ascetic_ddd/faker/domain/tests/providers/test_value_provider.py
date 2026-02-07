@@ -288,7 +288,7 @@ class ValueProviderWithFactoriesTestCase(IsolatedAsyncioTestCase):
         await provider.populate(session)
 
         # get() returns query format with $eq operator
-        self.assertEqual(provider.get(), {'$eq': 'test'})
+        self.assertEqual(provider.state(), {'$eq': 'test'})
         self.assertEqual(provider._output, {'id': 1, 'name': 'test'})
 
 
@@ -396,7 +396,7 @@ class ValueProviderSetGetTestCase(IsolatedAsyncioTestCase):
         provider.require('manual_value')
 
         # get() returns query format with $eq operator
-        self.assertEqual(provider.get(), {'$eq': 'manual_value'})
+        self.assertEqual(provider.state(), {'$eq': 'manual_value'})
 
     async def test_get_returns_input(self):
         """get() should return the input value set during populate() in query format."""
@@ -413,7 +413,7 @@ class ValueProviderSetGetTestCase(IsolatedAsyncioTestCase):
         await provider.populate(session)
 
         # get() returns query format with $eq operator
-        self.assertEqual(provider.get(), {'$eq': 'output_value'})
+        self.assertEqual(provider.state(), {'$eq': 'output_value'})
 
 
 class ValueProviderProviderNameTestCase(IsolatedAsyncioTestCase):

@@ -255,8 +255,8 @@ class CompositeValueProviderLevel2TestCase(IsolatedAsyncioTestCase):
         })
 
         # get() returns query format with $eq operator
-        self.assertEqual(provider.tenant_id.get(), {'$eq': 99})
-        self.assertEqual(provider.internal_user_id.get(), {'$eq': 199})
+        self.assertEqual(provider.tenant_id.state(), {'$eq': 99})
+        self.assertEqual(provider.internal_user_id.state(), {'$eq': 199})
 
     async def test_reuse_existing_user_id(self):
         """UserIdProvider should reuse existing UserId from distributor."""
@@ -328,9 +328,9 @@ class CompositeValueProviderLevel3TestCase(IsolatedAsyncioTestCase):
         })
 
         # get() returns query format with $eq operator
-        self.assertEqual(provider.user_id.tenant_id.get(), {'$eq': 1})
-        self.assertEqual(provider.user_id.internal_user_id.get(), {'$eq': 101})
-        self.assertEqual(provider.internal_resume_id.get(), {'$eq': 1001})
+        self.assertEqual(provider.user_id.tenant_id.state(), {'$eq': 1})
+        self.assertEqual(provider.user_id.internal_user_id.state(), {'$eq': 101})
+        self.assertEqual(provider.internal_resume_id.state(), {'$eq': 1001})
 
     async def test_get_returns_nested_structure(self):
         """get() should return the full nested structure in query format."""
@@ -341,8 +341,8 @@ class CompositeValueProviderLevel3TestCase(IsolatedAsyncioTestCase):
 
         await provider.populate(session)
 
-        # CompositeValueProvider.get() returns nested dict from nested providers
-        result = provider.get()
+        # CompositeValueProvider.state() returns nested dict from nested providers
+        result = provider.state()
         self.assertIn('user_id', result)
         self.assertIn('internal_resume_id', result)
         # Nested composite providers return their own nested get() results

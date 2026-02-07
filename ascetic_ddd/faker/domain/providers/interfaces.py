@@ -124,7 +124,7 @@ class IInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def get(self) -> T_Input:
+    def state(self) -> T_Input:
         raise NotImplementedError
 
     @abstractmethod
@@ -210,7 +210,7 @@ class IDependentInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta
         raise NotImplementedError
 
     @abstractmethod
-    def get(self) -> list[T_Input]:
+    def state(self) -> list[T_Input]:
         raise NotImplementedError
 
 
