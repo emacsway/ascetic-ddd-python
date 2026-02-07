@@ -319,7 +319,7 @@ class TenantProvider(AggregateProvider[dict, Tenant]):
 
 class AuthorIdProvider(CompositeValueProvider[dict, TenantId]):
     author_id: IValueProvider[int, AuthorId]
-    tenant_id: IReferenceProvider[dict, Tenant, TenantId]
+    tenant_id: IReferenceProvider[dict, TenantId, TenantProvider]
 
     def __init__(self, tenant_provider: TenantProvider):
         self.author_id = ValueProvider[int, AuthorId](
@@ -329,7 +329,7 @@ class AuthorIdProvider(CompositeValueProvider[dict, TenantId]):
         )
         # Ссылка на Tenant с распределением skew=2.0 (перекос к началу)
         # mean=10 означает в среднем 10 авторов на tenant
-        self.tenant_id = ReferenceProvider[dict, Tenant, TenantId](
+        self.tenant_id = ReferenceProvider[dict, TenantId, TenantProvider](
             distributor=distributor_factory(skew=2.0, mean=10),
             aggregate_provider=tenant_provider
         )
@@ -365,7 +365,7 @@ class AuthorProvider(AggregateProvider[dict, Author]):
 
 class BookIdProvider(CompositeValueProvider[dict, TenantId]):
     book_id: IValueProvider[int, BookId]
-    tenant_id: IReferenceProvider[dict, Tenant, TenantId]
+    tenant_id: IReferenceProvider[dict, TenantId, TenantProvider]
 
     def __init__(self, tenant_provider: TenantProvider):
         self.book_id = ValueProvider[int, BookId](
@@ -373,7 +373,7 @@ class BookIdProvider(CompositeValueProvider[dict, TenantId]):
             output_factory=InternalBookId,
             output_exporter=lambda x: x.value,
         )
-        self.tenant_id = ReferenceProvider[dict, Tenant, TenantId](
+        self.tenant_id = ReferenceProvider[dict, TenantId, TenantProvider](
             distributor=distributor_factory(weights=[0.7, 0.2, 0.07, 0.03], mean=50),
             aggregate_provider=tenant_provider
         )
@@ -387,14 +387,14 @@ class BookIdProvider(CompositeValueProvider[dict, TenantId]):
 class BookProvider(AggregateProvider[dict, Book]):
     _id_attr = 'id'
     id: BookIdProvider
-    author_id: IReferenceProvider[dict, Author, AuthorId]
+    author_id: IReferenceProvider[dict, AuthorId, AuthorProvider]
     title: IValueProvider[str, BookTitle]
 
     def __init__(self, repository, tenant_provider: TenantProvider, author_provider: AuthorProvider):
         self.id = BookIdProvider(tenant_provider=tenant_provider)
         # Ссылка на Author с распределением weights (20% авторов пишут 70% книг)
         # mean=50 означает в среднем 50 книг на автора
-        self.author_id = ReferenceProvider[dict, Author, AuthorId](
+        self.author_id = ReferenceProvider[dict, AuthorId, AuthorProvider](
             distributor=distributor_factory(weights=[0.7, 0.2, 0.07, 0.03], mean=50),
             aggregate_provider=author_provider,
         )
@@ -411,7 +411,7 @@ class BookProvider(AggregateProvider[dict, Book]):
     async def do_populate(self, session, specification=None):
         # Берём tenant_id из id для согласованности
         await self.id.populate(session)
-        self.author_id.set({'tenant_id': self.id.tenant_id.get(),})
+        self.author_id.require({'tenant_id': self.id.tenant_id.state(),})
         await super().do_populate(session)
 
     @staticmethod
