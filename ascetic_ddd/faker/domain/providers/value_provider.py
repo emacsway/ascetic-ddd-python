@@ -112,7 +112,7 @@ class ValueProvider(
         try:
             # EqOperator забьет индекс BaseDistributor, его нельзя сюда пускать.
             output = await self._distributor.next(session, specification)
-            self._set_input(self._output_exporter(self._output))
+            self._set_input(self._output_exporter(output))
             self._output = output
         except ICursor as cursor:
             if self._input_generator is None:
