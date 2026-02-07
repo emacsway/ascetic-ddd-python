@@ -16,7 +16,7 @@ from ascetic_ddd.faker.domain.query.visitors import query_to_dict, dict_to_query
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
+from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.faker.domain.values.empty import empty
 
 __all__ = ('ReferenceProvider',)
@@ -55,7 +55,7 @@ class ReferenceProvider(
             self,
             distributor: IM2ODistributor,
             aggregate_provider: T_Agg_Provider | Callable[[], T_Agg_Provider],
-            specification_factory: Callable[..., ISpecification] = QueryResolvableSpecification,
+            specification_factory: Callable[..., ISpecification] = QueryLookupSpecification,
     ):
         self.aggregate_provider = aggregate_provider
         self._specification_factory = specification_factory

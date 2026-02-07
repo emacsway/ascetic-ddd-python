@@ -6,7 +6,7 @@ from ascetic_ddd.faker.domain.providers._mixins import BaseCompositeDistribution
 from ascetic_ddd.faker.domain.query.visitors import dict_to_query
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
+from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 
@@ -52,7 +52,7 @@ class CompositeValueProvider(
             distributor: IM2ODistributor[T_Input] | None = None,
             output_factory: typing.Callable[[...], T_Output] | None = None,  # T_Output of each nested Provider.
             output_exporter: typing.Callable[[T_Output], T_Input] | None = None,
-            specification_factory: typing.Callable[..., ISpecification] = QueryResolvableSpecification,
+            specification_factory: typing.Callable[..., ISpecification] = QueryLookupSpecification,
     ):
         if distributor is None:
             distributor = DummyDistributor()

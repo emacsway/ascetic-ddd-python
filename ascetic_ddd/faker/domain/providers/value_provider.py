@@ -7,7 +7,7 @@ from ascetic_ddd.faker.domain.providers.interfaces import IValueProvider
 from ascetic_ddd.faker.domain.query.operators import EqOperator
 from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
-from ascetic_ddd.faker.domain.specification import QueryResolvableSpecification
+from ascetic_ddd.faker.domain.specification import QueryLookupSpecification
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
@@ -60,7 +60,7 @@ class ValueProvider(
             input_generator: IInputGenerator[T_Input] | None = None,
             output_factory: typing.Callable[[T_Input], T_Output] | None = None,
             output_exporter: typing.Callable[[T_Output], T_Input] | None = None,
-            specification_factory: typing.Callable[..., ISpecification] = QueryResolvableSpecification,
+            specification_factory: typing.Callable[..., ISpecification] = QueryLookupSpecification,
     ):
         if distributor is None:
             distributor = DummyDistributor()
