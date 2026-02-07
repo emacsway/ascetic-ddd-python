@@ -1394,6 +1394,231 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
         self.assertFalse(await query.accept(evaluator))
 
 
+# =============================================================================
+# Tests for EvaluateWalker.evaluate_sync() - Basic (no resolver)
+# =============================================================================
+
+class EvaluateWalkerSyncBasicTestCase(IsolatedAsyncioTestCase):
+    """Basic tests for evaluate_sync() without object resolver."""
+
+    def setUp(self):
+        self.walker = EvaluateWalker()
+
+    def test_eq_matches(self):
+        """EqOperator should match equal value."""
+        self.assertTrue(self.walker.evaluate_sync(EqOperator(42), 42))
+
+    def test_eq_not_matches(self):
+        """EqOperator should not match different value."""
+        self.assertFalse(self.walker.evaluate_sync(EqOperator(42), 99))
+
+    def test_eq_none(self):
+        """EqOperator(None) should match None."""
+        self.assertTrue(self.walker.evaluate_sync(EqOperator(None), None))
+
+    def test_eq_string(self):
+        """EqOperator should match string value."""
+        self.assertTrue(self.walker.evaluate_sync(EqOperator('active'), 'active'))
+
+    def test_comparison_ne(self):
+        """$ne should match when values differ."""
+        op = ComparisonOperator('$ne', 'deleted')
+        self.assertTrue(self.walker.evaluate_sync(op, 'active'))
+        self.assertFalse(self.walker.evaluate_sync(op, 'deleted'))
+
+    def test_comparison_gt(self):
+        """$gt should match when actual > expected."""
+        op = ComparisonOperator('$gt', 10)
+        self.assertTrue(self.walker.evaluate_sync(op, 15))
+        self.assertFalse(self.walker.evaluate_sync(op, 10))
+        self.assertFalse(self.walker.evaluate_sync(op, 5))
+
+    def test_comparison_gte(self):
+        """$gte should match when actual >= expected."""
+        op = ComparisonOperator('$gte', 10)
+        self.assertTrue(self.walker.evaluate_sync(op, 15))
+        self.assertTrue(self.walker.evaluate_sync(op, 10))
+        self.assertFalse(self.walker.evaluate_sync(op, 5))
+
+    def test_comparison_lt(self):
+        """$lt should match when actual < expected."""
+        op = ComparisonOperator('$lt', 10)
+        self.assertTrue(self.walker.evaluate_sync(op, 5))
+        self.assertFalse(self.walker.evaluate_sync(op, 10))
+        self.assertFalse(self.walker.evaluate_sync(op, 15))
+
+    def test_comparison_lte(self):
+        """$lte should match when actual <= expected."""
+        op = ComparisonOperator('$lte', 10)
+        self.assertTrue(self.walker.evaluate_sync(op, 5))
+        self.assertTrue(self.walker.evaluate_sync(op, 10))
+        self.assertFalse(self.walker.evaluate_sync(op, 15))
+
+    def test_in_operator_matches(self):
+        """$in should match when value is in the list."""
+        op = InOperator(('active', 'pending'))
+        self.assertTrue(self.walker.evaluate_sync(op, 'active'))
+        self.assertTrue(self.walker.evaluate_sync(op, 'pending'))
+
+    def test_in_operator_not_matches(self):
+        """$in should not match when value is not in the list."""
+        op = InOperator(('active', 'pending'))
+        self.assertFalse(self.walker.evaluate_sync(op, 'deleted'))
+
+    def test_and_operator_all_true(self):
+        """AndOperator should match when all operands match."""
+        op = AndOperator((
+            ComparisonOperator('$gt', 5),
+            ComparisonOperator('$lt', 10),
+        ))
+        self.assertTrue(self.walker.evaluate_sync(op, 7))
+
+    def test_and_operator_one_false(self):
+        """AndOperator should not match when any operand fails."""
+        op = AndOperator((
+            ComparisonOperator('$gt', 5),
+            ComparisonOperator('$lt', 10),
+        ))
+        self.assertFalse(self.walker.evaluate_sync(op, 12))
+
+    def test_or_operator_one_true(self):
+        """OrOperator should match when any operand matches."""
+        op = OrOperator((
+            EqOperator('active'),
+            EqOperator('pending'),
+        ))
+        self.assertTrue(self.walker.evaluate_sync(op, 'pending'))
+
+    def test_or_operator_none_true(self):
+        """OrOperator should not match when no operand matches."""
+        op = OrOperator((
+            EqOperator('active'),
+            EqOperator('pending'),
+        ))
+        self.assertFalse(self.walker.evaluate_sync(op, 'deleted'))
+
+    def test_composite_matches(self):
+        """CompositeQuery should match when all fields match."""
+        query = CompositeQuery({
+            'status': EqOperator('active'),
+            'name': EqOperator('Alice'),
+        })
+        state = {'status': 'active', 'name': 'Alice', 'extra': 'ignored'}
+        self.assertTrue(self.walker.evaluate_sync(query, state))
+
+    def test_composite_not_matches(self):
+        """CompositeQuery should not match when any field fails."""
+        query = CompositeQuery({
+            'status': EqOperator('active'),
+            'name': EqOperator('Alice'),
+        })
+        state = {'status': 'inactive', 'name': 'Alice'}
+        self.assertFalse(self.walker.evaluate_sync(query, state))
+
+    def test_composite_non_dict_state(self):
+        """CompositeQuery should return False for non-dict state."""
+        query = CompositeQuery({'status': EqOperator('active')})
+        self.assertFalse(self.walker.evaluate_sync(query, 42))
+
+    def test_nested_composite(self):
+        """Nested CompositeQuery should match nested dict state."""
+        query = CompositeQuery({
+            'address': CompositeQuery({
+                'city': EqOperator('Moscow'),
+            }),
+        })
+        state = {'address': {'city': 'Moscow', 'street': 'Main'}}
+        self.assertTrue(self.walker.evaluate_sync(query, state))
+
+        state_wrong = {'address': {'city': 'London'}}
+        self.assertFalse(self.walker.evaluate_sync(query, state_wrong))
+
+    def test_composite_with_comparison(self):
+        """CompositeQuery with comparison operators."""
+        query = CompositeQuery({
+            'name': EqOperator('John'),
+            'age': AndOperator((
+                ComparisonOperator('$gte', 18),
+                ComparisonOperator('$lt', 65),
+            )),
+        })
+        state = {'name': 'John', 'age': 30}
+        self.assertTrue(self.walker.evaluate_sync(query, state))
+
+        state_young = {'name': 'John', 'age': 15}
+        self.assertFalse(self.walker.evaluate_sync(query, state_young))
+
+    def test_composite_with_or(self):
+        """CompositeQuery with $or operator."""
+        query = CompositeQuery({
+            'status': OrOperator((
+                EqOperator('active'),
+                EqOperator('pending'),
+            )),
+        })
+        self.assertTrue(self.walker.evaluate_sync(query, {'status': 'active'}))
+        self.assertTrue(self.walker.evaluate_sync(query, {'status': 'pending'}))
+        self.assertFalse(self.walker.evaluate_sync(query, {'status': 'deleted'}))
+
+    def test_composite_with_in(self):
+        """CompositeQuery with $in operator."""
+        query = CompositeQuery({
+            'status': InOperator(('active', 'pending')),
+        })
+        self.assertTrue(self.walker.evaluate_sync(query, {'status': 'active'}))
+        self.assertFalse(self.walker.evaluate_sync(query, {'status': 'deleted'}))
+
+    def test_parsed_simple_pattern(self):
+        """Parsed query should work with evaluate_sync."""
+        query = QueryParser().parse({'status': 'active'})
+        self.assertTrue(
+            self.walker.evaluate_sync(query, {'status': 'active', 'name': 'test'})
+        )
+        self.assertFalse(
+            self.walker.evaluate_sync(query, {'status': 'inactive', 'name': 'test'})
+        )
+
+    def test_rel_without_resolver_delegates_to_inner(self):
+        """RelOperator without resolver delegates to inner query."""
+        query = RelOperator(CompositeQuery({
+            'name': EqOperator('Active'),
+        }))
+        state = {'name': 'Active'}
+        self.assertTrue(self.walker.evaluate_sync(query, state))
+
+        state_wrong = {'name': 'Inactive'}
+        self.assertFalse(self.walker.evaluate_sync(query, state_wrong))
+
+    def test_partial_criteria_matches_full_state(self):
+        """Partial criteria should match state with extra fields (diamond scenario)."""
+        query = CompositeQuery({
+            'id': EqOperator('uuid-123'),
+        })
+        state = {'id': 'uuid-123', 'attr2': 'some_value'}
+        self.assertTrue(self.walker.evaluate_sync(query, state))
+
+    def test_partial_criteria_not_matches(self):
+        """Partial criteria should not match when checked field differs."""
+        query = CompositeQuery({
+            'id': EqOperator('uuid-123'),
+        })
+        state = {'id': 'uuid-456', 'attr2': 'some_value'}
+        self.assertFalse(self.walker.evaluate_sync(query, state))
+
+    def test_nested_composite_partial_criteria(self):
+        """Partial nested criteria should match (composite PK diamond scenario)."""
+        query = CompositeQuery({
+            'id': CompositeQuery({
+                'first_model_id': EqOperator('uuid-A'),
+            }),
+        })
+        state = {'id': {'id': 'local-pk', 'first_model_id': 'uuid-A'}, 'attr2': 'foo'}
+        self.assertTrue(self.walker.evaluate_sync(query, state))
+
+        state_wrong = {'id': {'id': 'local-pk', 'first_model_id': 'uuid-B'}, 'attr2': 'foo'}
+        self.assertFalse(self.walker.evaluate_sync(query, state_wrong))
+
+
 if __name__ == '__main__':
     import unittest
     unittest.main()

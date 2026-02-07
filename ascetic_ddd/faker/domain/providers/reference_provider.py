@@ -116,6 +116,13 @@ class ReferenceProvider(
         Non-$rel values are automatically wrapped into $rel with id.
         """
         new_criteria = parse_query(criteria)
+
+        # Null FK — no reference. Don't propagate to aggregate.
+        if isinstance(new_criteria, EqOperator) and new_criteria.value is None:
+            self._input = None
+            self._output = None
+            return
+
         old_criteria = self._criteria
 
         # Wrap non-$rel into $rel with id

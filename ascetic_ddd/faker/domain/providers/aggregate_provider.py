@@ -3,7 +3,11 @@ from abc import ABCMeta
 
 from ascetic_ddd.seedwork.domain.identity.interfaces import IAccessible
 from ascetic_ddd.faker.domain.providers._mixins import BaseCompositeProvider, ObservableMixin
-from ascetic_ddd.faker.domain.query.visitors import dict_to_query
+from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
+from ascetic_ddd.faker.domain.query.evaluate_visitor import EvaluateWalker
+from ascetic_ddd.faker.domain.query.operators import MergeConflict
+from ascetic_ddd.faker.domain.query.parser import parse_query
+from ascetic_ddd.faker.domain.query.visitors import dict_to_query, query_to_dict
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.providers.interfaces import IAggregateProvider
 from ascetic_ddd.seedwork.domain.session.interfaces import ISession
@@ -75,6 +79,26 @@ class AggregateProvider(
 
     def on_init(self):
         pass
+
+    def require(self, criteria: dict[str, typing.Any]) -> None:
+        new_criteria = parse_query(criteria)
+        if self._output is not empty:
+            # Already created — validate state instead of resetting output
+            state = self.state()
+            walker = EvaluateWalker()
+            if not walker.evaluate_sync(new_criteria, state):
+                raise DiamondUpdateConflict(state, query_to_dict(new_criteria), self.provider_name)
+            # State matches — merge criteria for bookkeeping
+            if self._criteria is not None:
+                try:
+                    self._criteria = self._criteria + new_criteria
+                except (TypeError, MergeConflict):
+                    pass  # Validation already confirmed compatibility
+            else:
+                self._criteria = new_criteria
+            # Don't distribute — nested providers already have their state
+            return
+        super().require(criteria)
 
     async def create(self, session: ISession) -> T_Output:
         if self._output is not empty:

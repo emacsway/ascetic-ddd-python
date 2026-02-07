@@ -96,6 +96,76 @@ class EvaluateWalker:
 
         return False
 
+    def evaluate_sync(
+            self,
+            query: IQueryOperator,
+            state: typing.Any,
+            _field_context: tuple[str, typing.Any] | None = None,
+    ) -> bool:
+        """Sync evaluation. Does not support RelOperator with resolver.
+
+        _field_context is (field_name, fk_value) — propagated through And/Or
+        so that nested RelOperator can resolve relations.
+        """
+        if isinstance(query, EqOperator):
+            return state == query.value
+
+        if isinstance(query, ComparisonOperator):
+            return self._compare(query.op, state, query.value)
+
+        if isinstance(query, InOperator):
+            return state in query.values
+
+        if isinstance(query, AndOperator):
+            for operand in query.operands:
+                if not self.evaluate_sync(operand, state, _field_context):
+                    return False
+            return True
+
+        if isinstance(query, OrOperator):
+            for operand in query.operands:
+                if self.evaluate_sync(operand, state, _field_context):
+                    return True
+            return False
+
+        if isinstance(query, CompositeQuery):
+            return self._evaluate_composite_sync(query, state)
+
+        if isinstance(query, RelOperator):
+            # RelOperator without field context — delegate to inner query
+            return self.evaluate_sync(query.query, state)
+
+        return False
+
+    def _evaluate_composite_sync(
+            self,
+            query: CompositeQuery,
+            state: typing.Any
+    ) -> bool:
+        """Evaluate composite query against dict state (sync)."""
+        if not isinstance(state, dict):
+            return False
+        for field, field_op in query.fields.items():
+            field_value = state.get(field)
+            if not self._evaluate_field_sync(field, field_op, field_value):
+                return False
+        return True
+
+    def _evaluate_field_sync(
+            self,
+            field: str,
+            field_op: IQueryOperator,
+            field_value: typing.Any
+    ) -> bool:
+        """Evaluate a single field (sync). RelOperator delegates to inner query."""
+        if isinstance(field_op, RelOperator):
+            # No async resolver — delegate to inner query with field_value as state
+            return self.evaluate_sync(field_op.query, field_value)
+
+        return self.evaluate_sync(
+            field_op, field_value, _field_context=(field, field_value)
+        )
+
     def _compare(self, op: str, actual: typing.Any, expected: typing.Any) -> bool:
         """Evaluate comparison operator."""
         if op == '$ne':
