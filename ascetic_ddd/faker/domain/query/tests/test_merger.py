@@ -61,12 +61,10 @@ class TestQueryMergerEqOperator(unittest.TestCase):
         self.assertIsNone(result.value)
 
     def test_merge_eq_eq_complex_values(self):
-        """EqOperator can contain parsed composite PK."""
+        """CompositeQuery (normalized composite PK) merges with itself."""
         inner = CompositeQuery({'tenant': EqOperator(1), 'local': EqOperator(2)})
-        left = EqOperator(inner)
-        right = EqOperator(inner)
-        result = self.merger.merge(left, right, 'test')
-        self.assertEqual(result.value, inner)
+        result = self.merger.merge(inner, inner, 'test')
+        self.assertEqual(result, inner)
 
 
 class TestQueryMergerRelOperator(unittest.TestCase):
@@ -167,13 +165,12 @@ class TestQueryMergerEqRel(unittest.TestCase):
     def test_merge_with_custom_id_attr(self):
         """Use custom id_attr for composite PKs."""
         merger = QueryMerger(id_attr='pk')
-        inner = CompositeQuery({'tenant': EqOperator(1), 'local': EqOperator(2)})
-        eq = EqOperator(inner)
+        composite_pk = CompositeQuery({'tenant': EqOperator(1), 'local': EqOperator(2)})
         rel = RelOperator({'status': EqOperator('active')})
-        result = merger.merge(eq, rel, 'test')
+        result = merger.merge(composite_pk, rel, 'test')
 
         self.assertIsInstance(result, RelOperator)
-        self.assertEqual(result.constraints['pk'].value, inner)
+        self.assertEqual(result.constraints['pk'], composite_pk)
 
 
 class TestQueryMergerCompositeQuery(unittest.TestCase):

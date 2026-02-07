@@ -16,7 +16,6 @@ from ascetic_ddd.faker.domain.query.operators import (
     RelOperator,
     CompositeQuery,
 )
-from ascetic_ddd.faker.domain.query.parser import normalize_query
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 
 __all__ = ('QueryMerger',)
@@ -62,20 +61,18 @@ class QueryMerger:
         if right is None:
             return left
 
-        # Normalize only when needed for structure compatibility
-        # Don't normalize when:
-        # - Same type (EqOperator + EqOperator, etc.) - compare as-is
-        # - EqOperator + RelOperator - EqOperator goes under $rel.id as-is
-        need_normalize = (
-            type(left) != type(right) and
-            not (isinstance(left, EqOperator) and isinstance(right, RelOperator)) and
-            not (isinstance(left, RelOperator) and isinstance(right, EqOperator))
-        )
-        if need_normalize:
-            left = normalize_query(left)
-            right = normalize_query(right)
+        self._assert_normalized(left)
+        self._assert_normalized(right)
 
         return self._do_merge(left, right, provider_name)
+
+    @staticmethod
+    def _assert_normalized(op: IQueryOperator) -> None:
+        """Raise if query tree contains unnormalized EqOperator(IQueryOperator)."""
+        if isinstance(op, EqOperator) and isinstance(op.value, IQueryOperator):
+            raise ValueError(
+                f"Unnormalized query: {op!r}. Use parse_query() instead of QueryParser().parse()."
+            )
 
     def _do_merge(
         self,
@@ -84,16 +81,6 @@ class QueryMerger:
         provider_name: str | None
     ) -> IQueryOperator:
         """Perform the actual merge."""
-        # Normalize when types differ (recursive calls)
-        # Skip normalization for EqOperator+RelOperator (handled specially)
-        if type(left) != type(right):
-            if not (
-                (isinstance(left, EqOperator) and isinstance(right, RelOperator)) or
-                (isinstance(left, RelOperator) and isinstance(right, EqOperator))
-            ):
-                left = normalize_query(left)
-                right = normalize_query(right)
-
         # EqOperator + EqOperator
         if isinstance(left, EqOperator) and isinstance(right, EqOperator):
             return self._merge_eq_eq(left, right, provider_name)
