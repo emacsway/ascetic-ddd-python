@@ -132,10 +132,12 @@ class BaseProvider(
     metaclass=abc.ABCMeta
 ):
     _query: IQueryOperator | None = None
+    _input: T_Input | Empty = empty
     _output: T_Output | Empty = empty
 
     def reset(self) -> None:
         self._query = None
+        self._input = empty
         self._output = empty
         self.notify('query', self._query)
 
@@ -166,17 +168,18 @@ class BaseProvider(
 
     def state(self) -> T_Input:
         """Return current query as dict format."""
-        return query_to_dict(self._query) if self._query is not None else {}
+        return self._input
 
     def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
         clone._query = None
+        clone._input = empty
         clone._output = empty
 
     def is_complete(self) -> bool:
         return self._output is not empty
 
     def is_transient(self) -> bool:
-        return self._query is None
+        return self._input is None
 
     async def append(self, session: ISession, value: T_Output):
         pass
@@ -263,7 +266,7 @@ class BaseCompositeProvider(
             provider.require({'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}})
         """
         new_query = parse_query(query)
-        old_input = self._query
+        old_query = self._query
         if self._query is not None:
             try:
                 self._query = self._query + new_query
@@ -272,7 +275,7 @@ class BaseCompositeProvider(
         else:
             self._query = new_query
         # Only reset output if input actually changed
-        if self._query != old_input:
+        if self._query != old_query:
             self._output = empty
         self.notify('query', self._query)
         self._distribute_query(self._query)
