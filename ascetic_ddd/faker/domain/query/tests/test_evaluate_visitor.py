@@ -1,10 +1,10 @@
-"""Tests for EvaluateVisitor."""
+"""Tests for EvaluateWalker."""
 import dataclasses
 import typing
 from unittest import IsolatedAsyncioTestCase
 
 from ascetic_ddd.faker.domain.query.evaluate_visitor import (
-    EvaluateVisitor, QueryEvaluator, IObjectResolver
+    EvaluateWalker, EvaluateVisitor, IObjectResolver
 )
 from ascetic_ddd.faker.domain.query.operators import (
     EqOperator, ComparisonOperator, InOperator, AndOperator, OrOperator,
@@ -42,14 +42,14 @@ class StubObjectResolver(IObjectResolver):
 
 
 # =============================================================================
-# Tests for EvaluateVisitor - Basic (no resolver)
+# Tests for EvaluateWalker - Basic (no resolver)
 # =============================================================================
 
-class EvaluateVisitorBasicTestCase(IsolatedAsyncioTestCase):
-    """Basic tests for EvaluateVisitor without object resolver."""
+class EvaluateWalkerBasicTestCase(IsolatedAsyncioTestCase):
+    """Basic tests for EvaluateWalker without object resolver."""
 
     def setUp(self):
-        self.visitor = EvaluateVisitor()
+        self.visitor = EvaluateWalker()
         self.session = MockSession()
 
     async def test_eq_matches(self):
@@ -261,10 +261,10 @@ class EvaluateVisitorBasicTestCase(IsolatedAsyncioTestCase):
 
 
 # =============================================================================
-# Tests for EvaluateVisitor - Nested Lookup (2 levels)
+# Tests for EvaluateWalker - Nested Lookup (2 levels)
 # =============================================================================
 
-class EvaluateVisitorNestedLookupTestCase(IsolatedAsyncioTestCase):
+class EvaluateWalkerNestedLookupTestCase(IsolatedAsyncioTestCase):
     """Tests for nested lookup with object resolver (User -> Status)."""
 
     def setUp(self):
@@ -281,7 +281,7 @@ class EvaluateVisitorNestedLookupTestCase(IsolatedAsyncioTestCase):
         self.resolver = StubObjectResolver({
             'status_id': (self.status_storage, status_resolver),
         })
-        self.visitor = EvaluateVisitor(self.resolver)
+        self.visitor = EvaluateWalker(self.resolver)
 
     async def test_nested_lookup_matches(self):
         """Nested lookup should match when foreign object satisfies criteria."""
@@ -369,10 +369,10 @@ class EvaluateVisitorNestedLookupTestCase(IsolatedAsyncioTestCase):
 
 
 # =============================================================================
-# Tests for EvaluateVisitor - Three Table Cascade
+# Tests for EvaluateWalker - Three Table Cascade
 # =============================================================================
 
-class EvaluateVisitorThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
+class EvaluateWalkerThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
     """Three-table cascade: Employee -> Company -> Country."""
 
     def setUp(self):
@@ -409,7 +409,7 @@ class EvaluateVisitorThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
         self.resolver = StubObjectResolver({
             'company_id': (self.company_storage, company_resolver),
         })
-        self.visitor = EvaluateVisitor(self.resolver)
+        self.visitor = EvaluateWalker(self.resolver)
 
     async def test_three_table_cascade_matches(self):
         """Three-level cascade should match when all levels satisfy criteria."""
@@ -554,11 +554,11 @@ class User:
     name: str
 
 
-class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
+class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
     """
     Sociable tests using real AggregateProvider and ProviderObjectResolver.
 
-    Verifies that EvaluateVisitor works correctly with the real
+    Verifies that EvaluateWalker works correctly with the real
     provider infrastructure via ProviderObjectResolver adapter.
     """
 
@@ -728,7 +728,7 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
 
         # Create ProviderObjectResolver
         self.object_resolver = ProviderObjectResolver(lambda: self.user_provider)
-        self.visitor = EvaluateVisitor(self.object_resolver)
+        self.visitor = EvaluateWalker(self.object_resolver)
         self.session = MockSession()
 
     async def asyncSetUp(self):
@@ -772,17 +772,17 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
 
 
 # =============================================================================
-# Tests for QueryEvaluator - Basic (no resolver)
+# Tests for EvaluateVisitor - Basic (no resolver)
 # =============================================================================
 
-class QueryEvaluatorBasicTestCase(IsolatedAsyncioTestCase):
-    """Basic tests for QueryEvaluator without object resolver."""
+class EvaluateVisitorBasicTestCase(IsolatedAsyncioTestCase):
+    """Basic tests for EvaluateVisitor without object resolver."""
 
     def setUp(self):
         self.session = MockSession()
 
     def _eval(self, state, query, resolver=None, _field_context=None):
-        return query.accept(QueryEvaluator(state, self.session, resolver, _field_context))
+        return query.accept(EvaluateVisitor(state, self.session, resolver, _field_context))
 
     async def test_eq_matches(self):
         self.assertTrue(await self._eval(42, EqOperator(42)))
@@ -944,11 +944,11 @@ class QueryEvaluatorBasicTestCase(IsolatedAsyncioTestCase):
 
 
 # =============================================================================
-# Tests for QueryEvaluator - Nested Lookup (2 levels)
+# Tests for EvaluateVisitor - Nested Lookup (2 levels)
 # =============================================================================
 
-class QueryEvaluatorNestedLookupTestCase(IsolatedAsyncioTestCase):
-    """Tests for QueryEvaluator nested lookup with object resolver."""
+class EvaluateVisitorNestedLookupTestCase(IsolatedAsyncioTestCase):
+    """Tests for EvaluateVisitor nested lookup with object resolver."""
 
     def setUp(self):
         self.session = MockSession()
@@ -964,7 +964,7 @@ class QueryEvaluatorNestedLookupTestCase(IsolatedAsyncioTestCase):
         })
 
     def _eval(self, state, query):
-        return query.accept(QueryEvaluator(state, self.session, self.resolver))
+        return query.accept(EvaluateVisitor(state, self.session, self.resolver))
 
     async def test_nested_lookup_matches(self):
         query = CompositeQuery({
@@ -1040,11 +1040,11 @@ class QueryEvaluatorNestedLookupTestCase(IsolatedAsyncioTestCase):
 
 
 # =============================================================================
-# Tests for QueryEvaluator - Three Table Cascade
+# Tests for EvaluateVisitor - Three Table Cascade
 # =============================================================================
 
-class QueryEvaluatorThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
-    """Three-table cascade for QueryEvaluator: Employee -> Company -> Country."""
+class EvaluateVisitorThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
+    """Three-table cascade for EvaluateVisitor: Employee -> Company -> Country."""
 
     def setUp(self):
         self.session = MockSession()
@@ -1079,7 +1079,7 @@ class QueryEvaluatorThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
         })
 
     def _eval(self, state, query):
-        return query.accept(QueryEvaluator(state, self.session, self.resolver))
+        return query.accept(EvaluateVisitor(state, self.session, self.resolver))
 
     async def test_three_table_cascade_matches(self):
         query = CompositeQuery({
@@ -1180,13 +1180,13 @@ class QueryEvaluatorThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
 
 
 # =============================================================================
-# Sociable Tests for QueryEvaluator
+# Sociable Tests for EvaluateVisitor
 # =============================================================================
 
-class QueryEvaluatorSociableTestCase(IsolatedAsyncioTestCase):
+class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
     """
     Sociable tests using real AggregateProvider and ProviderObjectResolver
-    for QueryEvaluator.
+    for EvaluateVisitor.
     """
 
     def setUp(self):
@@ -1370,11 +1370,11 @@ class QueryEvaluatorSociableTestCase(IsolatedAsyncioTestCase):
         })
 
         state_alice = self.user_provider._output_exporter(self.user_alice)
-        evaluator = QueryEvaluator(state_alice, self.session, self.object_resolver)
+        evaluator = EvaluateVisitor(state_alice, self.session, self.object_resolver)
         self.assertTrue(await query.accept(evaluator))
 
         state_bob = self.user_provider._output_exporter(self.user_bob)
-        evaluator = QueryEvaluator(state_bob, self.session, self.object_resolver)
+        evaluator = EvaluateVisitor(state_bob, self.session, self.object_resolver)
         self.assertFalse(await query.accept(evaluator))
 
     async def test_combined_pattern_with_real_providers(self):
@@ -1386,11 +1386,11 @@ class QueryEvaluatorSociableTestCase(IsolatedAsyncioTestCase):
         })
 
         state_alice = self.user_provider._output_exporter(self.user_alice)
-        evaluator = QueryEvaluator(state_alice, self.session, self.object_resolver)
+        evaluator = EvaluateVisitor(state_alice, self.session, self.object_resolver)
         self.assertTrue(await query.accept(evaluator))
 
         state_bob = self.user_provider._output_exporter(self.user_bob)
-        evaluator = QueryEvaluator(state_bob, self.session, self.object_resolver)
+        evaluator = EvaluateVisitor(state_bob, self.session, self.object_resolver)
         self.assertFalse(await query.accept(evaluator))
 
 

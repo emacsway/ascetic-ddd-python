@@ -1,5 +1,5 @@
 """
-EvaluateVisitor for checking if an object matches query criteria.
+EvaluateWalker for checking if an object matches query criteria.
 
 Decoupled from providers/repositories via IObjectResolver interface,
 similar to IRelationResolver in relation_resolver.py.
@@ -12,7 +12,7 @@ from ascetic_ddd.faker.domain.query.operators import (
     AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 
-__all__ = ('IObjectResolver', 'EvaluateVisitor', 'QueryEvaluator')
+__all__ = ('IObjectResolver', 'EvaluateWalker', 'EvaluateVisitor')
 
 
 class IObjectResolver(metaclass=ABCMeta):
@@ -34,7 +34,7 @@ class IObjectResolver(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-class EvaluateVisitor:
+class EvaluateWalker:
     """
     Evaluates whether an object state matches query criteria.
 
@@ -89,7 +89,7 @@ class EvaluateVisitor:
                 )
                 if foreign_state is None:
                     return False
-                nested = EvaluateVisitor(nested_resolver)
+                nested = EvaluateWalker(nested_resolver)
                 return await nested.evaluate(session, query.query, foreign_state)
             # RelOperator without field context — delegate to inner query
             return await self.evaluate(session, query.query, state)
@@ -140,7 +140,7 @@ class EvaluateVisitor:
             )
             if foreign_state is None:
                 return False
-            nested = EvaluateVisitor(nested_resolver)
+            nested = EvaluateWalker(nested_resolver)
             return await nested.evaluate(session, field_op.query, foreign_state)
 
         # Regular operator — pass field context for nested RelOperator inside Or/And
@@ -152,7 +152,7 @@ class EvaluateVisitor:
 T = typing.TypeVar('T')
 
 
-class QueryEvaluator(IQueryVisitor[typing.Awaitable[bool]]):
+class EvaluateVisitor(IQueryVisitor[typing.Awaitable[bool]]):
     """
     Visitor-based evaluator: checks if an object state matches query criteria.
 
@@ -160,7 +160,7 @@ class QueryEvaluator(IQueryVisitor[typing.Awaitable[bool]]):
     State is carried in the instance; recursion creates new instances.
 
     Usage:
-        evaluator = QueryEvaluator(state, session, object_resolver)
+        evaluator = EvaluateVisitor(state, session, object_resolver)
         result = await query.accept(evaluator)
     """
 
@@ -183,8 +183,8 @@ class QueryEvaluator(IQueryVisitor[typing.Awaitable[bool]]):
             state: typing.Any,
             object_resolver: IObjectResolver | None = None,
             _field_context: tuple[str, typing.Any] | None = None,
-    ) -> 'QueryEvaluator':
-        return QueryEvaluator(
+    ) -> 'EvaluateVisitor':
+        return EvaluateVisitor(
             state,
             self._session,
             object_resolver if object_resolver is not None else self._object_resolver,

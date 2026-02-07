@@ -1,5 +1,5 @@
 """
-Provider-based object resolver for EvaluateVisitor.
+Provider-based object resolver for EvaluateWalker.
 
 Adapts AggregateProvider to IObjectResolver interface,
 similar to ProviderRelationResolver in relation_resolver.py.

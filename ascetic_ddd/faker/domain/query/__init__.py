@@ -36,6 +36,7 @@ from ascetic_ddd.faker.domain.query.visitors import (
 )
 from ascetic_ddd.faker.domain.query.evaluate_visitor import (
     IObjectResolver,
+    EvaluateWalker,
     EvaluateVisitor,
 )
 
@@ -53,5 +54,6 @@ __all__ = (
     'query_to_dict',
     'query_to_plain_value',
     'IObjectResolver',
+    'EvaluateWalker',
     'EvaluateVisitor',
 )
