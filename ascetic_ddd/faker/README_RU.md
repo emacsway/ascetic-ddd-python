@@ -408,11 +408,11 @@ class BookProvider(AggregateProvider[dict, Book]):
             output_exporter=self._export,
         )
 
-    async def do_populate(self, session, specification=None):
+    async def on_populate(self, session, specification=None):
         # Берём tenant_id из id для согласованности
         await self.id.populate(session)
         self.author_id.require({'tenant_id': self.id.tenant_id.state(),})
-        await super().do_populate(session)
+        await super().on_populate(session)
 
     @staticmethod
     def _export(agg: Book) -> dict:

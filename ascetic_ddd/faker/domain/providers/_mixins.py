@@ -134,6 +134,8 @@ class CloneableMixin(ICloneable):
         c = copy.copy(self)
         self.on_clone(c, shunt)
         self._do_clone(c, shunt)
+        c.on_init()
+        c._do_init()
         shunt[self] = c
         return c
 
@@ -203,6 +205,7 @@ class BaseProvider(
         clone._criteria = None
         clone._input = empty
         clone._output = empty
+        super()._do_clone(clone, shunt)
 
     def is_complete(self) -> bool:
         return self._output is not empty
@@ -294,7 +297,7 @@ class BaseCompositeProvider(
         clone._output = empty
         for attr, provider in self.providers.items():
             setattr(clone, attr, provider.clone(shunt))
-        clone.on_init()
+        super()._do_clone(clone, shunt)
 
     def reset(self) -> None:
         self._criteria = None

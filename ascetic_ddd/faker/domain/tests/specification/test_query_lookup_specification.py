@@ -199,7 +199,7 @@ class MockReferenceProvider(IReferenceProvider):
     def clone(self, shunt=None):
         return MockReferenceProvider(self._repository, self._aggregate_provider)
 
-    def do_clone(self, clone, shunt):
+    def on_clone(self, clone, shunt):
         pass
 
     async def setup(self, session):

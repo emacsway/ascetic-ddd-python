@@ -271,6 +271,7 @@ class DependentProvider(
         clone._value_selector = None
         clone._dependency_id = None
         clone._aggregate_providers_accessor = self._aggregate_providers_accessor.clone(shunt)
+        super()._do_clone(clone, shunt)
 
     def reset(self) -> None:
         self._criteria = None
