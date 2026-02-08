@@ -332,7 +332,7 @@ class BaseCompositeProvider(
         """
         Distribute query to nested providers.
 
-        Вложенная композиция поддерживается автоматически.
+        Nested composition is supported automatically.
         """
         if isinstance(query, CompositeQuery):
             for attr, field_query in query.fields.items():

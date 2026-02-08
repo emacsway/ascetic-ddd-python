@@ -70,7 +70,7 @@ class ReferenceProvider(
         if self.is_complete():
             return
 
-        # Создаём specification с aggregate_provider_accessor для lazy resolve_nested и subqueries
+        # Create specification with aggregate_provider_accessor for lazy resolve_nested and subqueries
         if self._criteria is not None:
             specification = self._specification_factory(
                 self._criteria,
@@ -203,15 +203,15 @@ class SubscriptionAggregateProviderAccessor(IAggregateProviderAccessor[T_Agg_Pro
         aggregate_provider = self._delegate()
         if not self._initialized:
 
-            # Привязываем repository как external_source для distributor
+            # Bind repository as external_source for distributor
             if hasattr(aggregate_provider, '_repository'):
                 self._reference_provider._distributor.bind_external_source(
                     aggregate_provider._repository
                 )
 
             async def _observer(aspect, session, agg):
-                # Нужна для in-memory distributor and repository.
-                # Для Pg distributor с external_source — это no-op (append проверяет _external_source).
+                # Needed for in-memory distributor and repository.
+                # For Pg distributor with external_source — this is a no-op (append checks _external_source).
                 await self._reference_provider.append(session, agg)
 
             aggregate_provider.attach(
@@ -224,7 +224,7 @@ class SubscriptionAggregateProviderAccessor(IAggregateProviderAccessor[T_Agg_Pro
 
     def clone(self, shunt: ICloningShunt | None = None):
         # We do not it for recursion tree
-        # Подписка между distributors однократная, т.к. они не клонируются.
+        # Subscription between distributors is one-time, since they are not cloned.
         return self._delegate.clone(shunt)
 
     def reset(self):

@@ -96,27 +96,12 @@ class IProvidable(metaclass=ABCMeta):
 
 
 class IInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta):
-    """
-    Структура EntityProvider не совпадает со структурой агрегата,
-    если агрегат приводится в требуемое состояние многоходово
-    (см. агрегат Specialist at grade project).
-    Это подсказка на вопрос о том, должен ли Distributor хранить сырые значения провайдера или готовый агрегат.
-
-    В method self.require(...) технически невозможно установить в качестве значения итоговый тип,
-    т.к. для валидного его состояния банально может не хватать данных (Auto Increment PK, FK).
-    """
     @abstractmethod
     async def create(self, session: ISession) -> T_Output:
         raise NotImplementedError
 
     @abstractmethod
     def require(self, criteria: dict[str, typing.Any]) -> None:
-        """
-        Для CompositeProvider не используем **kwargs,
-        т.к. иначе придется инспектировать сигнатуру каждого вложенного вызываемого сеттера
-        (композиция может быть вложенной).
-        Ну и в принципе здесь можно принимать Specification вторым аргументом.
-        """
         raise NotImplementedError
 
     @abstractmethod
@@ -211,14 +196,6 @@ class IDependentProvider(
     IDependentInputOutput[T_Input, T_Output], IProvidable, IObservable, INameable, ICloneable,
     ISetupable, typing.Generic[T_Input, T_Output, T_Agg_Provider], metaclass=ABCMeta
 ):
-    """
-    Я думал над тем, чтоб разбить providers на m2o и o2m, но это было бы неуместно потому,
-    что, например, для генерации значения зарплаты мы можем использовать IO2MDistributor,
-    но это не o2m, это, по сути, m2o.
-
-    Вместо m2o и o2m можно было бы использовать термины belongs и has,
-    но они неуместны по отношению к простым значениями. Не может User принадлежать status.
-    """
 
     @property
     @abstractmethod

@@ -15,8 +15,8 @@ T_Input = typing.TypeVar("T_Input")
 
 class IInputGenerator(typing.Protocol[T_Input]):
     """
-    Генератор значений.
-    Принимает session, query (текущий запрос провайдера) и опциональный position (номер в последовательности).
+    Value generator.
+    Accepts session, query (the current provider query) and an optional position (sequence number).
     """
 
     async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int | None = None) -> T_Input:

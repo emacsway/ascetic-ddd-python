@@ -6,7 +6,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from ascetic_ddd.session.pg_session import PgSessionPool
 
-# Загружаем переменные окружения из config/.env
+# Load environment variables from config/.env
 _config_env = Path(__file__).parents[4] / 'config' / '.env'
 load_dotenv(_config_env)
 

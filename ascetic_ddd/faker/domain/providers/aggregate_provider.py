@@ -134,8 +134,8 @@ class AggregateProvider(
 
         await self.id_provider.populate(session)
         if self.id_provider.is_complete() and not self.id_provider.is_transient():
-            # id_ здесь может быть еще неизвестен, т.к. агрегат не создан.
-            # А может быть и известен, если его id_ поступил из ReferenceProvider.
+            # id_ may still be unknown here, since the aggregate has not been created yet.
+            # But it may also be known, if its id_ came from a ReferenceProvider.
             # Skip repository lookup if id contains empty fields (auto-increment PKs)
             id_ = await self.id_provider.create(session)
             output = await self._repository.get(session, id_)

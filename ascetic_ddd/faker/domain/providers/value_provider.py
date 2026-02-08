@@ -110,7 +110,7 @@ class ValueProvider(
         specification = None  # FIXE: check how it works
 
         try:
-            # EqOperator забьет индекс BaseDistributor, его нельзя сюда пускать.
+            # EqOperator would pollute the BaseDistributor index, must not pass it here.
             output = await self._distributor.next(session, specification)
             self._set_input(self._output_exporter(output))
             self._output = output

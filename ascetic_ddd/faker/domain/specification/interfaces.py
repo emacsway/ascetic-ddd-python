@@ -51,7 +51,7 @@ class ISpecification(ISpecificationVisitable[T], typing.Protocol[T]):
 
 
 class IResolvableSpecification(ISpecification[T], typing.Protocol[T]):
-    """Интерфейс для specification, требующего pre-resolve."""
+    """Interface for a specification that requires pre-resolve."""
 
     async def resolve_nested(self, session: ISession) -> None:
         ...

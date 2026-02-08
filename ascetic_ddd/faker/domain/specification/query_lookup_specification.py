@@ -17,28 +17,28 @@ T = typing.TypeVar("T", covariant=True)
 
 class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
     """
-    Specification с nested lookup в is_satisfied_by().
+    Specification with nested lookup in is_satisfied_by().
 
-    В отличие от QueryResolvableSpecification, не резолвит вложенные constraints
-    заранее, а делает lookup при каждой проверке (с кешированием).
+    Unlike QueryResolvableSpecification, does not resolve nested constraints
+    upfront, but performs a lookup on each check (with caching).
 
-    Преимущества:
-    - Один индекс на логический паттерн (эффективное индексирование)
-    - Новые объекты автоматически учитываются (lookup в момент проверки)
+    Advantages:
+    - One index per logical pattern (efficient indexing)
+    - New objects are automatically taken into account (lookup at check time)
 
-    Недостатки:
-    - Распределение nested объектов не учитывается
-    - Требует доступ к providers при is_satisfied_by()
+    Disadvantages:
+    - Distribution of nested objects is not considered
+    - Requires access to providers during is_satisfied_by()
 
-    Пример:
+    Example:
         query = QueryParser().parse({'fk_id': {'$rel': {'status': {'$eq': 'active'}}}})
         spec = QueryLookupSpecification(
             query,
             lambda obj: {'fk_id': obj.fk_id},
             aggregate_provider_accessor=lambda: aggregate_provider
         )
-        # Индекс один для всех объектов с active fk
-        # is_satisfied_by() проверяет fk.status == 'active' через lookup
+        # One index for all objects with active fk
+        # is_satisfied_by() checks fk.status == 'active' via lookup
     """
 
     _query: IQueryOperator
@@ -177,5 +177,5 @@ class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
         )
 
     def clear_cache(self) -> None:
-        """Очищает кеш nested lookup'ов."""
+        """Clears the nested lookup cache."""
         self._nested_cache.clear()

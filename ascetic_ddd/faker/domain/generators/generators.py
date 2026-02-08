@@ -54,7 +54,9 @@ class IterableGenerator(typing.Generic[T]):
 
 class HypothesisStrategyGenerator(typing.Generic[T]):
     """
-    Он нужен? self._strategy.example() -- обычная функция. Есть же CallableGenerator.
+    Do we need it?
+    self._strategy.example() is a regular function.
+    CallableGenerator can be used instead.
     """
 
     def __init__(self, strategy: strategies.SearchStrategy[T]):
@@ -66,8 +68,8 @@ class HypothesisStrategyGenerator(typing.Generic[T]):
 
 class CallableGenerator(typing.Generic[T]):
     """
-    Обёртка для callable с любым числом параметров (0, 1 или 2).
-    Автоматически определяет сигнатуру и async.
+    Wrapper for a callable with any number of parameters (0, 1, or 2).
+    Automatically detects signature and async.
     """
 
     def __init__(self, callable_: typing.Callable):

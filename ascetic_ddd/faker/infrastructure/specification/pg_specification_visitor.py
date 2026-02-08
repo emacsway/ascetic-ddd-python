@@ -53,14 +53,14 @@ class PgSpecificationVisitor(ISpecificationVisitor):
         if not object_pattern:
             return
 
-        # object_pattern может быть не dict — используем простой @>
-        # (скалярное значение или композитный объект без metadata о провайдерах)
+        # object_pattern may not be a dict — use simple @> containment
+        # (scalar value or composite object without provider metadata)
         if not isinstance(object_pattern, dict):
             self._sql += "%s @> %%s" % self._target_value_expr
             self._params += (self._encode(object_pattern),)
             return
 
-        # Разделяем на простые и вложенные constraints
+        # Separate into simple and nested constraints
         simple_constraints = {}
         nested_constraints = {}
 
@@ -72,14 +72,14 @@ class PgSpecificationVisitor(ISpecificationVisitor):
 
         conditions = []
 
-        # Простые constraints: value @> '{"status": "active"}'
+        # Simple constraints: value @> '{"status": "active"}'
         if simple_constraints:
             conditions.append("%s @> %%s" % self._target_value_expr)
             self._params += (self._encode(simple_constraints),)
 
-        # Вложенные constraints (dict) — смотрим на тип провайдера:
-        # - IReferenceProvider → FK на другой агрегат → subquery
-        # - ICompositeValueProvider или другой → композитный Value Object / Entity → простой @>
+        # Nested constraints (dict) — check the provider type:
+        # - IReferenceProvider -> FK to another aggregate -> subquery
+        # - ICompositeValueProvider or other -> composite Value Object / Entity -> simple @>
         if nested_constraints and aggregate_provider_accessor is not None:
             from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
 
@@ -89,12 +89,12 @@ class PgSpecificationVisitor(ISpecificationVisitor):
             for key, nested_pattern in nested_constraints.items():
                 nested_provider = providers.get(key)
                 if isinstance(nested_provider, IReferenceProvider):
-                    # FK на другой агрегат — получаем таблицу и строим subquery
+                    # FK to another aggregate — get the table and build a subquery
                     related_agg_provider = nested_provider.aggregate_provider
                     if hasattr(related_agg_provider, '_repository'):
                         related_table = related_agg_provider._repository.table
 
-                        # Рекурсивно строим subquery для вложенного pattern
+                        # Recursively build a subquery for the nested pattern
                         subquery_sql, subquery_params = self._build_subquery(
                             key,
                             related_table,
@@ -104,11 +104,11 @@ class PgSpecificationVisitor(ISpecificationVisitor):
                         conditions.append(subquery_sql)
                         self._params += subquery_params
                 else:
-                    # Композитный Value Object / Entity — используем простой @>
+                    # Composite Value Object / Entity — use simple @>
                     conditions.append("%s @> %%s" % self._target_value_expr)
                     self._params += (self._encode({key: nested_pattern}),)
         elif nested_constraints:
-            # Нет aggregate_provider_accessor — fallback на простой @>
+            # No aggregate_provider_accessor — fallback to simple @>
             conditions.append("%s @> %%s" % self._target_value_expr)
             self._params += (self._encode(nested_constraints),)
 
@@ -123,22 +123,22 @@ class PgSpecificationVisitor(ISpecificationVisitor):
             related_aggregate_provider_accessor: typing.Callable[[], typing.Any]
     ) -> tuple[str, tuple]:
         """
-        Строит EXISTS subquery для вложенного constraint.
+        Builds an EXISTS subquery for a nested constraint.
 
-        Использует EXISTS вместо IN для лучшей работы с индексами:
-        - rt.value @> '{"status": "active"}' — использует GIN index
-        - rt.value_id = main.value->'fk_id' — использует B-tree index (UNIQUE constraint)
+        Uses EXISTS instead of IN for better index utilization:
+        - rt.value @> '{"status": "active"}' — uses GIN index
+        - rt.value_id = main.value->'fk_id' — uses B-tree index (UNIQUE constraint)
 
         Args:
-            fk_key: имя FK атрибута (например, 'fk_id')
-            related_table: таблица связанного агрегата
-            nested_pattern: вложенный pattern для фильтрации
-            related_aggregate_provider_accessor: accessor для связанного AggregateProvider
+            fk_key: FK attribute name (e.g., 'fk_id')
+            related_table: table of the related aggregate
+            nested_pattern: nested pattern for filtering
+            related_aggregate_provider_accessor: accessor for the related AggregateProvider
 
         Returns:
-            (sql, params) — SQL условие и параметры
+            (sql, params) — SQL condition and parameters
         """
-        # Рекурсивно обрабатываем вложенный pattern
+        # Recursively process the nested pattern
         nested_visitor = PgSpecificationVisitor(target_value_expr="rt.value")
         nested_visitor._visit_object_pattern(
             nested_pattern,
@@ -147,7 +147,7 @@ class PgSpecificationVisitor(ISpecificationVisitor):
 
         if nested_visitor.sql:
             # EXISTS (SELECT 1 FROM related_table rt WHERE rt.value @> ... AND rt.value_id = main.value->'fk_id')
-            # fk_key безопасен — это имя атрибута из кода провайдера
+            # fk_key is safe — it is an attribute name from the provider code
             sql = "EXISTS (SELECT 1 FROM %s rt WHERE %s AND rt.value_id = %s->'%s')" % (
                 related_table,
                 nested_visitor.sql,
