@@ -45,6 +45,10 @@ label.md-nav__title {
     }
 }
 
+[data-md-color-scheme=slate][data-md-color-primary=indigo] {
+    --md-typeset-a-color: #e07070;
+}
+
 [data-md-color-accent=light-blue] {
     --md-accent-fg-color: #b33030;
     --md-accent-fg-color--transparent: rgba(152, 0, 0, 0.1);
