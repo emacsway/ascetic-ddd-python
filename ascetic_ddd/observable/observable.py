@@ -12,6 +12,7 @@ class Observable(IObservable):
 
     def __init__(self):
         self._observers = collections.defaultdict(collections.OrderedDict)
+        super().__init__()
 
     def attach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None) -> IDisposable:
         id_ = id_ or id(observer)

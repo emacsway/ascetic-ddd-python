@@ -64,10 +64,6 @@ class ICloneable(metaclass=ABCMeta):
         # For older python: def empty(self: T_Cloneable, shunt: IShunt | None = None) -> T_Cloneable:
         raise NotImplementedError
 
-    @abstractmethod
-    def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
-        raise NotImplementedError
-
 
 class ISetupable(metaclass=ABCMeta):
 
@@ -163,9 +159,6 @@ class ICompositeValueProvider(
 class IEntityProvider(
     ICompositeValueProvider[T_Input, T_Output], typing.Generic[T_Input, T_Output], metaclass=ABCMeta
 ):
-    @abstractmethod
-    def on_init(self):
-        raise NotImplementedError
 
     @property
     @abstractmethod

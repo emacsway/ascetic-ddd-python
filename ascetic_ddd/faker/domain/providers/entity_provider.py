@@ -41,10 +41,6 @@ class EntityProvider(
             self._output_exporter = output_exporter
 
         super().__init__(output_factory=output_factory)
-        self.on_init()
-
-    def on_init(self):
-        pass
 
     async def create(self, session: ISession) -> T_Output:
         if self._output is empty:

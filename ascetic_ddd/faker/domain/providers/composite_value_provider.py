@@ -67,10 +67,6 @@ class CompositeValueProvider(
 
         self._specification_factory = specification_factory
         super().__init__(distributor=distributor, output_factory=output_factory)
-        self.on_init()
-
-    def on_init(self):
-        pass
 
     async def create(self, session: ISession) -> T_Output:
         if self._output is empty:

@@ -75,10 +75,6 @@ class AggregateProvider(
             self._output_exporter = output_exporter
 
         super().__init__(output_factory=output_factory)
-        self.on_init()
-
-    def on_init(self):
-        pass
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         new_criteria = parse_query(criteria)
