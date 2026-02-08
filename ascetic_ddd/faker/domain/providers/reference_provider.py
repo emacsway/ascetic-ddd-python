@@ -171,8 +171,8 @@ class ReferenceProvider(
             self, aggregate_provider_accessor
         )
 
-    def do_clone(self, clone: typing.Self, shunt: ICloningShunt | None = None):
-        super().do_clone(clone, shunt)
+    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt | None = None):
+        super()._do_clone(clone, shunt)
         clone._aggregate_provider_accessor = self._aggregate_provider_accessor.clone(shunt)
 
     def reset(self) -> None:

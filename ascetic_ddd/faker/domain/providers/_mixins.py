@@ -115,12 +115,12 @@ class CloneableMixin(ICloneable):
         self._do_init()
 
     def on_init(self):
-        """A user defined template method."""
+        """User defined hook method."""
         pass
 
     def _do_init(self):
         """
-        A library purpose template method.
+        Library purpose template method.
 
         Do not force the user to call the super().on_init().
         """
@@ -132,11 +132,21 @@ class CloneableMixin(ICloneable):
         if self in shunt:
             return shunt[self]
         c = copy.copy(self)
-        self.do_clone(c, shunt)
+        self.on_clone(c, shunt)
+        self._do_clone(c, shunt)
         shunt[self] = c
         return c
 
-    def do_clone(self, clone: typing.Self, shunt: ICloningShunt):
+    def on_clone(self, clone: typing.Self, shunt: ICloningShunt):
+        """User defined hook method."""
+        pass
+
+    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
+        """
+        Library purpose template method.
+
+        Do not force the user to call the super().on_clone().
+        """
         pass
 
 
@@ -189,7 +199,7 @@ class BaseProvider(
         """Return current query as dict format."""
         return self._input
 
-    def do_clone(self, clone: typing.Self, shunt: ICloningShunt):
+    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         clone._criteria = None
         clone._input = empty
         clone._output = empty
@@ -279,7 +289,7 @@ class BaseCompositeProvider(
     def is_transient(self) -> bool:
         return any(provider.is_transient() for provider in self.providers.values())
 
-    def do_clone(self, clone: typing.Self, shunt: ICloningShunt):
+    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         clone._criteria = None
         clone._output = empty
         for attr, provider in self.providers.items():

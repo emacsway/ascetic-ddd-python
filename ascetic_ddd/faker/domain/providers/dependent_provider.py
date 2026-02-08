@@ -263,7 +263,7 @@ class DependentProvider(
             accessor = LazyAggregateProvidersAccessor[T_Agg_Provider](aggregate_provider)
         self._aggregate_providers_accessor = accessor
 
-    def do_clone(self, clone: typing.Self, shunt: ICloningShunt | None = None):
+    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt | None = None):
         clone._criteria = None
         clone._outputs = empty
         clone._count = None
