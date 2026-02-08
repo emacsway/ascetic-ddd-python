@@ -84,9 +84,13 @@ class ReferenceProvider(
             agg = await self._distributor.next(session, specification)
             if agg is not None:
                 agg_state = self.aggregate_provider._output_exporter(agg)
-                self.aggregate_provider.require(dict_to_query(agg_state))
+                # self.aggregate_provider.require(dict_to_query(agg_state))
+                id_ = agg_state[self.aggregate_provider._id_attr]
+                self.aggregate_provider.id_provider.require({'$eq': id_})
                 await self.aggregate_provider.populate(session)
-                self._set_input(self.aggregate_provider.id_provider.state())
+                agg = await self.aggregate_provider.create(session)
+                # self._set_input(self.aggregate_provider.id_provider.state())
+                self._set_input(id_)
                 self._output = await self.aggregate_provider.id_provider.create(session)
             else:
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
