@@ -28,6 +28,7 @@ extensions = [
     'sphinx_autodoc_typehints',
     'sphinx_copybutton',
     'myst_parser',
+    'sphinxcontrib.mermaid',
 ]
 
 templates_path = ['_templates']
