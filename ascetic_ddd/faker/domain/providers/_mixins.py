@@ -112,13 +112,13 @@ class CloneableMixin(ICloneable):
     def __init__(self):
         super().__init__()
         self.on_init()
-        self._on_init()
+        self._do_init()
 
     def on_init(self):
         """A user defined template method."""
         pass
 
-    def _on_init(self):
+    def _do_init(self):
         """
         A library purpose template method.
 
