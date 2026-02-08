@@ -38,6 +38,13 @@ label.md-nav__title {
     --md-primary-fg-color--dark: #700000;
 }
 
+@media screen and (max-width: 76.2344em) {
+    .md-nav--primary .md-nav__title[for="__drawer"] {
+        font-weight: normal;
+        text-shadow: 1px 1px 1px #333333;
+    }
+}
+
 [data-md-color-accent=light-blue] {
     --md-accent-fg-color: #b33030;
     --md-accent-fg-color--transparent: rgba(152, 0, 0, 0.1);
