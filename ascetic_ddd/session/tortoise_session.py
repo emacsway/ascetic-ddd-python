@@ -40,12 +40,12 @@ class TortoiseSessionPool(Observable, ISessionPool):
     @asynccontextmanager
     async def session(self) -> typing.AsyncIterator[ISession]:
         """
-        Приходится открывать сессию уже здесь. Технически можно захватить коннект через acquire_connection(),
-        но BaseDBAsyncClient не умеет работать с захваченным коннектом, и захватит его повторно.
-        Это спровоцирует двукратное использование коннектов.
-        Поэтому, или нужно в методе TortoiseSession.connection() raise NotImplementedError,
-        или запускать транзакцию уже на создании сессии.
-        Второй вариант полностью обратно совместим.
+        We have to open the session already here. Technically, the connection could be acquired via acquire_connection(),
+        but BaseDBAsyncClient cannot work with an already acquired connection and will acquire it again.
+        This would cause connections to be used twice.
+        Therefore, either TortoiseSession.connection() should raise NotImplementedError,
+        or the transaction should be started at session creation time.
+        The second option is fully backward compatible.
         """
         async with in_transaction(self._connection_name) as client:
             session = self._make_session(client)
