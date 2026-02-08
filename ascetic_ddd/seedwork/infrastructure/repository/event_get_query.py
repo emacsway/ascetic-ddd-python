@@ -40,7 +40,7 @@ class EventGetQuery(IEventGetQuery, metaclass=ABCMeta):
     reconstitutors = Reconstitutors()
 
     """
-    В запросе не нужны tenant_id, stream_type, stream_id, т.к. они уже известны и являются критериями выборки.
+    The query does not need tenant_id, stream_type, stream_id, since they are already known and serve as selection criteria.
     """
     _sql = """
         SELECT

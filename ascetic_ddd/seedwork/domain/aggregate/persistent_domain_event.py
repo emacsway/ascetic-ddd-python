@@ -15,36 +15,37 @@ class PersistentDomainEvent(DomainEvent):
     event_version: int = 1
     event_meta: EventMeta | None = None
     aggregate_version: int = 0
-    # occurred_at: datetime.datetime = None  # для партиционирования?
-    # Откуда это значение известно на уровне домена? Пусть останется в Meta.
+    # occurred_at: datetime.datetime = None  # for partitioning?
+    # Where would this value be known at the domain level? Let it remain in Meta.
 
     @property
     def event_type(self):
         return type(self).__name__
 
     def export(self, exporter: "IPersistentDomainEventExporter") -> None:
-        # Можно здесь использовать и рефлексию.
-        # Но я применил здесь классический подход по трем причинам:
+        # Reflection could also be used here.
+        # But I chose the classical approach here for three reasons:
         #
         # 1. "programming in a language vs. programming into a language" -- Steve McConnell, Code Complete 2nd ed.
-        # Будет лучше придерживаться практик независимых от конкретного ЯП - это позволит
-        # легче переносить код на более производительный статически типизируемый ЯП.
+        # It is better to follow practices independent of a specific programming language -- this will make it
+        # easier to port the code to a more performant statically typed language.
         #
-        # 2. Рекомендация Greg Young:
-        # 💬 This table represents the actual Event Log. There will be one entry per event in this table.
+        # 2. Greg Young's recommendation:
+        # This table represents the actual Event Log. There will be one entry per event in this table.
         # The event itself is stored in the [Data] column.
         # The event is stored using some form of serialization, for the rest of this discussion the mechanism
         # will assumed to be built in serialization although the use of the memento pattern can be highly advantageous.
         # -- "`CQRS Documents by Greg Young <https://cqrs.files.wordpress.com/2010/11/cqrs_documents.pdf>`__"
         #
-        # 3. Это не так страшно, т.к. ввод символов с клавиатуры не оказывает существенного влияния на темпы разработки,
-        # поскольку занимает не более 10% от времени конструирования кода.
-        # При этом вероятность возникновения ошибки тоже минимальна, т.к. легко отлавливается статическим анализатором кода.
+        # 3. This is not that bad, since keyboard typing does not significantly affect the development velocity,
+        # as it takes no more than 10% of the code construction time.
+        # At the same time, the probability of an error is also minimal,
+        # since it is easily caught by a static code analyzer.
         #
-        # В перспективе весь код будет генерироваться по EventStorming диаграммам и будет применяться code generation,
-        # см. главу "Metadata Mapping" книги "Patterns of Enterprise Application Architecture" by Martin Fowler
+        # In the future, all code will be generated from EventStorming diagrams and code generation will be used,
+        # see the "Metadata Mapping" chapter of "Patterns of Enterprise Application Architecture" by Martin Fowler
         #
-        # См. также:
+        # See also:
         # https://dckms.github.io/system-architecture/emacsway/it/ddd/grade/domain/shotgun-surgery.html
 
         exporter.set_event_type(self.event_type)

@@ -3,7 +3,7 @@ from enum import Enum
 
 
 class Currency(str, Enum):
-    """Валюта"""
+    """Currency"""
 
     USD = "USD"
     EUR = "EUR"
@@ -11,7 +11,7 @@ class Currency(str, Enum):
     GBP = "GBP"
 
     def to_symbol(self) -> str:
-        """Получить символ валюты"""
+        """Get the currency symbol"""
         mapping = {
             Currency.USD: "$",
             Currency.EUR: "€",
