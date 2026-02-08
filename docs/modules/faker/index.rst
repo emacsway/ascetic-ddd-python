@@ -9,7 +9,7 @@ relationships between :term:`Aggregate` instances.
 Overview
 --------
 
-.. include:: ../../ascetic_ddd/faker/README_RU.md
+.. include:: ../../../ascetic_ddd/faker/README_RU.md
    :parser: myst_parser.sphinx_
 
 Key Concepts
