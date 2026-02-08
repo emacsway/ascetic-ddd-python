@@ -37,3 +37,8 @@ label.md-nav__title {
     --md-primary-fg-color--light: #b33030;
     --md-primary-fg-color--dark: #700000;
 }
+
+[data-md-color-accent=light-blue] {
+    --md-accent-fg-color: #b33030;
+    --md-accent-fg-color--transparent: rgba(152, 0, 0, 0.1);
+}
