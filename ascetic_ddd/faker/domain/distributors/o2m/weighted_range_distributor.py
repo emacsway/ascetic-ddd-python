@@ -8,28 +8,28 @@ __all__ = ('WeightedRangeDistributor',)
 
 class WeightedRangeDistributor(IO2MDistributor):
     """
-    O2M дистрибьютор для выбора целого числа из ограниченного диапазона.
+    O2M distributor for selecting an integer from a bounded range.
 
-    В отличие от WeightedDistributor (который возвращает количество вокруг mean),
-    этот дистрибьютор возвращает значение строго из диапазона [min_val, max_val].
+    Unlike WeightedDistributor (which returns a count around mean),
+    this distributor returns a value strictly from the range [min_val, max_val].
 
-    Параметры:
-    - min_val: минимальное значение (включительно)
-    - max_val: максимальное значение (включительно)
-    - weights: веса для каждого значения в диапазоне (опционально)
+    Parameters:
+    - min_val: minimum value (inclusive)
+    - max_val: maximum value (inclusive)
+    - weights: weights for each value in the range (optional)
 
-    Примеры:
-        # Равномерное распределение [0, 5]
+    Examples:
+        # Uniform distribution [0, 5]
         dist = WeightedRangeDistributor(0, 5)
-        value = dist.distribute()  # 0, 1, 2, 3, 4 или 5
+        value = dist.distribute()  # 0, 1, 2, 3, 4 or 5
 
-        # Взвешенное: 0 чаще, 5 реже
+        # Weighted: 0 more frequent, 5 less frequent
         dist = WeightedRangeDistributor(0, 5, weights=[0.5, 0.25, 0.12, 0.07, 0.04, 0.02])
         value = dist.distribute()
 
-        # Взвешенное с меньшим числом весов (интерполяция на весь диапазон)
+        # Weighted with fewer weights (interpolated across the full range)
         dist = WeightedRangeDistributor(0, 5, weights=[0.7, 0.2, 0.1])
-        value = dist.distribute()  # 0-5, веса интерполированы
+        value = dist.distribute()  # 0-5, weights are interpolated
     """
     _min_val: int
     _max_val: int
@@ -54,16 +54,16 @@ class WeightedRangeDistributor(IO2MDistributor):
             if len(weights_list) == range_size:
                 self._weights = weights_list
             elif len(weights_list) > range_size:
-                # Обрезаем если весов больше
+                # Truncate if there are more weights than needed
                 self._weights = weights_list[:range_size]
             else:
-                # Интерполируем веса на весь диапазон
+                # Interpolate weights across the full range
                 self._weights = self._interpolate_weights(weights_list, range_size)
         else:
-            # Равномерное распределение
+            # Uniform distribution
             self._weights = [1.0] * range_size
 
-        # Нормализуем и вычисляем cumulative для быстрого выбора
+        # Normalize and compute cumulative for fast selection
         total = sum(self._weights)
         if total <= 0:
             raise ValueError("Sum of weights must be > 0")
@@ -77,10 +77,10 @@ class WeightedRangeDistributor(IO2MDistributor):
     @staticmethod
     def _interpolate_weights(weights: list[float], target_size: int) -> list[float]:
         """
-        Линейная интерполяция весов на целевой размер.
+        Linear interpolation of weights to the target size.
 
-        Пример: weights=[0.7, 0.2, 0.1], target_size=6
-        Результат: веса распределены равномерно по позициям 0-5
+        Example: weights=[0.7, 0.2, 0.1], target_size=6
+        Result: weights are evenly distributed across positions 0-5
         """
         if len(weights) < 2:
             return weights * target_size if weights else [1.0] * target_size
@@ -88,14 +88,14 @@ class WeightedRangeDistributor(IO2MDistributor):
         result = []
         src_len = len(weights)
         for i in range(target_size):
-            # Позиция в исходном массиве (дробная)
+            # Position in the source array (fractional)
             src_pos = i * (src_len - 1) / (target_size - 1)
-            # Индексы соседних весов
+            # Indices of neighboring weights
             left_idx = int(src_pos)
             right_idx = min(left_idx + 1, src_len - 1)
-            # Доля между соседями
+            # Fraction between neighbors
             frac = src_pos - left_idx
-            # Линейная интерполяция
+            # Linear interpolation
             interpolated = weights[left_idx] * (1 - frac) + weights[right_idx] * frac
             result.append(interpolated)
 
@@ -103,14 +103,14 @@ class WeightedRangeDistributor(IO2MDistributor):
 
     def distribute(self) -> int:
         """
-        Возвращает случайное значение из диапазона [min_val, max_val].
+        Returns a random value from the range [min_val, max_val].
 
         Returns:
-            Целое число с учётом весов.
+            An integer according to the weights.
         """
         r = random.random()
 
-        # Binary search для O(log n)
+        # Binary search for O(log n)
         left, right = 0, len(self._cumulative) - 1
         while left < right:
             mid = (left + right) // 2
@@ -123,12 +123,12 @@ class WeightedRangeDistributor(IO2MDistributor):
 
     @classmethod
     def uniform(cls, min_val: int, max_val: int) -> 'WeightedRangeDistributor':
-        """Равномерное распределение."""
+        """Uniform distribution."""
         return cls(min_val, max_val)
 
     @classmethod
     def linear_decay(cls, min_val: int, max_val: int) -> 'WeightedRangeDistributor':
-        """Линейно убывающие веса: первые значения чаще."""
+        """Linearly decaying weights: earlier values are more frequent."""
         range_size = max_val - min_val + 1
         weights = [range_size - i for i in range(range_size)]
         return cls(min_val, max_val, weights=weights)
@@ -136,11 +136,11 @@ class WeightedRangeDistributor(IO2MDistributor):
     @classmethod
     def exponential_decay(cls, min_val: int, max_val: int, decay: float = 0.5) -> 'WeightedRangeDistributor':
         """
-        Экспоненциально убывающие веса.
+        Exponentially decaying weights.
 
         Args:
-            decay: коэффициент затухания (0 < decay < 1).
-                   Меньше = быстрее затухание.
+            decay: decay coefficient (0 < decay < 1).
+                   Smaller = faster decay.
         """
         if not 0 < decay < 1:
             raise ValueError("decay must be between 0 and 1")
@@ -152,10 +152,10 @@ class WeightedRangeDistributor(IO2MDistributor):
     @classmethod
     def pareto_like(cls, min_val: int, max_val: int, alpha: float = 2.0) -> 'WeightedRangeDistributor':
         """
-        Парето-подобное распределение: правило 80/20.
+        Pareto-like distribution: the 80/20 rule.
 
         Args:
-            alpha: параметр формы (больше = равномернее)
+            alpha: shape parameter (larger = more uniform)
         """
         range_size = max_val - min_val + 1
         # weight(i) ∝ (i+1)^(-alpha)

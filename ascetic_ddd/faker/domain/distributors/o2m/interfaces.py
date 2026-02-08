@@ -5,29 +5,29 @@ __all__ = ('IO2MDistributor',)
 
 class IO2MDistributor(metaclass=ABCMeta):
     """
-    Интерфейс O2M дистрибьютора.
+    O2M distributor interface.
 
-    В отличие от M2O (который для каждого child выбирает parent),
-    O2M для каждого parent определяет сколько children создать.
+    Unlike M2O (which selects a parent for each child),
+    O2M determines how many children to create for each parent.
 
-    Stateless: каждый вызов distribute() независим.
-    Подходит для многопоточного использования.
+    Stateless: each distribute() call is independent.
+    Suitable for multi-threaded usage.
 
-    Пример:
+    Example:
         dist = SkewDistributor(skew=2.0, mean=50)
 
         for _ in range(companies_count):
             company = create_company()
-            devices_count = dist.distribute()  # среднее = 50
+            devices_count = dist.distribute()  # mean = 50
             create_devices(company, devices_count)
     """
 
     @abstractmethod
     def distribute(self) -> int:
         """
-        Возвращает количество items для текущего owner.
+        Returns the number of items for the current owner.
 
         Returns:
-            Случайное количество items. Среднее по всем вызовам = mean.
+            Random number of items. Average across all calls = mean.
         """
         raise NotImplementedError

@@ -9,50 +9,50 @@ __all__ = ('DistributionDistributor',)
 
 @runtime_checkable
 class ScipyDistribution(Protocol):
-    """Protocol для scipy.stats распределений."""
+    """Protocol for scipy.stats distributions."""
     def rvs(self, size: int | None = None) -> float: ...
     def mean(self) -> float: ...
 
 
 class DistributionDistributor(IO2MDistributor):
     """
-    Универсальный O2M дистрибьютор с произвольным статистическим распределением.
+    Universal O2M distributor with an arbitrary statistical distribution.
 
-    Принимает распределение как стратегию:
-    - scipy.stats distribution (рекомендуется)
-    - callable (функция-генератор)
+    Accepts a distribution as a strategy:
+    - scipy.stats distribution (recommended)
+    - callable (generator function)
 
-    Примеры scipy.stats распределений:
-    - stats.expon() — экспоненциальное (много мелких, мало крупных)
-    - stats.pareto(b=2.0) — Парето (правило 80/20)
-    - stats.lognorm(s=1.0) — логнормальное (размеры компаний, доходы)
-    - stats.gamma(a=2.0) — гамма
-    - stats.weibull_min(c=1.5) — Вейбулла
-    - stats.zipf(a=2.0) — Zipf (частоты, популярность)
+    Examples of scipy.stats distributions:
+    - stats.expon() -- exponential (many small, few large)
+    - stats.pareto(b=2.0) -- Pareto (80/20 rule)
+    - stats.lognorm(s=1.0) -- log-normal (company sizes, incomes)
+    - stats.gamma(a=2.0) -- gamma
+    - stats.weibull_min(c=1.5) -- Weibull
+    - stats.zipf(a=2.0) -- Zipf (frequencies, popularity)
 
-    Примеры:
+    Examples:
         from scipy import stats
 
-        # Экспоненциальное распределение
+        # Exponential distribution
         dist = DistributionDistributor(
             distribution=stats.expon(),
             target_mean=50,
         )
 
-        # Парето (80/20)
+        # Pareto (80/20)
         dist = DistributionDistributor(
             distribution=stats.pareto(b=2.0),
             target_mean=50,
         )
 
-        # С callable
+        # With callable
         dist = DistributionDistributor(
             sampler=lambda: random.expovariate(1),
             sampler_mean=1.0,
             target_mean=50,
         )
 
-        devices_count = dist.distribute()  # среднее = 50
+        devices_count = dist.distribute()  # mean = 50
     """
     _distribution: ScipyDistribution | None
     _sampler: Callable[[], float] | None
@@ -68,67 +68,67 @@ class DistributionDistributor(IO2MDistributor):
     ):
         """
         Args:
-            distribution: scipy.stats distribution object (например stats.expon())
-            sampler: Callable, возвращающий случайное значение (альтернатива distribution)
-            sampler_mean: Среднее значение sampler (обязательно если используется sampler)
-            target_mean: Целевое среднее количество items на owner
+            distribution: scipy.stats distribution object (e.g. stats.expon())
+            sampler: Callable returning a random value (alternative to distribution)
+            sampler_mean: Mean value of the sampler (required if sampler is used)
+            target_mean: Target mean number of items per owner
         """
         if distribution is None and sampler is None:
-            raise ValueError("Необходимо указать distribution или sampler")
+            raise ValueError("Either distribution or sampler must be specified")
 
         if distribution is not None and sampler is not None:
-            raise ValueError("Укажите только distribution или sampler, не оба")
+            raise ValueError("Specify only distribution or sampler, not both")
 
         if sampler is not None and sampler_mean is None:
-            raise ValueError("При использовании sampler необходимо указать sampler_mean")
+            raise ValueError("sampler_mean must be specified when using sampler")
 
         self._distribution = distribution
         self._sampler = sampler
         self._sampler_mean = sampler_mean
         self._target_mean = target_mean if target_mean is not None else 50.0
 
-        # Вычисляем среднее распределения для нормализации
+        # Compute the distribution mean for normalization
         if self._distribution is not None:
             try:
                 self._dist_mean = float(self._distribution.mean())
             except (TypeError, ValueError):
-                # Некоторые распределения не имеют конечного среднего
+                # Some distributions do not have a finite mean
                 self._dist_mean = 1.0
         else:
             self._dist_mean = self._sampler_mean if self._sampler_mean else 1.0
 
     def distribute(self) -> int:
         """
-        Возвращает количество items из распределения.
+        Returns the number of items from the distribution.
 
         Returns:
-            Случайное количество items. Среднее по всем вызовам = target_mean.
+            Random number of items. Average across all calls = target_mean.
         """
-        # Генерируем значение из распределения
+        # Generate a value from the distribution
         if self._distribution is not None:
             raw_value = float(self._distribution.rvs())
         else:
             raw_value = self._sampler()
 
-        # Нормализуем: raw_value / dist_mean * target_mean
+        # Normalize: raw_value / dist_mean * target_mean
         if self._dist_mean > 0:
             normalized = raw_value / self._dist_mean * self._target_mean
         else:
             normalized = raw_value
 
-        # Возвращаем неотрицательное целое
+        # Return a non-negative integer
         return max(0, round(normalized))
 
     def reset(self) -> None:
-        """Для совместимости. Stateless — ничего не делает."""
+        """For compatibility. Stateless -- does nothing."""
         pass
 
     @classmethod
     def exponential(cls, target_mean: float = 50.0) -> 'DistributionDistributor':
         """
-        Создаёт дистрибьютор с экспоненциальным распределением.
+        Creates a distributor with exponential distribution.
 
-        Много мелких значений, мало крупных. Среднее = target_mean.
+        Many small values, few large ones. Mean = target_mean.
         """
         return cls(
             sampler=lambda: random.expovariate(1),
@@ -139,21 +139,21 @@ class DistributionDistributor(IO2MDistributor):
     @classmethod
     def pareto(cls, alpha: float = 2.0, target_mean: float = 50.0) -> 'DistributionDistributor':
         """
-        Создаёт дистрибьютор с распределением Парето.
+        Creates a distributor with Pareto distribution.
 
-        Правило 80/20. alpha определяет степень неравенства:
-        - alpha=1.16: 80% items у 20% owners
-        - alpha=2.0: умеренное неравенство
-        - alpha>3: более равномерное
+        The 80/20 rule. alpha determines the degree of inequality:
+        - alpha=1.16: 80% of items belong to 20% of owners
+        - alpha=2.0: moderate inequality
+        - alpha>3: more uniform
 
         Args:
-            alpha: Параметр формы (больше = равномернее)
-            target_mean: Целевое среднее
+            alpha: Shape parameter (larger = more uniform)
+            target_mean: Target mean
         """
         if alpha <= 1:
-            raise ValueError("alpha должен быть > 1 для конечного среднего")
+            raise ValueError("alpha must be > 1 for a finite mean")
 
-        # Среднее Парето = alpha / (alpha - 1) для x_m = 1
+        # Pareto mean = alpha / (alpha - 1) for x_m = 1
         pareto_mean = alpha / (alpha - 1)
 
         return cls(
@@ -165,16 +165,16 @@ class DistributionDistributor(IO2MDistributor):
     @classmethod
     def lognormal(cls, sigma: float = 1.0, target_mean: float = 50.0) -> 'DistributionDistributor':
         """
-        Создаёт дистрибьютор с логнормальным распределением.
+        Creates a distributor with log-normal distribution.
 
-        Хорошо моделирует размеры компаний, доходы, и т.п.
+        Models company sizes, incomes, etc. well.
 
         Args:
-            sigma: Параметр формы (больше = больше разброс)
-            target_mean: Целевое среднее
+            sigma: Shape parameter (larger = more spread)
+            target_mean: Target mean
         """
         import math
-        # Для lognormal(0, sigma): среднее = exp(sigma^2 / 2)
+        # For lognormal(0, sigma): mean = exp(sigma^2 / 2)
         lognorm_mean = math.exp(sigma ** 2 / 2)
 
         return cls(
@@ -186,13 +186,13 @@ class DistributionDistributor(IO2MDistributor):
     @classmethod
     def gamma(cls, shape: float = 2.0, target_mean: float = 50.0) -> 'DistributionDistributor':
         """
-        Создаёт дистрибьютор с гамма-распределением.
+        Creates a distributor with gamma distribution.
 
         Args:
-            shape: Параметр формы (k или alpha)
-            target_mean: Целевое среднее
+            shape: Shape parameter (k or alpha)
+            target_mean: Target mean
         """
-        # Среднее гамма = shape * theta, используем theta=1
+        # Gamma mean = shape * theta, using theta=1
         gamma_mean = shape
 
         return cls(
@@ -204,14 +204,14 @@ class DistributionDistributor(IO2MDistributor):
     @classmethod
     def weibull(cls, shape: float = 1.5, target_mean: float = 50.0) -> 'DistributionDistributor':
         """
-        Создаёт дистрибьютор с распределением Вейбулла.
+        Creates a distributor with Weibull distribution.
 
         Args:
-            shape: Параметр формы (k)
-            target_mean: Целевое среднее
+            shape: Shape parameter (k)
+            target_mean: Target mean
         """
         import math
-        # Среднее Weibull = lambda * Gamma(1 + 1/k), используем lambda=1
+        # Weibull mean = lambda * Gamma(1 + 1/k), using lambda=1
         weibull_mean = math.gamma(1 + 1 / shape)
 
         return cls(
@@ -223,11 +223,11 @@ class DistributionDistributor(IO2MDistributor):
     @classmethod
     def uniform(cls, target_mean: float = 50.0, spread: float = 0.5) -> 'DistributionDistributor':
         """
-        Создаёт дистрибьютор с равномерным распределением.
+        Creates a distributor with uniform distribution.
 
         Args:
-            target_mean: Целевое среднее
-            spread: Разброс (0.5 = от 0.5*target_mean до 1.5*target_mean)
+            target_mean: Target mean
+            spread: Spread (0.5 = from 0.5*target_mean to 1.5*target_mean)
         """
         low = target_mean * (1 - spread)
         high = target_mean * (1 + spread)

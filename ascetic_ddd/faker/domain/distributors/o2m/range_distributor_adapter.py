@@ -16,15 +16,15 @@ T = typing.TypeVar("T")
 
 class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T]):
     """
-    Адаптер O2M range distributor к интерфейсу IM2ODistributor.
+    Adapter of O2M range distributor to the IM2ODistributor interface.
 
-    Использует O2M дистрибьютор для генерации числа из диапазона,
-    затем ищет значение по этому числу в словаре.
+    Uses an O2M distributor to generate a number from a range,
+    then looks up the value by that number in a dictionary.
 
-    Если значение не найдено — бросает Cursor(),
-    сигнализируя вызывающему коду создать новое значение для этого слота.
+    If the value is not found -- raises Cursor(),
+    signaling the calling code to create a new value for this slot.
 
-    Пример:
+    Example:
         from ascetic_ddd.faker.domain.distributors.o2m import (
             WeightedRangeDistributor,
             RangeDistributorAdapter,
@@ -33,7 +33,7 @@ class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T])
         range_dist = WeightedRangeDistributor.exponential_decay(0, 99, decay=0.7)
         adapter = RangeDistributorAdapter(range_dist)
 
-        # В provider:
+        # In provider:
         try:
             company = await adapter.next(session)
         except Cursor as cursor:
@@ -47,7 +47,7 @@ class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T])
     def __init__(self, distributor: IO2MDistributor):
         """
         Args:
-            distributor: O2M дистрибьютор, возвращающий числа из диапазона
+            distributor: O2M distributor that returns numbers from a range
         """
         self._distributor = distributor
         self._values = {}
@@ -60,12 +60,12 @@ class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T])
             specification: ISpecification[T] | None = None,
     ) -> T:
         """
-        Возвращает значение из словаря по случайному числу.
+        Returns a value from the dictionary by a random number.
 
         Raises:
-            Cursor(): если для слота нет значения в словаре.
-            cursor.position — номер слота.
-            cursor.append(session, value) — добавить значение.
+            Cursor(): if there is no value in the dictionary for the slot.
+            cursor.position -- the slot number.
+            cursor.append(session, value) -- add a value.
         """
         num = self._distributor.distribute()
 
@@ -77,21 +77,21 @@ class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T])
 
         value = self._values[num]
 
-        # Проверяем спецификацию если указана
+        # Check specification if provided
         if specification is not None and not await specification.is_satisfied_by(session, value):
-            # Значение не подходит под спецификацию — пробуем ещё раз
+            # Value does not satisfy the specification -- try again
             return await self.next(session, specification)
 
         return value
 
     async def _append(self, session: ISession, value: T, position: int | None = None):
         """
-        Добавляет значение в словарь.
+        Adds a value to the dictionary.
 
         Args:
-            session: Сессия
-            value: Значение для добавления
-            position: Номер слота (ключ в словаре).
+            session: Session
+            value: Value to add
+            position: Slot number (key in the dictionary).
         """
         self._values[position] = value
         await self.anotify('value', session, value)
@@ -121,30 +121,30 @@ class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T])
         return self
 
     def __len__(self) -> int:
-        """Количество значений в словаре."""
+        """Number of values in the dictionary."""
         return len(self._values)
 
     def __contains__(self, value: T) -> bool:
-        """Проверяет наличие значения в словаре."""
+        """Checks whether the value is present in the dictionary."""
         return value in self._values.values()
 
 
 class RangeDistributorFactory(IM2ODistributorFactory[T], typing.Generic[T]):
     """
-    Фабрика M2O дистрибьюторов на основе диапазона.
+    Factory of M2O distributors based on a range.
 
-    Создаёт RangeDistributorAdapter с WeightedRangeDistributor внутри.
+    Creates a RangeDistributorAdapter with a WeightedRangeDistributor inside.
 
-    Пример:
+    Example:
         factory = RangeDistributorFactory(min_val=0, max_val=99)
 
-        # Создать дистрибьютор с весами
+        # Create a distributor with weights
         dist = factory(weights=[0.7, 0.2, 0.1])
 
-        # Создать дистрибьютор со skew (exponential decay)
+        # Create a distributor with skew (exponential decay)
         dist = factory(skew=2.0)
 
-        # Использование
+        # Usage
         try:
             value = await dist.next(session)
         except ICursor as cursor:
@@ -157,8 +157,8 @@ class RangeDistributorFactory(IM2ODistributorFactory[T], typing.Generic[T]):
     def __init__(self, min_val: int, max_val: int):
         """
         Args:
-            min_val: Минимальное значение диапазона (включительно)
-            max_val: Максимальное значение диапазона (включительно)
+            min_val: Minimum value of the range (inclusive)
+            max_val: Maximum value of the range (inclusive)
         """
         self._min_val = min_val
         self._max_val = max_val
@@ -172,17 +172,17 @@ class RangeDistributorFactory(IM2ODistributorFactory[T], typing.Generic[T]):
         sequence: bool = False,
     ) -> IM2ODistributor[T]:
         """
-        Создаёт M2O дистрибьютор.
+        Creates an M2O distributor.
 
         Args:
-            weights: Веса для каждого значения в диапазоне
-            skew: Параметр перекоса для exponential decay (decay = 1/skew)
-            mean: Не используется (для совместимости с интерфейсом)
-            null_weight: Вероятность вернуть None (0-1)
-            sequence: Не используется (для совместимости с интерфейсом)
+            weights: Weights for each value in the range
+            skew: Skew parameter for exponential decay (decay = 1/skew)
+            mean: Not used (for interface compatibility)
+            null_weight: Probability of returning None (0-1)
+            sequence: Not used (for interface compatibility)
 
         Returns:
-            RangeDistributorAdapter с соответствующим WeightedRangeDistributor
+            RangeDistributorAdapter with the corresponding WeightedRangeDistributor
         """
         if weights is not None:
             range_dist = WeightedRangeDistributor(
@@ -191,7 +191,7 @@ class RangeDistributorFactory(IM2ODistributorFactory[T], typing.Generic[T]):
                 weights=weights,
             )
         elif skew is not None and skew > 1:
-            # skew -> decay: чем больше skew, тем меньше decay
+            # skew -> decay: the larger the skew, the smaller the decay
             decay = 1.0 / skew
             range_dist = WeightedRangeDistributor.exponential_decay(
                 self._min_val,
@@ -199,7 +199,7 @@ class RangeDistributorFactory(IM2ODistributorFactory[T], typing.Generic[T]):
                 decay=decay,
             )
         else:
-            # Равномерное распределение
+            # Uniform distribution
             range_dist = WeightedRangeDistributor.uniform(
                 self._min_val,
                 self._max_val,

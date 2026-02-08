@@ -9,20 +9,20 @@ __all__ = ('WeightedDistributor',)
 
 class WeightedDistributor(IO2MDistributor):
     """
-    O2M дистрибьютор с взвешенным распределением по партициям.
+    O2M distributor with weighted distribution across partitions.
 
-    Параметры:
-    - weights: веса партиций (например [0.7, 0.2, 0.07, 0.03])
-    - mean: среднее количество items на owner
+    Parameters:
+    - weights: partition weights (e.g. [0.7, 0.2, 0.07, 0.03])
+    - mean: average number of items per owner
 
-    Пример: weights=[0.7, 0.2, 0.07, 0.03], mean=50
-    - 25% вызовов попадут в партицию 0 (крупные) — получат больше mean
-    - 25% вызовов попадут в партицию 3 (мелкие) — получат меньше mean
-    - Среднее по всем вызовам = mean
+    Example: weights=[0.7, 0.2, 0.07, 0.03], mean=50
+    - 25% of calls fall into partition 0 (large) -- receive more than mean
+    - 25% of calls fall into partition 3 (small) -- receive less than mean
+    - Average across all calls = mean
 
-    Пример:
+    Example:
         dist = WeightedDistributor(weights=[0.7, 0.2, 0.07, 0.03], mean=50)
-        devices_count = dist.distribute()  # среднее = 50
+        devices_count = dist.distribute()  # mean = 50
     """
     _weights: list[float]
     _mean: float
@@ -39,16 +39,16 @@ class WeightedDistributor(IO2MDistributor):
 
     def distribute(self) -> int:
         """
-        Возвращает количество items.
+        Returns the number of items.
 
         Returns:
-            Случайное количество items (из распределения Пуассона).
-            Среднее по всем вызовам = mean.
+            Random number of items (from Poisson distribution).
+            Average across all calls = mean.
         """
-        # Выбираем случайную позицию в распределении [0, 1)
+        # Choose a random position in the distribution [0, 1)
         position = random.random()
 
-        # Вычисляем ожидаемое количество для этой позиции
+        # Compute the expected count for this position
         expected = self._compute_expected_for_position(position)
 
         if expected <= 0:
@@ -57,42 +57,42 @@ class WeightedDistributor(IO2MDistributor):
         return self._poisson(expected)
 
     def _compute_expected_for_position(self, position: float) -> float:
-        """Вычисляет ожидаемое количество items для позиции в распределении."""
+        """Computes the expected number of items for a position in the distribution."""
         num_partitions = len(self._weights)
 
-        # Нормализуем веса
+        # Normalize weights
         total_weight = sum(self._weights)
         if total_weight == 0:
             return self._mean
 
-        # Размер партиции (доля от позиций)
+        # Partition size (fraction of positions)
         partition_size = 1.0 / num_partitions
 
-        # Определяем партицию по позиции
+        # Determine the partition by position
         partition_idx = min(int(position / partition_size), num_partitions - 1)
 
-        # Позиция внутри партиции [0, 1)
+        # Position within the partition [0, 1)
         local_position = (position - partition_idx * partition_size) / partition_size
 
-        # Вес партиции (доля items)
+        # Partition weight (fraction of items)
         partition_weight = self._weights[partition_idx] / total_weight
 
-        # Среднее для этой партиции = mean * partition_weight * num_partitions
-        # (т.к. партиция содержит 1/num_partitions позиций, но получает partition_weight items)
+        # Mean for this partition = mean * partition_weight * num_partitions
+        # (since the partition contains 1/num_partitions positions but receives partition_weight items)
         average_in_partition = self._mean * partition_weight * num_partitions
 
-        # Local skew внутри партиции (как в M2O)
+        # Local skew within the partition (as in M2O)
         if partition_idx > 0 and self._weights[partition_idx] > 0:
             ratio = self._weights[partition_idx - 1] / self._weights[partition_idx]
             local_skew = max(1.0, math.log2(ratio) + 1)
         else:
             local_skew = 1.0
 
-        # При local_skew=1: равномерное распределение внутри партиции
+        # When local_skew=1: uniform distribution within the partition
         if local_skew <= 1.01:
             return average_in_partition
 
-        # Степенное распределение внутри партиции
+        # Power-law distribution within the partition
         individual_weight = (1 - local_position) ** local_skew
         average_weight = 1.0 / (local_skew + 1)
 
@@ -100,7 +100,7 @@ class WeightedDistributor(IO2MDistributor):
 
     @staticmethod
     def _poisson(lam: float) -> int:
-        """Генерирует случайное число из распределения Пуассона."""
+        """Generates a random number from the Poisson distribution."""
         if lam > 30:
             result = random.gauss(lam, lam ** 0.5)
             return max(0, round(result))

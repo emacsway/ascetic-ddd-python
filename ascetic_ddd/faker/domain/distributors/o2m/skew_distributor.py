@@ -7,19 +7,19 @@ __all__ = ('SkewDistributor',)
 
 class SkewDistributor(IO2MDistributor):
     """
-    O2M дистрибьютор со степенным распределением.
+    O2M distributor with power-law distribution.
 
-    Параметры:
-    - skew: степень перекоса (1.0 = равномерно, 2.0+ = перекос)
-    - mean: среднее количество items на owner
+    Parameters:
+    - skew: degree of skew (1.0 = uniform, 2.0+ = skewed)
+    - mean: average number of items per owner
 
-    skew = 1.0 — все owners получают примерно одинаково (mean)
-    skew = 2.0 — некоторые получают больше, большинство меньше
-    skew = 3.0 — сильный перекос
+    skew = 1.0 -- all owners receive approximately the same (mean)
+    skew = 2.0 -- some receive more, most receive less
+    skew = 3.0 -- strong skew
 
-    Пример:
+    Example:
         dist = SkewDistributor(skew=2.0, mean=50)
-        devices_count = dist.distribute()  # среднее = 50
+        devices_count = dist.distribute()  # mean = 50
     """
     _skew: float
     _mean: float
@@ -34,16 +34,16 @@ class SkewDistributor(IO2MDistributor):
 
     def distribute(self) -> int:
         """
-        Возвращает количество items.
+        Returns the number of items.
 
         Returns:
-            Случайное количество items (из распределения Пуассона).
-            Среднее по всем вызовам = mean.
+            Random number of items (from Poisson distribution).
+            Average across all calls = mean.
         """
-        # Выбираем случайную позицию в распределении [0, 1)
+        # Choose a random position in the distribution [0, 1)
         position = random.random()
 
-        # Вычисляем ожидаемое количество для этой позиции
+        # Compute the expected count for this position
         expected = self._compute_expected_for_position(position)
 
         if expected <= 0:
@@ -52,27 +52,27 @@ class SkewDistributor(IO2MDistributor):
         return self._poisson(expected)
 
     def _compute_expected_for_position(self, position: float) -> float:
-        """Вычисляет ожидаемое количество items для позиции в распределении."""
-        # При skew близком к 1.0 — равномерное распределение
+        """Computes the expected number of items for a position in the distribution."""
+        # When skew is close to 1.0 -- uniform distribution
         if self._skew <= 1.01:
             return self._mean
 
-        # Степенное распределение: первые позиции получают больше
+        # Power-law distribution: earlier positions receive more
         # weight(pos) ∝ (1 - pos)^skew
-        # Нормализуем так, чтобы среднее = mean
+        # Normalize so that the mean = mean
 
-        # Вес для текущей позиции
+        # Weight for the current position
         individual_weight = (1 - position) ** self._skew
 
-        # Средний вес (интеграл от (1-x)^skew по x от 0 до 1)
+        # Average weight (integral of (1-x)^skew over x from 0 to 1)
         average_weight = 1.0 / (self._skew + 1)
 
-        # Нормализованный expected
+        # Normalized expected
         return self._mean * individual_weight / average_weight
 
     @staticmethod
     def _poisson(lam: float) -> int:
-        """Генерирует случайное число из распределения Пуассона."""
+        """Generates a random number from the Poisson distribution."""
         if lam > 30:
             result = random.gauss(lam, lam ** 0.5)
             return max(0, round(result))
