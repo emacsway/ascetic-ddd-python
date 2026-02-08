@@ -20,7 +20,7 @@ from ascetic_ddd.validators.exceptions import (
 
 
 class TestValidator(unittest.IsolatedAsyncioTestCase):
-    """Тесты для базового класса Validator"""
+    """Tests for the base Validator class"""
 
     async def test_default_message(self):
         validator = Validator()
@@ -33,7 +33,7 @@ class TestValidator(unittest.IsolatedAsyncioTestCase):
 
 
 class TestRequired(unittest.IsolatedAsyncioTestCase):
-    """Тесты для Required валидатора"""
+    """Tests for the Required validator"""
 
     async def test_raises_on_none(self):
         validator = Required()
@@ -89,7 +89,7 @@ class TestRequired(unittest.IsolatedAsyncioTestCase):
 
 
 class TestRegex(unittest.IsolatedAsyncioTestCase):
-    """Тесты для Regex валидатора"""
+    """Tests for the Regex validator"""
 
     async def test_passes_on_match(self):
         validator = Regex(regex=re.compile(r'^\d+$'))
@@ -123,7 +123,7 @@ class TestRegex(unittest.IsolatedAsyncioTestCase):
 
 
 class TestEmail(unittest.IsolatedAsyncioTestCase):
-    """Тесты для Email валидатора"""
+    """Tests for the Email validator"""
 
     async def test_valid_email(self):
         validator = Email()
@@ -188,7 +188,7 @@ class TestEmail(unittest.IsolatedAsyncioTestCase):
 
 
 class TestLength(unittest.IsolatedAsyncioTestCase):
-    """Тесты для Length валидатора"""
+    """Tests for the Length validator"""
 
     async def test_valid_length_within_range(self):
         validator = Length(min_length=1, max_length=10)
@@ -254,7 +254,7 @@ class TestLength(unittest.IsolatedAsyncioTestCase):
 
 
 class TestNumber(unittest.IsolatedAsyncioTestCase):
-    """Тесты для Number валидатора"""
+    """Tests for the Number validator"""
 
     async def test_valid_number_within_range(self):
         validator = Number(minimum=0, maximum=100)
@@ -328,7 +328,7 @@ class TestNumber(unittest.IsolatedAsyncioTestCase):
 
 
 class TestChainValidator(unittest.IsolatedAsyncioTestCase):
-    """Тесты для ChainValidator"""
+    """Tests for ChainValidator"""
 
     async def test_all_validators_pass(self):
         validator = ChainValidator(
@@ -390,15 +390,15 @@ class TestChainValidator(unittest.IsolatedAsyncioTestCase):
 
 
 class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
-    """Тесты для MultivalueValidator"""
+    """Tests for MultivalueValidator"""
 
     async def test_all_values_pass(self):
-        """Тест: все значения проходят валидацию"""
+        """Test: all values pass validation"""
         validator = MultivalueValidator(Required())
         await validator(["value1", "value2", "value3"])
 
     async def test_single_value_fails(self):
-        """Тест: одно значение не проходит валидацию"""
+        """Test: one value fails validation"""
         validator = MultivalueValidator(Required())
         with self.assertRaises(MappingValidationError) as exc_info:
             await validator(["value1", None, "value3"])
@@ -408,7 +408,7 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(2, errors)
 
     async def test_multiple_values_fail(self):
-        """Тест: несколько значений не проходят валидацию"""
+        """Test: multiple values fail validation"""
         validator = MultivalueValidator(Required())
         with self.assertRaises(MappingValidationError) as exc_info:
             await validator([None, "value2", "", "value4"])
@@ -419,7 +419,7 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(3, errors)
 
     async def test_all_values_fail(self):
-        """Тест: все значения не проходят валидацию"""
+        """Test: all values fail validation"""
         validator = MultivalueValidator(Required())
         with self.assertRaises(MappingValidationError) as exc_info:
             await validator([None, "", []])
@@ -430,12 +430,12 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertIn(2, errors)
 
     async def test_empty_collection(self):
-        """Тест: пустая коллекция проходит валидацию"""
+        """Test: empty collection passes validation"""
         validator = MultivalueValidator(Required())
         await validator([])
 
     async def test_with_length_validator(self):
-        """Тест: валидация длины строк"""
+        """Test: string length validation"""
         validator = MultivalueValidator(Length(min_length=3, max_length=10))
         await validator(["abc", "hello", "world"])
 
@@ -447,7 +447,7 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(1, errors)
 
     async def test_with_number_validator(self):
-        """Тест: валидация чисел"""
+        """Test: number validation"""
         validator = MultivalueValidator(Number(minimum=0, maximum=100))
         await validator([10, 50, 100])
 
@@ -460,7 +460,7 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(3, errors)
 
     async def test_with_email_validator(self):
-        """Тест: валидация email адресов"""
+        """Test: email address validation"""
         validator = MultivalueValidator(Email())
         await validator(["test@example.com", "user@mail.org"])
 
@@ -472,7 +472,7 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(2, errors)
 
     async def test_with_regex_validator(self):
-        """Тест: валидация с регулярным выражением"""
+        """Test: validation with regular expression"""
         validator = MultivalueValidator(Regex(regex=re.compile(r'^\d+$')))
         await validator(["123", "456", "789"])
 
@@ -484,7 +484,7 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertIn(3, errors)
 
     async def test_with_chain_validator(self):
-        """Тест: валидация с цепочкой валидаторов"""
+        """Test: validation with a chain of validators"""
         validator = MultivalueValidator(
             ChainValidator(
                 Required(),
@@ -502,7 +502,7 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(0, errors)
 
     async def test_tuple_collection(self):
-        """Тест: работа с tuple"""
+        """Test: works with tuple"""
         validator = MultivalueValidator(Required())
         await validator(("value1", "value2", "value3"))
 
@@ -512,12 +512,12 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertIn(1, errors)
 
     async def test_set_collection(self):
-        """Тест: работа с set"""
+        """Test: works with set"""
         validator = MultivalueValidator(Number(minimum=0, maximum=100))
         await validator({10, 50, 90})
 
     async def test_error_indices_match_positions(self):
-        """Тест: индексы ошибок соответствуют позициям в коллекции"""
+        """Test: error indices match positions in the collection"""
         validator = MultivalueValidator(Length(min_length=3, max_length=10))
         with self.assertRaises(MappingValidationError) as exc_info:
             await validator(["okk", "ab", "fine", "x", "good"])
@@ -527,7 +527,7 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(errors), 2)
 
     async def test_preserves_original_error_messages(self):
-        """Тест: сохраняются оригинальные сообщения об ошибках"""
+        """Test: original error messages are preserved"""
         custom_msg = "Custom validation error"
         validator = MultivalueValidator(Required(msg=custom_msg))
         with self.assertRaises(MappingValidationError) as exc_info:
@@ -536,7 +536,7 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(str(errors[1].args[0]), custom_msg)
 
     async def test_various_collections(self):
-        """Тест: различные типы коллекций и сценарии"""
+        """Test: various collection types and scenarios"""
         test_cases = [
             (["test@example.com", "user@mail.org"], Email(), True),
             (["test@example.com", "invalid"], Email(), False),
@@ -558,7 +558,7 @@ class TestMultivalueValidator(unittest.IsolatedAsyncioTestCase):
 
 
 class TestMappingValidator(unittest.IsolatedAsyncioTestCase):
-    """Тесты для MappingValidator"""
+    """Tests for MappingValidator"""
 
     async def test_all_fields_pass(self):
         validator = MappingValidator(
@@ -661,7 +661,7 @@ class TestMappingValidator(unittest.IsolatedAsyncioTestCase):
 
 
 class TestValidationErrorOperations(unittest.IsolatedAsyncioTestCase):
-    """Тесты для операций с ValidationError"""
+    """Tests for ValidationError operations"""
 
     async def test_add_validation_errors(self):
         error1 = ValidationError("Error 1")

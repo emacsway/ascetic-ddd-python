@@ -22,7 +22,7 @@ class Required(Validator):
 
     # TODO: accept Session obj and make it async?
     # TODO: accept gettext function?
-    # Варианты:
+    # Options:
     # - Result obj
     # - Self Shunt pattern
     #   - https://pdfs.semanticscholar.org/3e18/76a233963013d84bcba6a66289d623c63d57.pdf
