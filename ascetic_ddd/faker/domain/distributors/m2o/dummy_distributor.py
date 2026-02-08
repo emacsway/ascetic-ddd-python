@@ -52,5 +52,5 @@ class DummyDistributor(Observable, IM2ODistributor[T], typing.Generic[T]):
         return self
 
     def bind_external_source(self, external_source: typing.Any) -> None:
-        """DummyDistributor не использует external_source."""
+        """DummyDistributor does not use external_source."""
         pass

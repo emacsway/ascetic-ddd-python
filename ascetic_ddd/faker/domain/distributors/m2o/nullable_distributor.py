@@ -79,5 +79,5 @@ class NullableDistributor(IM2ODistributor[T], typing.Generic[T]):
         return self
 
     def bind_external_source(self, external_source: typing.Any) -> None:
-        """Делегирует привязку внешнего источника данных."""
+        """Delegates binding of an external data source."""
         self._delegate.bind_external_source(external_source)

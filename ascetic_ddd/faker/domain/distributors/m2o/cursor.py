@@ -9,6 +9,10 @@ T = typing.TypeVar("T", covariant=True)
 
 
 class Cursor(ICursor, typing.Generic[T]):
+    """
+    Interested decorators should catch the Cursor and create their own if they need to add an object to themselves.
+    For example, if WeightedDistributor is used as a decorator for SequenceDistributor.
+    """
     _position: int | None
     _callback: typing.Callable[[ISession, T, int | None], typing.Awaitable[None]]
     _delegate: ICursor | None = None

@@ -22,7 +22,7 @@ T = typing.TypeVar("T", covariant=True)
 
 class BaseIndex(typing.Generic[T]):
     """
-    Базовый класс индекса для дистрибьюторов.
+    Base class for distributor indexes.
     """
     _specification: ISpecification[T]
     _read_offset: int
@@ -63,7 +63,7 @@ class BaseIndex(typing.Generic[T]):
             self._read_offset = read_offset
 
     def remove(self, value: T) -> bool:
-        """Удаляет объект из индекса. Возвращает True если объект был удалён."""
+        """Removes an object from the index. Returns True if the object was removed."""
         if value not in self._value_set:
             return False
         self._value_set.discard(value)
@@ -71,7 +71,7 @@ class BaseIndex(typing.Generic[T]):
         return True
 
     def get_relative_position(self, value: T) -> float | None:
-        """Возвращает относительную позицию объекта (0.0 - 1.0) или None если не найден."""
+        """Returns the relative position of an object (0.0 - 1.0) or None if not found."""
         if value not in self._value_set:
             return None
         idx = self._values.index(value)
@@ -79,7 +79,7 @@ class BaseIndex(typing.Generic[T]):
         return idx / n if n > 0 else 0.0
 
     def insert_at_relative_position(self, value: T, relative_position: float) -> None:
-        """Вставляет объект в позицию, соответствующую относительной позиции."""
+        """Inserts an object at the position corresponding to the relative position."""
         if value in self._value_set:
             return
         n = len(self._values)
@@ -99,26 +99,26 @@ class BaseIndex(typing.Generic[T]):
 
     @abstractmethod
     def _select_idx(self) -> int:
-        """Выбирает индекс значения. Реализация зависит от стратегии распределения."""
+        """Selects a value index. Implementation depends on the distribution strategy."""
         raise NotImplementedError
 
     def next(self, expected_mean: float) -> T:
         """
-        Возвращает случайное значение из индекса.
-        Бросает StopIteration с вероятностью 1/expected_mean (сигнал создать новое).
+        Returns a random value from the index.
+        Raises StopIteration with probability 1/expected_mean (signal to create a new one).
         """
         n = len(self._values)
         if n == 0:
             raise StopIteration
 
-        # Вероятностно сигнализируем о необходимости создать новое значение
+        # Probabilistically signal the need to create a new value
         if random.random() < 1.0 / expected_mean:
             raise StopIteration
 
         return self._values[self._select_idx()]
 
     def select(self) -> T:
-        """Выбор значения без вероятностного отказа (fallback)."""
+        """Select a value without probabilistic rejection (fallback)."""
         n = len(self._values)
         if n == 0:
             raise StopIteration
@@ -135,7 +135,7 @@ class BaseIndex(typing.Generic[T]):
 
 class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
     """
-    Базовый класс для in-memory дистрибьюторов.
+    Base class for in-memory distributors.
     """
     _mean: float = 50
     _indexes: dict[ISpecification, BaseIndex[T]]
@@ -155,7 +155,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
         super().__init__()
 
     def bind_external_source(self, external_source: typing.Any) -> None:
-        """Привязывает внешний источник данных (repository)."""
+        """Binds an external data source (repository)."""
         if not isinstance(external_source, IExternalSource):
             raise TypeError("Expected IExternalSource, got %s" % type(external_source))
         self._external_source = external_source
@@ -163,7 +163,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
 
     @abstractmethod
     def _create_index(self, specification: ISpecification[T]) -> BaseIndex[T]:
-        """Создаёт индекс для спецификации. Реализация зависит от типа дистрибьютора."""
+        """Creates an index for a specification. Implementation depends on the distributor type."""
         raise NotImplementedError
 
     async def next(
@@ -174,7 +174,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
         if specification is None:
             specification = self._default_spec
 
-        # Резолвим вложенные constraints (если есть)
+        # Resolve nested constraints (if any)
         if hasattr(specification, 'resolve_nested'):
             await specification.resolve_nested(session)
 
@@ -199,7 +199,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
                     delegate=cursor
                 )
 
-        # Проверяем, не "протух" ли объект, если он был изменён?
+        # Check if the object has become stale (e.g. it was modified)
         if not await specification.is_satisfied_by(session, value):
             await self._relocate_stale_value(session, value, specification)
             # Retry
@@ -209,21 +209,21 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
 
     async def _relocate_stale_value(self, session: ISession, value: T, current_spec: ISpecification[T]) -> None:
         """
-        Перемещает протухший объект из текущего индекса в подходящие.
+        Relocates a stale object from the current index to suitable ones.
         """
-        # Удаляем из текущего индекса
+        # Remove from the current index
         current_index = self._indexes.get(current_spec)
         if current_index:
             current_index.remove(value)
 
-        # Получаем относительную позицию из default индекса
+        # Get the relative position from the default index
         default_index = self._indexes[self._default_spec]
         relative_position = default_index.get_relative_position(value)
 
         if relative_position is None:
             return
 
-        # Перебираем все индексы (кроме default и текущего) и вставляем куда подходит
+        # Iterate over all indexes (except default and current) and insert where suitable
         for spec, index in self._indexes.items():
             if spec == self._default_spec or spec == current_spec:
                 continue
@@ -280,7 +280,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
 
 class Index(BaseIndex[T], typing.Generic[T]):
     """
-    Индекс с взвешенным распределением по партициям.
+    Index with weighted distribution across partitions.
     """
     _weights: list[float]
 
@@ -289,17 +289,17 @@ class Index(BaseIndex[T], typing.Generic[T]):
         super().__init__(specification)
 
     def _select_idx(self) -> int:
-        """Выбирает индекс значения с учётом весов и наклона."""
+        """Selects a value index considering weights and skew."""
         n = len(self._values)
 
-        # Выбираем партицию по весам — O(w)
+        # Select a partition by weights — O(w)
         partition_idx = random.choices(
             range(len(self._weights)),
             weights=self._weights,
             k=1
         )[0]
 
-        # Вычисляем границы партиции — O(1)
+        # Calculate partition boundaries — O(1)
         partition_size = n / len(self._weights)
         start = int(partition_idx * partition_size)
         end = int((partition_idx + 1) * partition_size)
@@ -307,12 +307,12 @@ class Index(BaseIndex[T], typing.Generic[T]):
             end = start + 1
         end = min(end, n)
 
-        # Вычисляем локальный наклон из соотношения весов соседних партиций — O(1)
-        # Используем ЛЕВУЮ партицию и смещаем к КОНЦУ — это компенсирует то, что ранние
-        # значения получают больше вызовов (доступны дольше при динамическом создании).
-        # Для weights=[0.7, 0.2, 0.07, 0.03]:
-        #   partition 0: первая → local_skew=1.0 (равномерно)
-        #   partition 1: ratio=3.5 → local_skew≈2.81 (смещение к концу, ближе к partition 0)
+        # Calculate local skew from the weight ratio of adjacent partitions — O(1)
+        # Use the LEFT partition and shift towards the END — this compensates for the fact
+        # that earlier values receive more calls (available longer during dynamic creation).
+        # For weights=[0.7, 0.2, 0.07, 0.03]:
+        #   partition 0: first → local_skew=1.0 (uniform)
+        #   partition 1: ratio=3.5 → local_skew≈2.81 (shift towards end, closer to partition 0)
         #   partition 2: ratio=2.86 → local_skew≈2.52
         #   partition 3: ratio=2.33 → local_skew≈2.22
         if partition_idx > 0:
@@ -320,18 +320,18 @@ class Index(BaseIndex[T], typing.Generic[T]):
             curr_weight = self._weights[partition_idx]
             if curr_weight > 0:
                 ratio = prev_weight / curr_weight
-                # ratio > 1 → смещение к концу партиции (ближе к предыдущей)
-                # ratio = 1 → равномерное распределение
+                # ratio > 1 → shift towards end of partition (closer to previous)
+                # ratio = 1 → uniform distribution
                 local_skew = max(1.0, math.log2(ratio) + 1)
-                # local_skew = max(1.0, math.log2(ratio) * 0.5 + 1)  # более плавный наклон
+                # local_skew = max(1.0, math.log2(ratio) * 0.5 + 1)  # smoother skew
             else:
                 local_skew = 2.0
         else:
-            # Первая партиция — равномерное распределение
+            # First partition — uniform distribution
             local_skew = 1.0
 
-        # Выбираем значение с учётом наклона — O(1)
-        # Смещение к КОНЦУ партиции: end - 1 - local_idx
+        # Select a value considering skew — O(1)
+        # Shift towards the END of partition: end - 1 - local_idx
         size = end - start
         local_idx = int(size * (1 - random.random()) ** local_skew)
         local_idx = min(local_idx, size - 1)
@@ -343,24 +343,6 @@ class Index(BaseIndex[T], typing.Generic[T]):
 # =============================================================================
 
 class WeightedDistributor(BaseDistributor[T], typing.Generic[T]):
-    """
-    weights should be one of:
-    - sum of partition divided by total sum
-    - max in partition divided by total max
-    Если использовать max, тогда первое значение всегда будет равно единице, что неудобно в использовании.
-    Поэтому выбираем sum.
-
-    Если sum(self._weights) >= 1, тогда пополнение будет через параметр self._mean.
-    Если sum(self._weights) < 1, тогда пополнение будет без учета параметра self._mean,
-    т.к. ни одна партиция не сможет достигнуть своего веса.
-
-    В перспективе можно перейти на функциональную выборку, см.
-    https://dataschool.com/learn-sql/random-sequences/
-    Достаточно поддерживать три вида функции:
-    - линейная
-    - экспоненциальная
-    - логарифмическая
-    """
     _weights: list[float]
 
     def __init__(

@@ -11,16 +11,16 @@ __all__ = ('SkewDistributor', 'SkewIndex', 'estimate_skew', 'weights_to_skew')
 
 def estimate_skew(usage_counts: dict[typing.Any, int], tail_cutoff: float = 0.9) -> tuple[float, float]:
     """
-    Оценка параметра skew из реальных данных использования.
+    Estimate the skew parameter from real usage data.
 
     Args:
-        usage_counts: {value: count} — сколько раз каждое значение использовалось
-        tail_cutoff: доля данных для анализа (отбросить хвост)
+        usage_counts: {value: count} — how many times each value was used
+        tail_cutoff: fraction of data for analysis (discard the tail)
 
     Returns:
-        (skew, r_squared) — параметр и качество подгонки (0-1)
+        (skew, r_squared) — parameter and goodness of fit (0-1)
 
-    Пример:
+    Example:
         >>> counts = {'a': 100, 'b': 50, 'c': 25, 'd': 12}
         >>> skew, r2 = estimate_skew(counts)
         >>> dist = SkewDistributor(skew=skew)
@@ -28,10 +28,10 @@ def estimate_skew(usage_counts: dict[typing.Any, int], tail_cutoff: float = 0.9)
     if len(usage_counts) < 2:
         return 1.0, 0.0
 
-    # Ранжируем по частоте (DESC)
+    # Rank by frequency (DESC)
     sorted_counts = sorted(usage_counts.values(), reverse=True)
 
-    # Log-log данные (пропускаем нули и хвост)
+    # Log-log data (skip zeros and the tail)
     cutoff_idx = int(len(sorted_counts) * tail_cutoff)
     log_rank = []
     log_freq = []
@@ -43,7 +43,7 @@ def estimate_skew(usage_counts: dict[typing.Any, int], tail_cutoff: float = 0.9)
     if len(log_rank) < 2:
         return 1.0, 0.0
 
-    # Линейная регрессия: log_freq = -alpha * log_rank + const
+    # Linear regression: log_freq = -alpha * log_rank + const
     n = len(log_rank)
     sum_x = sum(log_rank)
     sum_y = sum(log_freq)
@@ -55,10 +55,10 @@ def estimate_skew(usage_counts: dict[typing.Any, int], tail_cutoff: float = 0.9)
     if denom == 0:
         return 1.0, 0.0
 
-    # Наклон (alpha) — отрицательный для убывающего распределения
+    # Slope (alpha) — negative for a decreasing distribution
     alpha = -(n * sum_xy - sum_x * sum_y) / denom
 
-    # R² — качество подгонки
+    # R² — goodness of fit
     ss_tot = sum_y2 - sum_y ** 2 / n
     if ss_tot == 0:
         r_squared = 0.0
@@ -68,10 +68,10 @@ def estimate_skew(usage_counts: dict[typing.Any, int], tail_cutoff: float = 0.9)
                      for x, y in zip(log_rank, log_freq))
         r_squared = max(0, 1 - ss_res / ss_tot)
 
-    # skew из alpha: skew = 1 / (1 - alpha)
-    # Вывод: p(x) ∝ x^(1/skew - 1), Zipf: freq ∝ rank^(-alpha)
-    # Сравнивая показатели: -alpha = 1/skew - 1 → skew = 1/(1-alpha)
-    alpha = max(0, min(alpha, 0.9))  # ограничить: alpha >= 0.9 → skew >= 10
+    # skew from alpha: skew = 1 / (1 - alpha)
+    # Derivation: p(x) ∝ x^(1/skew - 1), Zipf: freq ∝ rank^(-alpha)
+    # Comparing exponents: -alpha = 1/skew - 1 → skew = 1/(1-alpha)
+    alpha = max(0, min(alpha, 0.9))  # clamp: alpha >= 0.9 → skew >= 10
     skew = 1.0 / (1.0 - alpha) if alpha < 1.0 else 10.0
 
     return skew, r_squared
@@ -79,20 +79,20 @@ def estimate_skew(usage_counts: dict[typing.Any, int], tail_cutoff: float = 0.9)
 
 def weights_to_skew(weights: list[float]) -> float:
     """
-    Конвертация списка весов в параметр skew.
+    Convert a list of weights to a skew parameter.
 
-    Для степенного распределения idx = n * (1-r)^skew:
-    P(первый квартиль) = (1/len(weights))^(1/skew)
+    For power-law distribution idx = n * (1-r)^skew:
+    P(first quartile) = (1/len(weights))^(1/skew)
 
-    Подбираем skew чтобы первый квартиль ≈ weights[0].
+    We fit skew so that the first quartile ≈ weights[0].
 
     Args:
-        weights: список весов партиций (например [0.7, 0.2, 0.07, 0.03])
+        weights: list of partition weights (e.g. [0.7, 0.2, 0.07, 0.03])
 
     Returns:
-        skew: параметр для SkewDistributor
+        skew: parameter for SkewDistributor
 
-    Пример:
+    Example:
         >>> skew = weights_to_skew([0.7, 0.2, 0.07, 0.03])
         >>> skew  # ≈ 3.89
     """
@@ -118,12 +118,12 @@ T = typing.TypeVar("T", covariant=True)
 
 class SkewIndex(BaseIndex[T], typing.Generic[T]):
     """
-    Индекс со степенным распределением.
-    Один параметр skew вместо списка весов.
+    Index with power-law distribution.
+    A single skew parameter instead of a list of weights.
 
-    skew = 1.0 — равномерное распределение
-    skew = 2.0 — умеренный перекос к началу (первые значения чаще)
-    skew = 3.0+ — сильный перекос
+    skew = 1.0 — uniform distribution
+    skew = 2.0 — moderate skew towards the beginning (earlier values are more frequent)
+    skew = 3.0+ — strong skew
     """
     _skew: float
 
@@ -132,12 +132,12 @@ class SkewIndex(BaseIndex[T], typing.Generic[T]):
         super().__init__(specification)
 
     def _select_idx(self) -> int:
-        """Выбирает индекс со степенным распределением. O(1)"""
+        """Selects an index with power-law distribution. O(1)"""
         n = len(self._values)
-        # Степенное распределение: idx = n * (1 - random)^skew
-        # При skew=1: равномерное (25% в каждом квартиле)
-        # При skew=2: перекос к началу (50% в первом квартиле)
-        # При skew=3: сильный перекос (63% в первом квартиле)
+        # Power-law distribution: idx = n * (1 - random)^skew
+        # At skew=1: uniform (25% in each quartile)
+        # At skew=2: skew towards the beginning (50% in the first quartile)
+        # At skew=3: strong skew (63% in the first quartile)
         idx = int(n * (1 - random.random()) ** self._skew)
         return min(idx, n - 1)
 
@@ -148,17 +148,17 @@ class SkewIndex(BaseIndex[T], typing.Generic[T]):
 
 class SkewDistributor(BaseDistributor[T], typing.Generic[T]):
     """
-    Дистрибьютор со степенным распределением.
+    Distributor with power-law distribution.
 
-    Один параметр skew вместо списка весов:
-    - skew = 1.0 — равномерное распределение
-    - skew = 2.0 — умеренный перекос (первые 20% получают ~60% вызовов)
-    - skew = 3.0 — сильный перекос (первые 10% получают ~70% вызовов)
+    A single skew parameter instead of a list of weights:
+    - skew = 1.0 — uniform distribution
+    - skew = 2.0 — moderate skew (first 20% receive ~60% of calls)
+    - skew = 3.0 — strong skew (first 10% receive ~70% of calls)
 
-    Преимущества:
-    - O(1) выбор значения (vs O(n) у Distributor)
-    - Один параметр вместо списка весов
-    - Нет проблемы миграции значений между индексами
+    Advantages:
+    - O(1) value selection (vs O(n) for Distributor)
+    - A single parameter instead of a list of weights
+    - No problem of value migration between indexes
     """
     _skew: float
 

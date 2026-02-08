@@ -71,15 +71,11 @@ class IM2ODistributor(IObservable, typing.Generic[T], metaclass=ABCMeta):
 
     @abstractmethod
     def bind_external_source(self, external_source: typing.Any) -> None:
-        """Привязывает внешний источник данных (repository)."""
+        """Binds an external data source (repository)."""
         raise NotImplementedError
 
 
 class ICursor(typing.Generic[T], StopAsyncIteration, metaclass=ABCMeta):
-    """
-    Заинтересованные декораторы должны перехватывать Cursor и создавать свой, если им нужно добавить объект к себе.
-    Например, если WeightedDistributor станет декоратором для SequenceDistributor.
-    """
     @property
     @abstractmethod
     def position(self):
@@ -101,13 +97,13 @@ class IM2ODistributorFactory(typing.Protocol[T]):
         sequence: bool = False,
     ) -> IM2ODistributor[T]:
         """
-        Фабрика для Distributor.
+        Factory for Distributor.
 
         Args:
             weights: If a weights sequence is specified, selections are made according to the relative weights.
-            skew: Параметр перекоса (1.0 = равномерно, 2.0+ = перекос к началу). Default = 2.0
-            mean: Среднее количество использований каждого значения.
-            null_weight: Вероятность вернуть None (0-1)
+            skew: Skew parameter (1.0 = uniform, 2.0+ = skewed towards the beginning). Default = 2.0
+            mean: Average number of uses for each value.
+            null_weight: Probability of returning None (0-1)
             sequence: Pass sequence number to value generator.
         """
         ...
