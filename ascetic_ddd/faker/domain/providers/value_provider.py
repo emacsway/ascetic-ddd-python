@@ -34,9 +34,9 @@ class ValueProvider(
         or
         <- result <- output_factory(input)
             <- input <- (
-                set(value)
+                require({'$eq': value})
                 or
-                ValueGenerator(position | None) <- position | None
+                ValueGenerator(criteria, position | None) <- position | None
             )
         ),
     where
