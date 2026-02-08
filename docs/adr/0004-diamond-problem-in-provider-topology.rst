@@ -15,17 +15,66 @@ where :term:`Aggregate` providers are connected via reference providers (foreign
 keys). A **diamond problem** arises when the same ``AggregateProvider`` is
 reachable from multiple paths.
 
+Topology
+^^^^^^^^
+
 Consider this topology::
 
-   ThirdModelFaker
-   +-- first_model_id  --> FirstModelFaker       (path 1)
-   +-- second_model_id --> SecondModelFaker
-   |                       +-- first_model_id --> FirstModelFaker  (path 2)
-   +-- parent_id       --> ThirdModelFaker (self-reference, nullable)
+::
 
-``FirstModelFaker`` is reached from two paths. When ``ThirdModelFaker`` populates,
-both paths call ``FirstModelFaker.require()`` with potentially different criteria,
-but referring to the **same** aggregate instance.
+   ThirdModelFaker
+   +-- id (ThirdModelPkFaker)
+   |   +-- first_model_id --> FirstModelFaker       <-- path 1
+   +-- second_model_id --> SecondModelFaker
+   |                       +-- id (SecondModelPkFaker)
+   |                           +-- first_model_id --> FirstModelFaker  <-- path 2 (same instance)
+   +-- parent_id --> ThirdModelFaker (self-reference, nullable)
+
+``FirstModelFaker`` is the same instance reached from two paths: through
+``ThirdModelPkFaker.first_model_id`` (path 1) and through
+``SecondModelPkFaker.first_model_id`` (path 2).
+
+Step-by-step reproduction
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. ``ThirdModelPkFaker.first_model_id`` populate triggers ``Cursor`` ->
+   ``FirstModelFaker.create()`` -> generates ``UUID_A`` ->
+   ``id_provider.require(UUID_A)`` -> ``_output = aggregate``.
+   Note: ``create()`` sets ``_criteria`` only on ``id_provider``,
+   **not** on ``FirstModelFaker`` itself. So ``FirstModelFaker._criteria``
+   remains ``None``.
+
+2. ``ThirdModelFaker.do_populate()`` propagates constraints:
+   ``self.second_model_id.require({'$rel': {'id': {'first_model_id': UUID_A}}})``
+   -> ``SecondModelFaker.require(...)`` ->
+   ``SecondModelPkFaker.first_model_id.require(UUID_A)`` ->
+   ``FirstModelFaker.require({'id': UUID_A})``.
+
+3. Inside ``BaseCompositeProvider.require()``:
+
+   .. code-block:: python
+
+      if self._criteria != old_criteria:
+          self._output = empty   # <-- RESETS already-created output!
+
+   ``FirstModelFaker._criteria`` was ``None``, new criteria is
+   ``CompositeQuery(...)``, so ``None != CompositeQuery(...)`` -> ``True``
+   -> ``_output = empty``.
+
+4. ``SecondModelPkFaker.first_model_id`` populate triggers ``Cursor`` ->
+   ``FirstModelFaker.create()`` -> ``_output is empty`` -> creates a
+   **new** aggregate -> ``UUID_B`` -> ``id_provider.require(UUID_B)``
+   -> **conflict** with ``UUID_A``.
+
+Root cause
+^^^^^^^^^^
+
+``create()`` does not synchronize ``self._criteria`` with the actually created
+state. A subsequent ``require()`` from path 2 with the same value treats it as
+a new criterion and resets ``_output``.
+
+The problem manifests when ``require()`` arrives later, from a different path in
+the graph.
 
 Two sub-problems were identified:
 
