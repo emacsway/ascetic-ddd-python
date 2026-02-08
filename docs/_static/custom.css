@@ -1,1 +1,39 @@
 /* Custom styles for ascetic-ddd documentation */
+
+.md-typeset h1, .md-typeset h2 {
+    text-shadow: 1px 1px 2px #999;
+}
+
+[data-md-color-scheme=default] .md-typeset h1,
+[data-md-color-scheme=default] .md-typeset h2 {
+    color: #111111;
+}
+
+.md-typeset h1 {
+	  border-bottom: 1px solid #bbb;
+}
+
+.md-header__topic:first-child {
+	  font-weight: normal;
+}
+
+.md-header {
+    text-shadow: 1px 1px 1px #333333;
+}
+
+label.md-nav__title {
+    font: Georgia, "Times New Roman", Times, serif;
+	  font-style: oblique;
+	  font-weight: normal;
+	  text-shadow: 2px 2px 3px #999;
+}
+
+[data-md-color-scheme=default] label.md-nav__title {
+    color: #111111;
+}
+
+[data-md-color-primary=indigo] {
+    --md-primary-fg-color: #980000;
+    --md-primary-fg-color--light: #b33030;
+    --md-primary-fg-color--dark: #700000;
+}
