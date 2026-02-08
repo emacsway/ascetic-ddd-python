@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
 project = 'ascetic-ddd'
-copyright = '2024, Ivan Zakrevsky'
+copyright = '2026, Ivan Zakrevsky'
 author = 'Ivan Zakrevsky'
 release = '0.1.5'
 
