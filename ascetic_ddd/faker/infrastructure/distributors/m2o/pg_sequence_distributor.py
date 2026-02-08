@@ -168,7 +168,7 @@ class PgSequenceDistributor(Observable, IM2ODistributor[T], typing.Generic[T]):
         return self
 
     def bind_external_source(self, external_source: typing.Any) -> None:
-        """PgSequenceDistributor не использует external_source."""
+        """PgSequenceDistributor does not use external_source."""
         pass
 
     async def _is_initialized(self, session: ISession) -> bool:

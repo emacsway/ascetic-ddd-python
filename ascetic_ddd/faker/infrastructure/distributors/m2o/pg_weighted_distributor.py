@@ -34,10 +34,10 @@ T = typing.TypeVar("T", covariant=True)
 
 class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
     """
-    Базовый класс для PostgreSQL дистрибьюторов.
+    Base class for PostgreSQL distributors.
 
-    Ограничение: при динамическом создании значений ранние значения
-    получают больше вызовов, т.к. доступны дольше. Для генератора фейковых данных приемлемо.
+    Limitation: when values are created dynamically, earlier values
+    receive more calls since they are available longer. Acceptable for a fake data generator.
     """
     _extract_connection = staticmethod(extract_internal_connection)
     _initialized: bool = False
@@ -63,7 +63,7 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
         super().__init__()
 
     def bind_external_source(self, external_source: typing.Any) -> None:
-        """Привязывает внешний источник данных (repository) и обновляет таблицу."""
+        """Binds an external data source (repository) and updates the table."""
         if not isinstance(external_source, IPgExternalSource):
             raise TypeError("Expected IPgExternalSource, got %s" % type(external_source))
         self._external_source = external_source
@@ -80,7 +80,7 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
         if not self._initialized:
             await self.setup(session)
 
-        # Резолвим вложенные constraints (если есть)
+        # Resolve nested constraints (if any)
         if hasattr(specification, 'resolve_nested'):
             await specification.resolve_nested(session)
 
@@ -211,11 +211,11 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
 
 class PgWeightedDistributor(BasePgDistributor[T], typing.Generic[T]):
     """
-    Дистрибьютор с взвешенным распределением в PostgreSQL.
+    Distributor with weighted distribution in PostgreSQL.
 
-    Ограничение: при динамическом создании значений ранние значения
-    получают больше вызовов, т.к. доступны дольше. Это даёт ~85% vs 70% для первой
-    партиции вместо точного соответствия весам. Для генератора фейковых данных приемлемо.
+    Limitation: when values are created dynamically, earlier values
+    receive more calls since they are available longer. This yields ~85% vs 70% for the first
+    partition instead of exact weight matching. Acceptable for a fake data generator.
     """
     _weights: list[float]
 
@@ -231,27 +231,27 @@ class PgWeightedDistributor(BasePgDistributor[T], typing.Generic[T]):
 
     def _compute_partition(self) -> tuple[int, float, int]:
         """
-        Вычисляет партицию в Python.
+        Computes the partition in Python.
 
         Returns:
             (partition_idx, local_skew, num_partitions)
 
-        Используем ЛЕВУЮ партицию (LAG) и смещаем к КОНЦУ — это компенсирует то, что ранние
-        значения получают больше вызовов (доступны дольше при динамическом создании).
-        Для weights=[0.7, 0.2, 0.07, 0.03]:
-          partition 0: первая → local_skew=1.0 (равномерно)
-          partition 1: ratio=3.5 → local_skew≈2.81 (смещение к концу, ближе к partition 0)
-          partition 2: ratio=2.86 → local_skew≈2.52
-          partition 3: ratio=2.33 → local_skew≈2.22
+        Uses the LEFT partition (LAG) and shifts toward the END -- this compensates for the fact
+        that earlier values receive more calls (available longer during dynamic creation).
+        For weights=[0.7, 0.2, 0.07, 0.03]:
+          partition 0: first -> local_skew=1.0 (uniform)
+          partition 1: ratio=3.5 -> local_skew~=2.81 (shift toward end, closer to partition 0)
+          partition 2: ratio=2.86 -> local_skew~=2.52
+          partition 3: ratio=2.33 -> local_skew~=2.22
         """
         num_partitions = len(self._weights)
         if num_partitions == 0:
             return (0, 1.0, 1)
 
-        # Выбор партиции по весам — O(w)
+        # Select partition by weights -- O(w)
         partition_idx = random.choices(range(num_partitions), weights=self._weights, k=1)[0]
 
-        # Вычисляем локальный наклон из соотношения весов соседних партиций
+        # Compute local skew from the weight ratio of adjacent partitions
         if partition_idx > 0:
             prev_weight = self._weights[partition_idx - 1]
             curr_weight = self._weights[partition_idx]
@@ -267,11 +267,11 @@ class PgWeightedDistributor(BasePgDistributor[T], typing.Generic[T]):
 
     async def _get_next_value(self, session: ISession, specification: ISpecification[T]) -> tuple[T | None, bool]:
         """
-        Оптимизированный выбор значения:
-        1. Выбор партиции по весам — O(w) в Python
-        2. Выбор позиции внутри партиции со slope bias — O(1) в SQL
-        3. Получение значения по позиции — O(log n) с индексом
-        4. Вероятностное решение о создании нового значения
+        Optimized value selection:
+        1. Select partition by weights -- O(w) in Python
+        2. Select position within partition with slope bias -- O(1) in SQL
+        3. Retrieve value by position -- O(log n) with index
+        4. Probabilistic decision on creating a new value
         """
         visitor = PgSpecificationVisitor()
         specification.accept(visitor)
@@ -290,7 +290,7 @@ class PgWeightedDistributor(BasePgDistributor[T], typing.Generic[T]):
                     -- end = floor((partition_idx + 1) * total / num_partitions)
                     -- size = ceil(total / num_partitions)
                     -- pos = end - 1 - floor(size * (1 - random())^local_skew)
-                    -- Смещение к КОНЦУ партиции (ближе к предыдущей)
+                    -- Shift toward the END of the partition (closer to the previous one)
                     GREATEST(0,
                         FLOOR((%(partition_idx)s + 1) * n::decimal / %(num_partitions)s)::integer - 1 -
                         LEAST(
@@ -303,7 +303,7 @@ class PgWeightedDistributor(BasePgDistributor[T], typing.Generic[T]):
             )
             SELECT
                 (SELECT object FROM filtered ORDER BY position OFFSET t.pos LIMIT 1),
-                -- Вероятностный подход: создаём новое с вероятностью 1/mean
+                -- Probabilistic approach: create a new value with probability 1/mean
                 (t.n = 0 OR RANDOM() < 1.0 / %(expected_mean)s),
                 t.n
             FROM target t

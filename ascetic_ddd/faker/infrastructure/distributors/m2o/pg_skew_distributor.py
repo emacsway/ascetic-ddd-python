@@ -15,20 +15,20 @@ T = typing.TypeVar("T", covariant=True)
 
 class PgSkewDistributor(BasePgDistributor[T], typing.Generic[T]):
     """
-    Дистрибьютор со степенным распределением в PostgreSQL.
+    Distributor with power-law distribution in PostgreSQL.
 
-    Один параметр skew вместо списка весов:
-    - skew = 1.0 — равномерное распределение
-    - skew = 2.0 — умеренный перекос (первые 20% получают ~60% вызовов)
-    - skew = 3.0 — сильный перекос (первые 10% получают ~70% вызовов)
+    A single skew parameter instead of a list of weights:
+    - skew = 1.0 -- uniform distribution
+    - skew = 2.0 -- moderate skew (first 20% receive ~60% of calls)
+    - skew = 3.0 -- strong skew (first 10% receive ~70% of calls)
 
-    Преимущества перед PgDistributor:
-    - Один параметр вместо списка весов
-    - Проще SQL (нет таблицы weights, нет cumulative weights)
-    - O(1) выбор позиции
+    Advantages over PgDistributor:
+    - A single parameter instead of a list of weights
+    - Simpler SQL (no weights table, no cumulative weights)
+    - O(1) position selection
 
-    Ограничение: при динамическом создании значений ранние значения
-    получают больше вызовов, т.к. доступны дольше. Для генератора фейковых данных приемлемо.
+    Limitation: when values are created dynamically, earlier values
+    receive more calls since they are available longer. Acceptable for a fake data generator.
     """
     _skew: float = 2.0
 
@@ -44,15 +44,15 @@ class PgSkewDistributor(BasePgDistributor[T], typing.Generic[T]):
 
     async def _get_next_value(self, session: ISession, specification: ISpecification[T]) -> tuple[T | None, bool]:
         """
-        Выбор значения со степенным распределением:
+        Value selection with power-law distribution:
         idx = floor(total_values * (1 - random())^skew)
 
-        При skew=1: равномерное распределение
-        При skew=2: первые 50% получают ~75% вызовов
-        При skew=3: первые 33% получают ~70% вызовов
+        With skew=1: uniform distribution
+        With skew=2: first 50% receive ~75% of calls
+        With skew=3: first 33% receive ~70% of calls
 
-        Вероятностный подход для создания новых значений: с вероятностью 1/mean.
-        Работает корректно per-specification (WHERE условие учитывается).
+        Probabilistic approach for creating new values: with probability 1/mean.
+        Works correctly per-specification (WHERE condition is taken into account).
         """
         visitor = PgSpecificationVisitor()
         specification.accept(visitor)
@@ -66,15 +66,15 @@ class PgSkewDistributor(BasePgDistributor[T], typing.Generic[T]):
             ),
             target AS (
                 SELECT
-                    -- Степенное распределение: idx = floor(n * (1 - random())^skew)
-                    -- skew=1: равномерное, skew=2+: перекос к началу
+                    -- Power-law distribution: idx = floor(n * (1 - random())^skew)
+                    -- skew=1: uniform, skew=2+: skewed toward the beginning
                     LEAST(FLOOR(n * POWER(1 - RANDOM(), %(skew)s))::integer, GREATEST(n - 1, 0)) AS pos,
                     n
                 FROM stats
             )
             SELECT
                 (SELECT object FROM filtered ORDER BY position OFFSET t.pos LIMIT 1),
-                -- Вероятностный подход: создаём новое с вероятностью 1/mean
+                -- Probabilistic approach: create a new value with probability 1/mean
                 (t.n = 0 OR RANDOM() < 1.0 / %(expected_mean)s),
                 t.n
             FROM target t

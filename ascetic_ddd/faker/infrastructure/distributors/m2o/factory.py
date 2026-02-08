@@ -20,13 +20,13 @@ def pg_distributor_factory(
     sequence: bool = False,
 ) -> IM2ODistributor[T]:
     """
-    Фабрика для Distributor.
+    Factory for Distributor.
 
     Args:
         weights: If a weights sequence is specified, selections are made according to the relative weights.
-        skew: Параметр перекоса (1.0 = равномерно, 2.0+ = перекос к началу). Default = 2.0
-        mean: Среднее количество использований каждого значения.
-        null_weight: Вероятность вернуть None (0-1)
+        skew: Skew parameter (1.0 = uniform, 2.0+ = skew towards the beginning). Default = 2.0
+        mean: Average number of usages for each value.
+        null_weight: Probability of returning None (0-1)
         sequence: Pass sequence number to value generator.
     """
     if sequence:
