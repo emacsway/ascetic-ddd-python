@@ -281,7 +281,6 @@ class DependentProvider(
         self._value_selector = None
         self._dependency_id = None
         self._aggregate_providers_accessor.reset()
-        self.notify('criteria', self._criteria)
 
     async def setup(self, session: ISession):
         await self._aggregate_providers_accessor.setup(session)

@@ -168,8 +168,6 @@ class BaseProvider(
         self._criteria = None
         self._input = empty
         self._output = empty
-        self.notify('criteria', self._criteria)
-        self.notify('input', self._input)
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
@@ -304,7 +302,6 @@ class BaseCompositeProvider(
         self._output = empty
         for provider in self.providers.values():
             provider.reset()
-        self.notify('criteria', self._criteria)
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
