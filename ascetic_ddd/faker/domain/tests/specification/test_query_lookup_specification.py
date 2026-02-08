@@ -196,10 +196,10 @@ class MockReferenceProvider(IReferenceProvider):
     def is_transient(self):
         return self._query is empty
 
-    def empty(self, shunt=None):
+    def clone(self, shunt=None):
         return MockReferenceProvider(self._repository, self._aggregate_provider)
 
-    def do_empty(self, clone, shunt):
+    def do_clone(self, clone, shunt):
         pass
 
     async def setup(self, session):

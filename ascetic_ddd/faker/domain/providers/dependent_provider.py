@@ -40,7 +40,7 @@ class IAggregateProvidersAccessor(ISetupable, typing.Generic[T_Agg_Provider], me
         raise NotImplementedError
 
     @abstractmethod
-    def empty(self, shunt: ICloningShunt | None = None) -> typing.Self:
+    def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
         raise NotImplementedError
 
 
@@ -254,8 +254,8 @@ class DependentProvider(
         Sets the template aggregate provider.
         This provider will be cloned for each child.
         """
-        # Check if it's a provider object (has 'empty' method) or a factory callable
-        if hasattr(aggregate_provider, 'empty'):
+        # Check if it's a provider object (has 'clone' method) or a factory callable
+        if hasattr(aggregate_provider, 'clone'):
             # It's already a provider object
             accessor = EagerAggregateProvidersAccessor[T_Agg_Provider](aggregate_provider)
         else:
@@ -263,14 +263,14 @@ class DependentProvider(
             accessor = LazyAggregateProvidersAccessor[T_Agg_Provider](aggregate_provider)
         self._aggregate_providers_accessor = accessor
 
-    def do_empty(self, clone: typing.Self, shunt: ICloningShunt | None = None):
+    def do_clone(self, clone: typing.Self, shunt: ICloningShunt | None = None):
         clone._criteria = None
         clone._outputs = empty
         clone._count = None
         clone._weights = None
         clone._value_selector = None
         clone._dependency_id = None
-        clone._aggregate_providers_accessor = self._aggregate_providers_accessor.empty(shunt)
+        clone._aggregate_providers_accessor = self._aggregate_providers_accessor.clone(shunt)
 
     def reset(self) -> None:
         self._criteria = None
@@ -304,12 +304,12 @@ class EagerAggregateProvidersAccessor(IAggregateProvidersAccessor[T_Agg_Provider
     def __call__(self, count: int) -> list[T_Agg_Provider]:
         # Extend list if needed by cloning template
         while len(self._providers) < count:
-            cloned = self._template_provider.empty()
+            cloned = self._template_provider.clone()
             self._providers.append(cloned)
         return self._providers[:count]
 
-    def empty(self, shunt: ICloningShunt | None = None) -> typing.Self:
-        return EagerAggregateProvidersAccessor(self._template_provider.empty(shunt))
+    def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
+        return EagerAggregateProvidersAccessor(self._template_provider.clone(shunt))
 
     def reset(self):
         self._providers = []
@@ -346,11 +346,11 @@ class LazyAggregateProvidersAccessor(IAggregateProvidersAccessor[T_Agg_Provider]
     def __call__(self, count: int) -> list[T_Agg_Provider]:
         template = self._get_template()
         while len(self._providers) < count:
-            cloned = template.empty()
+            cloned = template.clone()
             self._providers.append(cloned)
         return self._providers[:count]
 
-    def empty(self, shunt: ICloningShunt | None = None) -> typing.Self:
+    def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
         return LazyAggregateProvidersAccessor(self._template_provider_factory)
 
     def reset(self):

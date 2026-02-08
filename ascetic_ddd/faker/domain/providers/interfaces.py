@@ -60,8 +60,8 @@ class ICloningShunt(metaclass=ABCMeta):
 class ICloneable(metaclass=ABCMeta):
 
     @abstractmethod
-    def empty(self, shunt: ICloningShunt | None = None) -> typing.Self:
-        # For older python: def empty(self: T_Cloneable, shunt: IShunt | None = None) -> T_Cloneable:
+    def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
+        # For older python: def clone(self: T_Cloneable, shunt: IShunt | None = None) -> T_Cloneable:
         raise NotImplementedError
 
 

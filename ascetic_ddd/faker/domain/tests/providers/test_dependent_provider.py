@@ -532,7 +532,7 @@ class DependentProviderCloneTestCase(IsolatedAsyncioTestCase):
         await provider.populate(session)
         self.assertTrue(provider.is_complete())
 
-        clone = provider.empty()
+        clone = provider.clone()
 
         self.assertFalse(clone.is_complete())
         self.assertEqual(clone._criteria, None)
@@ -866,7 +866,7 @@ class DependentProviderWeightedTestCase(IsolatedAsyncioTestCase):
             weights=[1.0]
         )
 
-        clone = provider.empty()
+        clone = provider.clone()
 
         self.assertIsNone(clone._value_selector)
         self.assertIsNone(clone._weights)

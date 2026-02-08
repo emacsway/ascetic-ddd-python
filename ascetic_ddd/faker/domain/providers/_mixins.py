@@ -126,17 +126,17 @@ class CloneableMixin(ICloneable):
         """
         pass
 
-    def empty(self, shunt: ICloningShunt | None = None) -> typing.Self:
+    def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
         if shunt is None:
             shunt = CloningShunt()
         if self in shunt:
             return shunt[self]
         c = copy.copy(self)
-        self.do_empty(c, shunt)
+        self.do_clone(c, shunt)
         shunt[self] = c
         return c
 
-    def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
+    def do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         pass
 
 
@@ -189,7 +189,7 @@ class BaseProvider(
         """Return current query as dict format."""
         return self._input
 
-    def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
+    def do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         clone._criteria = None
         clone._input = empty
         clone._output = empty
@@ -279,11 +279,11 @@ class BaseCompositeProvider(
     def is_transient(self) -> bool:
         return any(provider.is_transient() for provider in self.providers.values())
 
-    def do_empty(self, clone: typing.Self, shunt: ICloningShunt):
+    def do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         clone._criteria = None
         clone._output = empty
         for attr, provider in self.providers.items():
-            setattr(clone, attr, provider.empty(shunt))
+            setattr(clone, attr, provider.clone(shunt))
         clone.on_init()
 
     def reset(self) -> None:

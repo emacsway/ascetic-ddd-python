@@ -410,7 +410,7 @@ class ThirdModelFaker(AggregateProvider[dict, ThirdModel]):
                 null_weight=0.3,
                 mean=10,
             ),
-            aggregate_provider=lambda: self.empty()  # Lazy clone for self-reference
+            aggregate_provider=lambda: self.clone()  # Lazy clone for self-reference
         )
         super().__init__(
             repository=repository,
