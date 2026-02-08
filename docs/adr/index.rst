@@ -14,3 +14,4 @@ decision, and its consequences.
    0001-c-style-string-formatting
    0002-sociable-unit-tests
    0003-go-portability
+   0004-diamond-problem-in-provider-topology

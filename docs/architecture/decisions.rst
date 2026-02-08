@@ -15,3 +15,5 @@ Summary of Key Decisions
 - :doc:`/adr/0002-sociable-unit-tests` — Test with real collaborators, mocks only
   for external dependencies
 - :doc:`/adr/0003-go-portability` — Design choices that enable potential Go port
+- :doc:`/adr/0004-diamond-problem-in-provider-topology` — Handling diamond
+  dependencies in faker provider topology
