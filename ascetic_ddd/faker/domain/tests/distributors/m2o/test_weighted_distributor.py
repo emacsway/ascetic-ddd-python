@@ -72,7 +72,7 @@ class _BaseDistributorTestCase(IsolatedAsyncioTestCase):
         )
         # counter_repr = [(k, v) for k, v in sorted(counter.items(), key=lambda item: item[1], reverse=True)]
         # logging.debug(pprint.pformat(counter_repr))
-        # Вероятностный подход (PgDistributor) имеет более высокую дисперсию
+        # Probabilistic approach (PgDistributor) has higher variance
         self.assertLessEqual(actual_mean, expected_mean * 1.5)
         strategy(actual_mean, expected_mean)
 
@@ -85,7 +85,7 @@ class _BaseDistributorTestCase(IsolatedAsyncioTestCase):
             "Non-empty mean, Actual: %s, Expected: %s, Total: %s, Len: %s",
             actual_mean, expected_mean, counter.total(), len(counter)
         )
-        # Вероятностный подход (PgDistributor) имеет более высокую дисперсию
+        # Probabilistic approach (PgDistributor) has higher variance
         self.assertLessEqual(actual_mean, expected_mean * 1.5)
         strategy(actual_mean, expected_mean)
 
@@ -116,10 +116,10 @@ class _BaseDistributorTestCase(IsolatedAsyncioTestCase):
             ]
             actual_weight = sum(current_partition_counts) / counter.total()
             logging.info("Pos: %s, Actual weight: %s, Expected weight: %s", part_num, actual_weight, weight)
-            # При динамическом создании значений (без per-value счётчиков) ранние значения
-            # получают больше вызовов, т.к. доступны дольше. Это даёт ~85% vs 70% для первой
-            # партиции. Вероятностный подход (без touch) добавляет ещё больше дисперсии.
-            # Для генератора фейковых данных это приемлемо.
+            # When dynamically creating values (without per-value counters), earlier values
+            # receive more calls because they are available longer. This yields ~85% vs 70% for the first
+            # partition. The probabilistic approach (without touch) adds even more variance.
+            # For a fake data generator this is acceptable.
             self.assertLessEqual(actual_weight, weight * 3.0)
             self.assertAlmostEqual(actual_weight, weight, delta=weight * 2.0)
 
@@ -164,8 +164,8 @@ class DefaultKeyDistributorTestCase(_BaseDistributorTestCase):
                     await cursor.append(ts_session, value)
                     result.append(value)
 
-        # Вероятностный подход в PgDistributor имеет более высокую дисперсию,
-        # поэтому используем 40% tolerance вместо 20%
+        # Probabilistic approach in PgDistributor has higher variance,
+        # so we use 40% tolerance instead of 20%
         self._check_mean_of_emptiable_result(
             result,
             functools.partial(self.assertAlmostEqual, delta=(self.mean / self.null_weight) * 0.4)
@@ -224,7 +224,7 @@ class CollectionDistributorTestCase(_BaseDistributorTestCase):
         return [5, 10, 20]
 
     async def _next_with_fallback(self, ts_session):
-        """Если source исчерпан, используем fallback через повторный вызов next."""
+        """If source is exhausted, use fallback via repeated next call."""
         try:
             return await self.dist.next(ts_session)
         except Cursor as cursor:
@@ -235,11 +235,11 @@ class CollectionDistributorTestCase(_BaseDistributorTestCase):
                     return value
                 except StopIteration:
                     self._source_available = False
-            # Fallback: повторно вызвать next (теперь есть значения, select вернёт одно)
+            # Fallback: call next again (now there are values, select will return one)
             try:
                 return await self.dist.next(ts_session)
             except Cursor:
-                # В редком случае Cursor ещё раз (вероятностно)
+                # In rare case Cursor is raised again (probabilistically)
                 return await self.dist.next(ts_session)
 
     async def test_fixed_collection(self):

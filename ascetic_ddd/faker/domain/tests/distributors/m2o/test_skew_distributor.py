@@ -39,12 +39,12 @@ class Factory:
 
 class _BaseSkewDistributorTestCase(IsolatedAsyncioTestCase):
     """
-    Базовый класс тестов для SkewDistributor.
+    Base test class for SkewDistributor.
 
-    Проверяем степенное распределение: idx = n * (1 - random())^skew
-    При skew=1: равномерное распределение
-    При skew=2: первые 50% значений получают ~75% вызовов
-    При skew=3: первые 33% значений получают ~70% вызовов
+    We verify the power-law distribution: idx = n * (1 - random())^skew
+    At skew=1: uniform distribution
+    At skew=2: the first 50% of values receive ~75% of calls
+    At skew=3: the first 33% of values receive ~70% of calls
     """
     distributor_factory = staticmethod(distributor_factory)
 
@@ -75,7 +75,7 @@ class _BaseSkewDistributorTestCase(IsolatedAsyncioTestCase):
             "Emptiable mean, Actual: %s, Expected: %s, Empty: %s, Non-Empty: %s, Total: %s, Len: %s",
             actual_mean, expected_mean, counter[None], counter.total() - counter[None], counter.total(), len(counter)
         )
-        # Вероятностный подход (PgSkewDistributor) имеет более высокую дисперсию
+        # Probabilistic approach (PgSkewDistributor) has higher variance
         self.assertLessEqual(actual_mean, expected_mean * 1.5)
         strategy(actual_mean, expected_mean)
 
@@ -88,12 +88,12 @@ class _BaseSkewDistributorTestCase(IsolatedAsyncioTestCase):
             "Non-empty mean, Actual: %s, Expected: %s, Total: %s, Len: %s",
             actual_mean, expected_mean, counter.total(), len(counter)
         )
-        # Вероятностный подход (PgSkewDistributor) имеет более высокую дисперсию
+        # Probabilistic approach (PgSkewDistributor) has higher variance
         self.assertLessEqual(actual_mean, expected_mean * 1.5)
         strategy(actual_mean, expected_mean)
 
     def _check_skew_distribution(self, result):
-        """Проверка перекоса: первая половина должна получать больше вызовов."""
+        """Verify skew: the first half should receive more calls."""
         counter = Counter(result)
         if None in counter:
             del counter[None]
@@ -110,7 +110,7 @@ class _BaseSkewDistributorTestCase(IsolatedAsyncioTestCase):
             second_half_sum, (1 - first_half_ratio) * 100
         )
 
-        # При skew>=2 первая половина должна получать значительно больше
+        # At skew>=2 the first half should receive significantly more
         self.assertGreater(first_half_ratio, 0.6)
 
     async def asyncTearDown(self):
@@ -140,8 +140,8 @@ class DefaultKeySkewDistributorTestCase(_BaseSkewDistributorTestCase):
                     await cursor.append(ts_session, value)
                     result.append(value)
 
-        # Вероятностный подход в PgSkewDistributor имеет более высокую дисперсию,
-        # поэтому используем 40% tolerance вместо 20%
+        # Probabilistic approach in PgSkewDistributor has higher variance,
+        # so we use 40% tolerance instead of 20%
         self._check_mean_of_emptiable_result(
             result,
             functools.partial(self.assertAlmostEqual, delta=(self.mean / self.null_weight) * 0.4)
@@ -226,14 +226,14 @@ class CollectionSkewDistributorTestCase(_BaseSkewDistributorTestCase):
 
 class SkewIndexSelectIdxTestCase(IsolatedAsyncioTestCase):
     """
-    Тесты для SkewIndex._select_idx().
+    Tests for SkewIndex._select_idx().
 
-    Проверяем формулу: idx = int(n * (1 - random())^skew)
-    Теоретически: P(idx < x*n) = x^(1/skew)
+    We verify the formula: idx = int(n * (1 - random())^skew)
+    Theoretically: P(idx < x*n) = x^(1/skew)
     """
 
     def _simulate_select_idx(self, n: int, skew: float, samples: int = 100000) -> list[int]:
-        """Симулирует SkewIndex._select_idx()"""
+        """Simulates SkewIndex._select_idx()"""
         import random
         results = []
         for _ in range(samples):
@@ -243,30 +243,30 @@ class SkewIndexSelectIdxTestCase(IsolatedAsyncioTestCase):
         return results
 
     def _get_percentile_ratio(self, results: list[int], n: int, percentile: float) -> float:
-        """Возвращает долю результатов в первых percentile% индексов."""
+        """Returns the proportion of results in the first percentile% of indices."""
         cutoff = int(n * percentile)
         count_in_range = sum(1 for r in results if r < cutoff)
         return count_in_range / len(results)
 
     async def test_select_idx_uniform(self):
-        """При skew=1.0 распределение равномерное."""
+        """At skew=1.0 the distribution is uniform."""
         n = 1000
         results = self._simulate_select_idx(n, skew=1.0)
 
-        # Первые 25% должны получать ~25% вызовов
+        # The first 25% should receive ~25% of calls
         ratio = self._get_percentile_ratio(results, n, 0.25)
         self.assertAlmostEqual(ratio, 0.25, delta=0.02)
 
-        # Первые 50% должны получать ~50% вызовов
+        # The first 50% should receive ~50% of calls
         ratio = self._get_percentile_ratio(results, n, 0.50)
         self.assertAlmostEqual(ratio, 0.50, delta=0.02)
 
     async def test_select_idx_theoretical_formula(self):
         """
-        Проверка теоретической формулы: P(idx < x*n) = x^(1/skew).
+        Verification of theoretical formula: P(idx < x*n) = x^(1/skew).
 
-        Математическое обоснование:
-        - idx = n * (1 - u)^skew, где u ~ Uniform[0,1)
+        Mathematical justification:
+        - idx = n * (1 - u)^skew, where u ~ Uniform[0,1)
         - P(idx < k) = P(n*(1-u)^skew < k) = P((1-u) < (k/n)^(1/skew))
         - P(idx < k) = (k/n)^(1/skew)
         """
@@ -291,12 +291,12 @@ class SkewIndexSelectIdxTestCase(IsolatedAsyncioTestCase):
 
                 self.assertAlmostEqual(
                     actual, expected, delta=tolerance,
-                    msg=f"skew={skew}, первые {percentile*100:.0f}%: "
-                        f"ожидалось {expected*100:.1f}%, получено {actual*100:.1f}%"
+                    msg="skew=%s, first %.0f%%: "
+                        "expected %.1f%%, got %.1f%%" % (skew, percentile*100, expected*100, actual*100)
                 )
 
     async def test_select_idx_skew_increases_bias(self):
-        """Больший skew → больший перекос к началу."""
+        """Higher skew leads to greater bias toward the beginning."""
         n = 1000
         percentile = 0.25
 
@@ -307,21 +307,21 @@ class SkewIndexSelectIdxTestCase(IsolatedAsyncioTestCase):
 
             self.assertGreater(
                 ratio, prev_ratio,
-                msg=f"skew={skew} должен давать больший перекос чем предыдущий"
+                msg="skew=%s should produce greater bias than the previous one" % skew
             )
             prev_ratio = ratio
 
 
 class EstimateSkewTestCase(IsolatedAsyncioTestCase):
     """
-    Тесты для estimate_skew().
+    Tests for estimate_skew().
 
-    Проверяем формулу: skew = 1 / (1 - alpha)
-    где alpha — параметр Zipf из log-log регрессии.
+    We verify the formula: skew = 1 / (1 - alpha)
+    where alpha is the Zipf parameter from log-log regression.
     """
 
     def _generate_skew_data(self, n: int, skew: float, samples: int) -> dict[int, int]:
-        """Генерирует данные с известным skew для проверки estimate_skew."""
+        """Generates data with known skew for verifying estimate_skew."""
         import random
         counter = Counter()
         for _ in range(samples):
@@ -333,19 +333,19 @@ class EstimateSkewTestCase(IsolatedAsyncioTestCase):
 
     async def test_estimate_skew_formula(self):
         """
-        Проверка формулы skew = 1 / (1 - alpha).
+        Verification of formula skew = 1 / (1 - alpha).
 
-        Математическое обоснование:
+        Mathematical justification:
         - SkewDistributor: idx = floor(n * (1 - u)^skew)
         - PDF: p(x) ∝ x^(1/skew - 1)
         - Zipf: freq(rank) ∝ rank^(-alpha)
-        - Сравнивая: -alpha = 1/skew - 1 → skew = 1/(1-alpha)
+        - Comparing: -alpha = 1/skew - 1 -> skew = 1/(1-alpha)
         """
         from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import estimate_skew
 
         test_cases = [
-            # (skew, допустимая ошибка)
-            # Положительный сдвиг растёт с skew из-за дискретизации
+            # (skew, allowed error)
+            # Positive bias grows with skew due to discretization
             (1.5, 0.15),
             (2.0, 0.15),
             (2.5, 0.20),
@@ -359,14 +359,14 @@ class EstimateSkewTestCase(IsolatedAsyncioTestCase):
                 data = self._generate_skew_data(1000, target_skew, 100000)
                 estimated_skew, r_squared = estimate_skew(data)
 
-                self.assertGreater(r_squared, 0.95, "R² должен быть > 0.95 для хорошей подгонки")
+                self.assertGreater(r_squared, 0.95, "R-squared should be > 0.95 for a good fit")
                 self.assertAlmostEqual(
                     estimated_skew, target_skew, delta=tolerance,
-                    msg=f"skew={target_skew}: ожидалось ~{target_skew}, получено {estimated_skew:.3f}"
+                    msg="skew=%s: expected ~%s, got %.3f" % (target_skew, target_skew, estimated_skew)
                 )
 
     async def test_estimate_skew_uniform(self):
-        """При равномерном распределении skew ≈ 1.0."""
+        """For a uniform distribution skew is approximately 1.0."""
         from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import estimate_skew
 
         data = self._generate_skew_data(1000, 1.0, 100000)
@@ -375,33 +375,33 @@ class EstimateSkewTestCase(IsolatedAsyncioTestCase):
         self.assertAlmostEqual(estimated_skew, 1.0, delta=0.1)
 
     async def test_estimate_skew_edge_cases(self):
-        """Граничные случаи."""
+        """Edge cases."""
         from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import estimate_skew
 
-        # Пустой словарь
+        # Empty dict
         skew, r2 = estimate_skew({})
         self.assertEqual(skew, 1.0)
         self.assertEqual(r2, 0.0)
 
-        # Один элемент
+        # Single element
         skew, r2 = estimate_skew({'a': 100})
         self.assertEqual(skew, 1.0)
         self.assertEqual(r2, 0.0)
 
-        # Два элемента
+        # Two elements
         skew, r2 = estimate_skew({'a': 100, 'b': 50})
         self.assertGreaterEqual(skew, 1.0)
 
 
 class WeightsToSkewTestCase(IsolatedAsyncioTestCase):
     """
-    Тесты для weights_to_skew().
+    Tests for weights_to_skew().
 
-    Проверяем, что функция корректно воспроизводит weights[0].
+    We verify that the function correctly reproduces weights[0].
     """
 
     def _simulate_weights(self, n_partitions: int, skew: float, samples: int = 100000) -> list[float]:
-        """Симулирует SkewDistributor и возвращает веса партиций."""
+        """Simulates SkewDistributor and returns partition weights."""
         import random
         partition_size = 1.0 / n_partitions
         counts = [0] * n_partitions
@@ -416,10 +416,10 @@ class WeightsToSkewTestCase(IsolatedAsyncioTestCase):
 
     async def test_weights_to_skew_first_weight(self):
         """
-        Проверка: weights_to_skew() точно воспроизводит weights[0].
+        Verification: weights_to_skew() accurately reproduces weights[0].
 
-        Формула: P(первая партиция) = (1/k)^(1/skew) = weights[0]
-        Решая: skew = log(1/k) / log(weights[0])
+        Formula: P(first partition) = (1/k)^(1/skew) = weights[0]
+        Solving: skew = log(1/k) / log(weights[0])
         """
         from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import weights_to_skew
 
@@ -437,11 +437,11 @@ class WeightsToSkewTestCase(IsolatedAsyncioTestCase):
 
                 self.assertAlmostEqual(
                     simulated[0], weights[0], delta=0.02,
-                    msg=f"weights[0]={weights[0]}: ожидалось ~{weights[0]}, получено {simulated[0]:.3f}"
+                    msg="weights[0]=%s: expected ~%s, got %.3f" % (weights[0], weights[0], simulated[0])
                 )
 
     async def test_weights_to_skew_uniform(self):
-        """Равномерные веса → skew = 1.0."""
+        """Uniform weights lead to skew = 1.0."""
         from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import weights_to_skew
 
         skew = weights_to_skew([0.25, 0.25, 0.25, 0.25])
@@ -449,28 +449,28 @@ class WeightsToSkewTestCase(IsolatedAsyncioTestCase):
 
         simulated = self._simulate_weights(4, skew)
         for i, w in enumerate(simulated):
-            self.assertAlmostEqual(w, 0.25, delta=0.02, msg=f"partition {i}")
+            self.assertAlmostEqual(w, 0.25, delta=0.02, msg="partition %s" % i)
 
     async def test_weights_to_skew_edge_cases(self):
-        """Граничные случаи."""
+        """Edge cases."""
         from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import weights_to_skew
 
-        # Пустой список
+        # Empty list
         self.assertEqual(weights_to_skew([]), 1.0)
 
-        # Один элемент
+        # Single element
         self.assertEqual(weights_to_skew([1.0]), 1.0)
 
-        # Невалидные веса
+        # Invalid weights
         self.assertEqual(weights_to_skew([0.0, 0.5, 0.5]), 2.0)
         self.assertEqual(weights_to_skew([1.0, 0.0, 0.0]), 2.0)
 
     async def test_weights_to_skew_known_values(self):
-        """Проверка известных значений skew."""
+        """Verification of known skew values."""
         from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import weights_to_skew
         import math
 
-        # Для 4 партиций: P(first) = (1/4)^(1/skew)
+        # For 4 partitions: P(first) = (1/4)^(1/skew)
         # skew=2: P = 0.25^0.5 = 0.5
         # skew=3: P = 0.25^(1/3) ≈ 0.63
         # skew=4: P = 0.25^0.25 ≈ 0.707
@@ -486,5 +486,5 @@ class WeightsToSkewTestCase(IsolatedAsyncioTestCase):
             skew = weights_to_skew(weights)
             self.assertAlmostEqual(
                 skew, expected_skew, delta=0.01,
-                msg=f"weights[0]={target_p:.3f}: ожидалось skew={expected_skew}, получено {skew:.3f}"
+                msg="weights[0]=%.3f: expected skew=%s, got %.3f" % (target_p, expected_skew, skew)
             )

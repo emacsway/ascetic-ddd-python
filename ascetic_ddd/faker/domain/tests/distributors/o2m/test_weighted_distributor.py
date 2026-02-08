@@ -8,18 +8,18 @@ from ascetic_ddd.faker.domain.distributors.o2m.weighted_distributor import Weigh
 
 class WeightedDistributorTestCase(unittest.TestCase):
     """
-    Тесты для O2M WeightedDistributor.
+    Tests for O2M WeightedDistributor.
 
-    Проверяем:
-    - Среднее количество items близко к mean
-    - Распределение по партициям соответствует весам
+    Verify:
+    - Average number of items is close to mean
+    - Distribution across partitions matches the weights
     """
     weights = [0.7, 0.2, 0.07, 0.03]
     mean = 50
     iterations = 1000
 
     def test_average_equals_mean(self):
-        """Среднее количество items должно быть близко к mean."""
+        """Average number of items should be close to mean."""
         dist = WeightedDistributor(weights=self.weights, mean=self.mean)
 
         total = sum(dist.distribute() for _ in range(self.iterations))
@@ -29,7 +29,7 @@ class WeightedDistributorTestCase(unittest.TestCase):
         self.assertAlmostEqual(average, self.mean, delta=self.mean * 0.15)
 
     def test_distribution_has_variance(self):
-        """Распределение должно иметь значительную дисперсию."""
+        """Distribution should have significant variance."""
         dist = WeightedDistributor(weights=self.weights, mean=self.mean)
 
         results = [dist.distribute() for _ in range(self.iterations)]
@@ -39,11 +39,11 @@ class WeightedDistributorTestCase(unittest.TestCase):
 
         logging.info("Min: %d, Max: %d", min_val, max_val)
 
-        # Должна быть разница между min и max
+        # There should be a difference between min and max
         self.assertGreater(max_val, min_val * 2)
 
     def test_extreme_weights(self):
-        """При экстремальных весах распределение сильно неравномерное."""
+        """With extreme weights, the distribution is highly non-uniform."""
         dist = WeightedDistributor(weights=[0.9, 0.09, 0.009, 0.001], mean=self.mean)
 
         results = [dist.distribute() for _ in range(self.iterations)]
@@ -54,21 +54,21 @@ class WeightedDistributorTestCase(unittest.TestCase):
         logging.info("Extreme weights - Min: %d, Max: %d, Ratio: %.1f",
                      min_val, max_val, max_val / max(min_val, 1))
 
-        # При экстремальных весах разница ещё больше
+        # With extreme weights the difference is even larger
         self.assertGreater(max_val, min_val * 5)
 
     def test_equal_weights(self):
-        """При равных весах распределение более равномерное."""
+        """With equal weights, the distribution is more uniform."""
         dist = WeightedDistributor(weights=[0.25, 0.25, 0.25, 0.25], mean=self.mean)
 
         results = [dist.distribute() for _ in range(self.iterations)]
         average = sum(results) / len(results)
 
-        # Среднее должно быть около mean
+        # Average should be around mean
         self.assertAlmostEqual(average, self.mean, delta=self.mean * 0.15)
 
     def test_single_weight(self):
-        """Один вес — все в одной партиции."""
+        """Single weight -- all in one partition."""
         dist = WeightedDistributor(weights=[1.0], mean=self.mean)
 
         results = [dist.distribute() for _ in range(self.iterations)]
@@ -77,15 +77,15 @@ class WeightedDistributorTestCase(unittest.TestCase):
         self.assertAlmostEqual(average, self.mean, delta=self.mean * 0.15)
 
     def test_stateless(self):
-        """Дистрибьютор stateless — можно вызывать из разных потоков."""
+        """Distributor is stateless -- can be called from different threads."""
         dist = WeightedDistributor(weights=self.weights, mean=self.mean)
 
-        # Несколько вызовов
+        # Multiple calls
         r1 = dist.distribute()
         r2 = dist.distribute()
         r3 = dist.distribute()
 
-        # Все должны вернуть валидные значения
+        # All should return valid values
         self.assertGreaterEqual(r1, 0)
         self.assertGreaterEqual(r2, 0)
         self.assertGreaterEqual(r3, 0)
