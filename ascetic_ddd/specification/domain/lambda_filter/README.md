@@ -308,19 +308,6 @@ python -m unittest ascetic_ddd.specification.domain.lambda_filter.test_lambda_pa
 python -m unittest discover -s ascetic_ddd/specification/domain/lambda_filter -p "test_*.py" -v
 ```
 
-## Сравнение с другими парсерами
-
-| Характеристика | JSONPath | Lambda Filter |
-|----------------|----------|---------------|
-| Синтаксис | JSONPath строки | Python lambda |
-| Типизация | Строки | Нативный Python |
-| IDE поддержка | ❌ Нет | ✅ Автодополнение |
-| Проверка типов | ❌ Runtime | ✅ Static (mypy) |
-| Читаемость | Средняя | Высокая |
-| Рефакторинг | Сложный | ✅ Простой |
-| Внешние зависимости | jsonpath libs | ❌ Нет |
-| Параметризация | C-style (%s) | Нативная |
-
 ## Когда использовать Lambda Filter
 
 **Выбирайте Lambda Filter, если:**
@@ -331,12 +318,6 @@ python -m unittest discover -s ascetic_ddd/specification/domain/lambda_filter -p
 - ✅ Требуется **рефакторинг** кода (rename fields, etc.)
 - ✅ Минимум внешних зависимостей
 
-**Выбирайте JSONPath, если:**
-
-- ✅ Нужна **сериализация** спецификаций
-- ✅ Спецификации **приходят извне** (API, config files)
-- ✅ Требуется **RFC 9535 совместимость**
-- ✅ Используете JSONPath в других частях системы
 
 ## Ограничения
 
