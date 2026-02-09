@@ -24,10 +24,14 @@ Native JSONPath
 .. include:: ../../../ascetic_ddd/specification/domain/jsonpath/README_NATIVE.md
    :parser: myst_parser.sphinx_
 
+.. toctree::
+   :hidden:
+
+   lambda_filter
+
 Lambda Filter
 -------------
 
-.. include:: ../../../ascetic_ddd/specification/domain/lambda_filter/README.md
-   :parser: myst_parser.sphinx_
+See :doc:`lambda_filter` for the Lambda Filter parser documentation.
 
 See the :doc:`/api/index` for auto-generated API documentation.

@@ -1,5 +1,8 @@
 # Lambda Filter Parser for Specification Pattern
 
+```{index} Lambda Filter, Specification Pattern, AST
+```
+
 Parser for Python lambda functions that converts them into Specification Pattern AST nodes.
 
 ## Description
