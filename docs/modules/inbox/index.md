@@ -1,4 +1,4 @@
-# Inbox Pattern
+# Transactional Inbox Pattern
 
 ```{index} Inbox, Transactional Inbox, Idempotency, Causal Consistency, Causal Dependencies
 ```
