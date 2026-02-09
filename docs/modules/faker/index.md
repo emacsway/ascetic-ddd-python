@@ -1,7 +1,14 @@
 # DDD Application Fake Data Generator
 
-```{index} Faker, Test Data Generation, Load Testing, Index Selectivity
+```{index} Faker, Test Data Generation, Load Testing, Index Selectivity, Provider, Distributor
 ```
+
+
+# Overview
+
+The faker module provides a framework for generating test data with realistic
+relationships between :term:`Aggregate` instances.
+
 
 # Why?
 
@@ -45,6 +52,14 @@ For more details on the microservices testing pyramid, see
 [Testing Strategies in a Microservice Architecture](https://martinfowler.com/articles/microservice-testing/).
 
 This package can also be used for generating \*csv, \*.jsonl feeds for load testing engines in Command Log format. More details on this will follow.
+
+
+# Key Concepts
+
+- **Provider**: A component that generates or selects a piece of test data. Providers form a directed acyclic graph.
+- **Distributor**: Controls selection strategy (sequence, weighted, random).
+- **Reference Provider**: Links aggregates via foreign key relationships.
+- **Composite Value Provider**: Generates composite value objects.
 
 
 # Distribution for distributor
@@ -487,3 +502,13 @@ async def generate_data():
 | `mean` | Average number of uses for each value. `mean=1` for unique values |
 | `null_weight` | Probability of returning None (0-1) |
 | `sequence` | Pass ordinal number to the value generator |
+
+
+## API Reference
+
+See the {doc}`/api/index` section for auto-generated API documentation of:
+
+- {mod}`ascetic_ddd.faker.domain.providers.interfaces`
+- {mod}`ascetic_ddd.faker.domain.distributors.m2o.interfaces`
+- {mod}`ascetic_ddd.faker.domain.query.operators`
+- {mod}`ascetic_ddd.faker.domain.specification.interfaces`
