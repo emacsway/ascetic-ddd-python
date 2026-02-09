@@ -1,12 +1,12 @@
-# Генератор фейковых данных DDD-приложения
+# DDD Application Fake Data Generator
 
-# Зачем?
+# Why?
 
-На показатели нагрузочного тестирования существенное влияние оказывает селективность индексов БД.
-Один и тот же объем данных при различной селективности индексов может дать существенно отличающиеся результаты.
+Database index selectivity has a significant impact on load testing results.
+The same data volume with different index selectivity can produce substantially different results.
 
-В результате исследования рынка Open Source решений не удалось выявить ни одного коробочного решения, позволяющего воспроизвести селективность индексов базы данных целевой системы.
-Даже Claud ответил:
+After researching available Open Source solutions, no out-of-the-box solution was found that could reproduce the index selectivity of the target system's database.
+Even Claude responded:
 
 > Problems with existing solutions:
 > 1. No distribution control — Faker generates uniformly, real data has skew (Zipf, Pareto)
@@ -19,38 +19,37 @@
 > 2. No reuse — each SubFactory creates a new object, can't "pick an existing company with 80% probability"
 > 3. No distribution — can't say "20% of companies get 80% of orders"
 
-Другая проблема заключается в том, что сгенерированные данные должны соответствовать инвариантам бизнес-логики.
-Бизнес-логика реализуется доменным слоем приложения.
-Таким образом, генерация валидных данных подразумевает под собой либо полное воспроизводство бизнес-логики генератором
-фейковых данных, либо реиспользование доменных моделей генератором фейковых данных.
+Another problem is that generated data must conform to business logic invariants.
+Business logic is implemented in the application's domain layer.
+Thus, generating valid data implies either fully reproducing the business logic in the fake data generator,
+or reusing domain models within the fake data generator.
 
-Поскольку агрегат доменной модели инкапсулирован, и зачастую требуется вызвать несколько его методов,
-чтоб привести его в требуемое состояние,
-при этом сохранение агрегата зачастую происходит в несколько SQL-запросов (особенно Event Sourced Aggregate),
-а доступ к внутреннему состоянию инкапсулированного агрегата извне закрыт,
-то наиболее удобным вариантом является реиспользование доменных моделей генератором фейковых данных.
+Since a domain model aggregate is encapsulated, and often requires calling several of its methods
+to bring it into the desired state,
+while saving an aggregate often involves multiple SQL queries (especially Event Sourced Aggregates),
+and external access to the internal state of an encapsulated aggregate is restricted,
+the most convenient approach is to reuse domain models within the fake data generator.
 
-Другой вариант подразумевает использование CQRS-Commands приложения вместо прямого доступа к доменной модели
-приложения.
-Обращаться к CQRS-Commands можно как In-Process (минуя сетевые Hexagonal Adapters),
-так и Out-Of-Process (через сетевой интерфейс приложения).
-В таком случае генератор фейковых становится удобным не только для генерации фейковых данных для нагрузочного тестирования,
-но и для In-Process Component (Service) Tests, а так же для Out-of-Process Component (Service) Tests.
-А именно на этом уровне обычно делаются Acceptance Tests для Service, зачастую с использованием
-BDD (Behavior-driven development) и ATDD (Acceptance Test-Driven Development).
+An alternative approach involves using the application's CQRS Commands instead of directly accessing the domain model.
+CQRS Commands can be invoked either In-Process (bypassing network Hexagonal Adapters)
+or Out-Of-Process (through the application's network interface).
+In this case, the fake data generator becomes useful not only for generating fake data for load testing,
+but also for In-Process Component (Service) Tests, as well as Out-of-Process Component (Service) Tests.
+This is typically the level where Acceptance Tests for a Service are written, often using
+BDD (Behavior-driven development) and ATDD (Acceptance Test-Driven Development).
 
-Подробнее о пирамиде тестирования микросервисов смотрите в
+For more details on the microservices testing pyramid, see
 [Testing Strategies in a Microservice Architecture](https://martinfowler.com/articles/microservice-testing/).
 
-Данный пакет проекта может так же использоваться для генерации \*csv, \*.jsonl фидов (feeds) для нагрузочных движков в формате Command Log. Подробней об этом будет позже.
+This package can also be used for generating \*csv, \*.jsonl feeds for load testing engines in Command Log format. More details on this will follow.
 
 
-# Распределение для distributor
+# Distribution for distributor
 
-Как снять распределение с БД действующего проекта?
+How to extract distribution from an existing project's database?
 
 
-## Снятие weights для большого диапазона
+## Extracting weights for a large range
 
 ```sql
 SELECT array_agg(weight ORDER BY part)
@@ -70,17 +69,17 @@ GROUP BY part;
 ```
 
 
-## Снятие skew
+## Extracting skew
 
-Skew вычисляется через log-log линейную регрессию (степенной закон Ципфа).
+Skew is computed via log-log linear regression (Zipf's power law).
 
-Математическое обоснование:
-- SkewDistributor использует формулу: `idx = floor(n * (1 - random())^skew)`
-- Это даёт плотность вероятности: `p(x) ∝ x^(1/skew - 1)`
-- Закон Ципфа: `freq(rank) ∝ rank^(-alpha)`
-- Сравнивая показатели: `-alpha = 1/skew - 1`
+Mathematical rationale:
+- SkewDistributor uses the formula: `idx = floor(n * (1 - random())^skew)`
+- This yields probability density: `p(x) ∝ x^(1/skew - 1)`
+- Zipf's law: `freq(rank) ∝ rank^(-alpha)`
+- Comparing exponents: `-alpha = 1/skew - 1`
 
-Формулы преобразования:
+Conversion formulas:
 - `alpha = 1 - 1/skew = (skew - 1) / skew`
 - `skew = 1 / (1 - alpha)`
 
@@ -99,7 +98,7 @@ log_data AS (
         LN(rank::float) AS log_rank,
         LN(freq::float) AS log_freq
     FROM ranked
-    WHERE rank <= (SELECT COUNT(*) * 0.9 FROM ranked)  -- отбросить хвост
+    WHERE rank <= (SELECT COUNT(*) * 0.9 FROM ranked)  -- trim the tail
 )
 SELECT
     1.0 / (1.0 + REGR_SLOPE(log_freq, log_rank)) AS skew,
@@ -108,17 +107,17 @@ SELECT
 FROM log_data;
 ```
 
-Примечание: `slope < 0` для Zipf-данных, поэтому `1 + slope = 1 - alpha`.
+Note: `slope < 0` for Zipf data, so `1 + slope = 1 - alpha`.
 
-Интерпретация:
-- `alpha ≈ 0` → `skew ≈ 1.0` — равномерное распределение
-- `alpha ≈ 0.5` → `skew ≈ 2.0` — умеренный перекос
-- `alpha ≈ 0.67` → `skew ≈ 3.0` — сильный перекос
-- `alpha → 1` → `skew → ∞` — экстремальный перекос (всё в одно значение)
-- `r_squared` — качество подгонки (0-1), чем ближе к 1, тем лучше данные описываются степенным законом
+Interpretation:
+- `alpha ≈ 0` → `skew ≈ 1.0` — uniform distribution
+- `alpha ≈ 0.5` → `skew ≈ 2.0` — moderate skew
+- `alpha ≈ 0.67` → `skew ≈ 3.0` — heavy skew
+- `alpha → 1` → `skew → ∞` — extreme skew (everything goes to a single value)
+- `r_squared` — goodness of fit (0-1), the closer to 1, the better the data follows the power law
 
 
-## Снятие weights для фиксированного диапазона (выбор из списка)
+## Extracting weights for a fixed range (choosing from a list)
 
 ```sql
 SELECT json_agg(val), json_agg(p) FROM (
@@ -133,7 +132,7 @@ SELECT json_agg(val), json_agg(p) FROM (
 ```
 
 
-## Снятие mean (среднего значения)
+## Extracting mean
 
 ```sql
 SELECT ROUND(COUNT(*)::decimal / GREATEST(COUNT(DISTINCT "company_id"), 1), 5) AS scale
@@ -142,7 +141,7 @@ WHERE "company_id" IS NOT NULL;
 ```
 
 
-## Снятие null_weight
+## Extracting null_weight
 
 ```sql
 SELECT
@@ -154,13 +153,13 @@ ORDER BY val DESC;
 ```
 
 
-# Пример использования
+# Usage Example
 
-Рассмотрим пример с multi-tenant приложением: Tenant, Author и Book.
-Book имеет композитный ключ (TenantId, InternalBookId).
+Consider an example with a multi-tenant application: Tenant, Author, and Book.
+Book has a composite key (TenantId, InternalBookId).
 
 
-## Доменные модели
+## Domain Models
 
 ```python
 import dataclasses
@@ -199,11 +198,11 @@ class TenantName:
 
 
 class Tenant:
-    
+
     def __init__(self, id: TenantId, name: TenantName):
         self._id = id
         self._name = name
-    
+
     def export(self, exporter: dict):
         exporter['id'] = self._id.value
         exporter['name'] = self._name.value
@@ -276,7 +275,7 @@ class Book:
         self._id = id
         self._author_id = author_id
         self._title = title
-    
+
     def export(self, exporter: dict):
         exporter['id'] = self._id.value
         exporter['_author_id'] = self._author_id.value
@@ -326,8 +325,8 @@ class AuthorIdProvider(CompositeValueProvider[dict, TenantId]):
             output_factory=InternalAuthorId,
             output_exporter=lambda x: x.value,
         )
-        # Ссылка на Tenant с распределением skew=2.0 (перекос к началу)
-        # mean=10 означает в среднем 10 авторов на tenant
+        # Reference to Tenant with skew=2.0 distribution (skewed towards the beginning)
+        # mean=10 means on average 10 authors per tenant
         self.tenant_id = ReferenceProvider[dict, TenantId, TenantProvider](
             distributor=distributor_factory(skew=2.0, mean=10),
             aggregate_provider=tenant_provider
@@ -391,8 +390,8 @@ class BookProvider(AggregateProvider[dict, Book]):
 
     def __init__(self, repository, tenant_provider: TenantProvider, author_provider: AuthorProvider):
         self.id = BookIdProvider(tenant_provider=tenant_provider)
-        # Ссылка на Author с распределением weights (20% авторов пишут 70% книг)
-        # mean=50 означает в среднем 50 книг на автора
+        # Reference to Author with weights distribution (20% of authors write 70% of books)
+        # mean=50 means on average 50 books per author
         self.author_id = ReferenceProvider[dict, AuthorId, AuthorProvider](
             distributor=distributor_factory(weights=[0.7, 0.2, 0.07, 0.03], mean=50),
             aggregate_provider=author_provider,
@@ -408,7 +407,7 @@ class BookProvider(AggregateProvider[dict, Book]):
         )
 
     async def on_populate(self, session, specification=None):
-        # Берём tenant_id из id для согласованности
+        # Take tenant_id from id for consistency
         await self.id.populate(session)
         self.author_id.require({'tenant_id': self.id.tenant_id.state(),})
         await super().on_populate(session)
@@ -420,7 +419,7 @@ class BookProvider(AggregateProvider[dict, Book]):
         return exporter
 
 
-######################## Использование ######################################
+######################## Usage ######################################
 
 
 tenant_repository = CompositeAutoPkRepository(
@@ -449,7 +448,7 @@ book_repository = CompositeAutoPkRepository(
     )
 )
 
-# Создаём провайдеры
+# Create providers
 tenant_provider = TenantProvider(tenant_repository)
 author_provider = AuthorProvider(author_repository, tenant_provider)
 book_provider = BookProvider(book_repository, tenant_provider, author_provider)
@@ -466,7 +465,7 @@ async def generate_data():
 
     session_pool = CompositeSessionPool(external_session_pool, internal_session_pool)
 
-    # Генерируем 1000 книг
+    # Generate 1000 books
     for _ in range(1000):
         with session_pool.session() as session, session.atomic() as ts_session:
             book_provider.reset()
@@ -476,12 +475,12 @@ async def generate_data():
 ```
 
 
-## Параметры distributor
+## Distributor parameters
 
-| Параметр | Описание |
-|----------|----------|
-| `weights` | Список весов партиций, например `[0.7, 0.2, 0.07, 0.03]` — 70% попадут в первую партицию |
-| `skew` | Параметр перекоса: 1.0 = равномерно, 2.0+ = перекос к началу |
-| `mean` | Среднее количество использований каждого значения. `mean=1` для уникальных значений |
-| `null_weight` | Вероятность вернуть None (0-1) |
-| `sequence` | Передавать порядковый номер в генератор значений |
+| Parameter | Description |
+|-----------|-------------|
+| `weights` | List of partition weights, e.g. `[0.7, 0.2, 0.07, 0.03]` — 70% will fall into the first partition |
+| `skew` | Skew parameter: 1.0 = uniform, 2.0+ = skewed towards the beginning |
+| `mean` | Average number of uses for each value. `mean=1` for unique values |
+| `null_weight` | Probability of returning None (0-1) |
+| `sequence` | Pass ordinal number to the value generator |
