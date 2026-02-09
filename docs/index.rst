@@ -3,7 +3,8 @@ ascetic-ddd
 
 .. index:: ascetic-ddd
 
-A toolkit and seedwork for Python DDD projects. Provides building blocks for
+A toolkit and [seedwork](https://martinfowler.com/bliki/Seedwork.html)
+for Python DDD projects. Provides building blocks for
 implementing Domain-Driven Design: aggregates, entities, value objects,
 repositories, specifications, sagas, outbox/inbox patterns, and more.
 

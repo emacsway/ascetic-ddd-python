@@ -11,7 +11,7 @@ A Saga is a **failure management pattern** for handling long-lived and distribut
 
 Rather than holding locks across multiple services, a Saga splits work into individual activities whose effects can be **compensated** (reversed) after work has been performed and committed.
 
-The :term:`Saga` module provides coordination for distributed transactions using compensating actions.
+The {term}`Saga` module provides coordination for distributed transactions using compensating actions.
 
 
 ## When to Use Sagas
