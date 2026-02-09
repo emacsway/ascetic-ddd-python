@@ -17,6 +17,8 @@ from ascetic_ddd.specification.domain.nodes import (
     GlobalScope,
     GreaterThan,
     GreaterThanEqual,
+    IsNotNull,
+    IsNull,
     Item,
     LessThan,
     LessThanEqual,
@@ -226,6 +228,37 @@ class LambdaParser:
         else:
             raise ValueError(f"Unsupported binary operator: {type(node.op).__name__}")
 
+    # Mapping of method names to comparison node classes.
+    # Value Object comparison methods: receiver.Method(arg) -> NodeClass(receiver, arg)
+    _METHOD_COMPARISON_MAP = {
+        "Equal": Equal,
+        "Equals": Equal,
+        "Eq": Equal,
+        "NotEqual": NotEqual,
+        "NotEquals": NotEqual,
+        "Ne": NotEqual,
+        "Neq": NotEqual,
+        "LessThan": LessThan,
+        "Lt": LessThan,
+        "LessThanOrEqual": LessThanEqual,
+        "LessThanEqual": LessThanEqual,
+        "Lte": LessThanEqual,
+        "Le": LessThanEqual,
+        "GreaterThan": GreaterThan,
+        "Gt": GreaterThan,
+        "GreaterThanOrEqual": GreaterThanEqual,
+        "GreaterThanEqual": GreaterThanEqual,
+        "Gte": GreaterThanEqual,
+        "Ge": GreaterThanEqual,
+    }
+
+    # Mapping of method names to postfix node classes.
+    # Postfix methods: receiver.Method() -> NodeClass(receiver)
+    _METHOD_POSTFIX_MAP = {
+        "IsNull": IsNull,
+        "IsNotNull": IsNotNull,
+    }
+
     def _convert_call(self, node: ast.Call) -> Visitable:
         """
         Convert function call to Specification node.
@@ -233,6 +266,9 @@ class LambdaParser:
         Supports:
         - any([generator expression]) -> Wildcard
         - any([list comprehension]) -> Wildcard
+        - receiver.Eq(arg) -> Equal(receiver, arg)
+        - receiver.IsNull() -> IsNull(receiver)
+        - etc.
         """
         if isinstance(node.func, ast.Name):
             if node.func.id == "any":
@@ -240,7 +276,54 @@ class LambdaParser:
             elif node.func.id == "all":
                 return self._convert_all(node)
 
-        raise ValueError(f"Unsupported function call: {ast.unparse(node)}")
+        # Method calls on attributes (e.g., user.age.Eq(25), user.email.IsNull())
+        if isinstance(node.func, ast.Attribute):
+            method_name = node.func.attr
+
+            # Value Object comparison methods
+            node_class = self._METHOD_COMPARISON_MAP.get(method_name)
+            if node_class is not None:
+                return self._convert_method_comparison(node, node_class)
+
+            # Postfix methods
+            node_class = self._METHOD_POSTFIX_MAP.get(method_name)
+            if node_class is not None:
+                return self._convert_method_postfix(node, node_class)
+
+        raise ValueError("Unsupported function call: %s" % ast.unparse(node))
+
+    def _convert_method_comparison(self, node: ast.Call, node_class: type) -> Visitable:
+        """
+        Convert method-based comparison to Specification node.
+
+        Example:
+            user.age.Eq(25) -> Equal(Field(GlobalScope(), "age"), Value(25))
+            user.profile.age.Gt(18) -> GreaterThan(Field(Object(GlobalScope(), "profile"), "age"), Value(18))
+        """
+        if len(node.args) != 1:
+            raise ValueError("%s() requires exactly 1 argument" % node.func.attr)
+
+        # receiver becomes left operand
+        left = self._convert_node(node.func.value)
+        # method argument becomes right operand
+        right = self._convert_node(node.args[0])
+
+        return node_class(left, right)
+
+    def _convert_method_postfix(self, node: ast.Call, node_class: type) -> Visitable:
+        """
+        Convert postfix method call to Specification node.
+
+        Example:
+            user.email.IsNull() -> IsNull(Field(GlobalScope(), "email"))
+        """
+        if len(node.args) != 0:
+            raise ValueError("%s() takes no arguments" % node.func.attr)
+
+        # receiver becomes operand
+        operand = self._convert_node(node.func.value)
+
+        return node_class(operand)
 
     def _convert_any(self, node: ast.Call) -> Visitable:
         """

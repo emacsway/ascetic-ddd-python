@@ -12,6 +12,8 @@ from ascetic_ddd.specification.domain.nodes import (
     GlobalScope,
     GreaterThan,
     GreaterThanEqual,
+    IsNotNull,
+    IsNull,
     Item,
     LessThan,
     LessThanEqual,
@@ -749,6 +751,385 @@ class TestLambdaParser(unittest.TestCase):
         })
 
         visitor = EvaluateVisitor(data)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+
+    # --- Method-based comparison operators ---
+
+    def test_method_eq(self):
+        """Test .Eq() method comparison."""
+        spec = parse(lambda user: user.age.Eq(30))
+
+        self.assertIsInstance(spec, Equal)
+        self.assertIsInstance(spec.left(), Field)
+        self.assertEqual(spec.left().name(), "age")
+        self.assertIsInstance(spec.right(), Value)
+        self.assertEqual(spec.right().value(), 30)
+
+        user = DictContext({"age": 30})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"age": 25})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_equal(self):
+        """Test .Equal() method comparison."""
+        spec = parse(lambda user: user.name.Equal("Alice"))
+
+        self.assertIsInstance(spec, Equal)
+
+        user = DictContext({"name": "Alice"})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"name": "Bob"})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_equals(self):
+        """Test .Equals() method comparison."""
+        spec = parse(lambda user: user.name.Equals("Alice"))
+
+        self.assertIsInstance(spec, Equal)
+
+        user = DictContext({"name": "Alice"})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+    def test_method_ne(self):
+        """Test .Ne() method comparison."""
+        spec = parse(lambda user: user.status.Ne("deleted"))
+
+        self.assertIsInstance(spec, NotEqual)
+
+        user = DictContext({"status": "active"})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"status": "deleted"})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_not_equal(self):
+        """Test .NotEqual() method comparison."""
+        spec = parse(lambda user: user.status.NotEqual("deleted"))
+
+        self.assertIsInstance(spec, NotEqual)
+
+    def test_method_neq(self):
+        """Test .Neq() method comparison."""
+        spec = parse(lambda user: user.status.Neq("deleted"))
+
+        self.assertIsInstance(spec, NotEqual)
+
+    def test_method_not_equals(self):
+        """Test .NotEquals() method comparison."""
+        spec = parse(lambda user: user.status.NotEquals("deleted"))
+
+        self.assertIsInstance(spec, NotEqual)
+
+    def test_method_lt(self):
+        """Test .Lt() method comparison."""
+        spec = parse(lambda user: user.age.Lt(30))
+
+        self.assertIsInstance(spec, LessThan)
+
+        user = DictContext({"age": 25})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"age": 35})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_less_than(self):
+        """Test .LessThan() method comparison."""
+        spec = parse(lambda user: user.age.LessThan(30))
+
+        self.assertIsInstance(spec, LessThan)
+
+    def test_method_lte(self):
+        """Test .Lte() method comparison."""
+        spec = parse(lambda user: user.age.Lte(30))
+
+        self.assertIsInstance(spec, LessThanEqual)
+
+        user = DictContext({"age": 30})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"age": 35})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_le(self):
+        """Test .Le() method comparison."""
+        spec = parse(lambda user: user.age.Le(30))
+
+        self.assertIsInstance(spec, LessThanEqual)
+
+    def test_method_less_than_or_equal(self):
+        """Test .LessThanOrEqual() method comparison."""
+        spec = parse(lambda user: user.age.LessThanOrEqual(30))
+
+        self.assertIsInstance(spec, LessThanEqual)
+
+    def test_method_less_than_equal(self):
+        """Test .LessThanEqual() method comparison."""
+        spec = parse(lambda user: user.age.LessThanEqual(30))
+
+        self.assertIsInstance(spec, LessThanEqual)
+
+    def test_method_gt(self):
+        """Test .Gt() method comparison."""
+        spec = parse(lambda user: user.age.Gt(25))
+
+        self.assertIsInstance(spec, GreaterThan)
+
+        user = DictContext({"age": 30})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"age": 20})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_greater_than(self):
+        """Test .GreaterThan() method comparison."""
+        spec = parse(lambda user: user.age.GreaterThan(25))
+
+        self.assertIsInstance(spec, GreaterThan)
+
+    def test_method_gte(self):
+        """Test .Gte() method comparison."""
+        spec = parse(lambda user: user.age.Gte(25))
+
+        self.assertIsInstance(spec, GreaterThanEqual)
+
+        user = DictContext({"age": 25})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"age": 20})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_ge(self):
+        """Test .Ge() method comparison."""
+        spec = parse(lambda user: user.age.Ge(25))
+
+        self.assertIsInstance(spec, GreaterThanEqual)
+
+    def test_method_greater_than_or_equal(self):
+        """Test .GreaterThanOrEqual() method comparison."""
+        spec = parse(lambda user: user.age.GreaterThanOrEqual(25))
+
+        self.assertIsInstance(spec, GreaterThanEqual)
+
+    def test_method_greater_than_equal(self):
+        """Test .GreaterThanEqual() method comparison."""
+        spec = parse(lambda user: user.age.GreaterThanEqual(25))
+
+        self.assertIsInstance(spec, GreaterThanEqual)
+
+    # --- Method-based postfix operators ---
+
+    def test_method_is_null(self):
+        """Test .IsNull() method."""
+        spec = parse(lambda user: user.email.IsNull())
+
+        self.assertIsInstance(spec, IsNull)
+        self.assertIsInstance(spec.operand(), Field)
+        self.assertEqual(spec.operand().name(), "email")
+
+        user = DictContext({"email": None})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"email": "test@example.com"})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_is_not_null(self):
+        """Test .IsNotNull() method."""
+        spec = parse(lambda user: user.email.IsNotNull())
+
+        self.assertIsInstance(spec, IsNotNull)
+        self.assertIsInstance(spec.operand(), Field)
+        self.assertEqual(spec.operand().name(), "email")
+
+        user = DictContext({"email": "test@example.com"})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"email": None})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    # --- Method-based operators with nested paths ---
+
+    def test_method_nested_path(self):
+        """Test method comparison with nested path: user.profile.age.Gt(25)."""
+        spec = parse(lambda user: user.profile.age.Gt(25))
+
+        self.assertIsInstance(spec, GreaterThan)
+        self.assertIsInstance(spec.left(), Field)
+        self.assertEqual(spec.left().name(), "age")
+
+        data = NestedDictContext({
+            "profile": {
+                "age": 30,
+            }
+        })
+
+        visitor = EvaluateVisitor(data)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        data = NestedDictContext({
+            "profile": {
+                "age": 20,
+            }
+        })
+
+        visitor = EvaluateVisitor(data)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_nested_path_is_null(self):
+        """Test IsNull with nested path: user.profile.email.IsNull()."""
+        spec = parse(lambda user: user.profile.email.IsNull())
+
+        self.assertIsInstance(spec, IsNull)
+
+        data = NestedDictContext({
+            "profile": {
+                "email": None,
+            }
+        })
+
+        visitor = EvaluateVisitor(data)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        data = NestedDictContext({
+            "profile": {
+                "email": "test@example.com",
+            }
+        })
+
+        visitor = EvaluateVisitor(data)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    # --- Method-based operators combined with logical operators ---
+
+    def test_method_combined_with_and(self):
+        """Test method comparison combined with AND."""
+        spec = parse(lambda user: user.age.Gte(18) and user.active == True)
+
+        self.assertIsInstance(spec, And)
+
+        user = DictContext({"age": 25, "active": True})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"age": 15, "active": True})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_combined_with_or(self):
+        """Test method comparison combined with OR."""
+        spec = parse(lambda user: user.age.Lt(18) or user.age.Gt(65))
+
+        self.assertIsInstance(spec, Or)
+
+        user = DictContext({"age": 15})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"age": 70})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"age": 30})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    def test_method_is_null_combined_with_or(self):
+        """Test IsNull combined with OR: user.email.IsNull() or user.email.Eq("")."""
+        spec = parse(lambda user: user.email.IsNull() or user.email.Eq(""))
+
+        self.assertIsInstance(spec, Or)
+
+        user = DictContext({"email": None})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"email": ""})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        user = DictContext({"email": "test@example.com"})
+        visitor = EvaluateVisitor(user)
+        spec.accept(visitor)
+        self.assertFalse(visitor.result())
+
+    # --- Method-based operators inside wildcards ---
+
+    def test_method_in_wildcard(self):
+        """Test method comparison inside wildcard context."""
+        spec = parse(lambda store: any(item.price.Gt(500) for item in store.items))
+
+        self.assertIsInstance(spec, Wildcard)
+        self.assertIsInstance(spec.predicate(), GreaterThan)
+
+        item1 = DictContext({"price": 999})
+        item2 = DictContext({"price": 29})
+
+        items = CollectionContext([item1, item2])
+        store = DictContext({"items": items})
+
+        visitor = EvaluateVisitor(store)
+        spec.accept(visitor)
+        self.assertTrue(visitor.result())
+
+        item1 = DictContext({"price": 29})
+        item2 = DictContext({"price": 49})
+
+        items = CollectionContext([item1, item2])
+        store = DictContext({"items": items})
+
+        visitor = EvaluateVisitor(store)
         spec.accept(visitor)
         self.assertFalse(visitor.result())
 
