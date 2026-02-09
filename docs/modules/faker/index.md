@@ -4,13 +4,13 @@
 ```
 
 
-# Overview
+## Overview
 
 The faker module provides a framework for generating test data with realistic
 relationships between :term:`Aggregate` instances.
 
 
-# Why?
+## Why?
 
 Database index selectivity has a significant impact on load testing results.
 The same data volume with different index selectivity can produce substantially different results.
@@ -54,7 +54,7 @@ For more details on the microservices testing pyramid, see
 This package can also be used for generating \*csv, \*.jsonl feeds for load testing engines in Command Log format. More details on this will follow.
 
 
-# Key Concepts
+## Key Concepts
 
 - **Provider**: A component that generates or selects a piece of test data. Providers form a directed acyclic graph.
 - **Distributor**: Controls selection strategy (sequence, weighted, random).
@@ -62,12 +62,12 @@ This package can also be used for generating \*csv, \*.jsonl feeds for load test
 - **Composite Value Provider**: Generates composite value objects.
 
 
-# Distribution for distributor
+## Distribution for distributor
 
 How to extract distribution from an existing project's database?
 
 
-## Extracting weights for a large range
+### Extracting weights for a large range
 
 ```sql
 SELECT array_agg(weight ORDER BY part)
@@ -87,7 +87,7 @@ GROUP BY part;
 ```
 
 
-## Extracting skew
+### Extracting skew
 
 Skew is computed via log-log linear regression (Zipf's power law).
 
@@ -135,7 +135,7 @@ Interpretation:
 - `r_squared` — goodness of fit (0-1), the closer to 1, the better the data follows the power law
 
 
-## Extracting weights for a fixed range (choosing from a list)
+### Extracting weights for a fixed range (choosing from a list)
 
 ```sql
 SELECT json_agg(val), json_agg(p) FROM (
@@ -150,7 +150,7 @@ SELECT json_agg(val), json_agg(p) FROM (
 ```
 
 
-## Extracting mean
+### Extracting mean
 
 ```sql
 SELECT ROUND(COUNT(*)::decimal / GREATEST(COUNT(DISTINCT "company_id"), 1), 5) AS scale
@@ -159,7 +159,7 @@ WHERE "company_id" IS NOT NULL;
 ```
 
 
-## Extracting null_weight
+### Extracting null_weight
 
 ```sql
 SELECT
@@ -171,13 +171,13 @@ ORDER BY val DESC;
 ```
 
 
-# Usage Example
+## Usage Example
 
 Consider an example with a multi-tenant application: Tenant, Author, and Book.
 Book has a composite key (TenantId, InternalBookId).
 
 
-## Domain Models
+### Domain Models
 
 ```python
 import dataclasses
@@ -493,7 +493,7 @@ async def generate_data():
 ```
 
 
-## Distributor parameters
+### Distributor parameters
 
 | Parameter | Description |
 |-----------|-------------|
