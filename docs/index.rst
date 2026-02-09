@@ -10,6 +10,11 @@ repositories, specifications, sagas, outbox/inbox patterns, and more.
 
 Designed to be ascetic — minimal, explicit, and free of unnecessary abstractions.
 
+Source Code:
+
+- Python version: `ascetic-ddd-python <https://github.com/krew-solutions/ascetic-ddd-python>`__;
+- Golang version: `ascetic-ddd-go <https://github.com/krew-solutions/ascetic-ddd-go>`__.
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents
