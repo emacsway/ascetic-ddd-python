@@ -11,7 +11,7 @@ import re
 from jsonpath_rfc9535 import JSONPathEnvironment
 
 # Import shared exceptions from native parser
-from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import (
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import (
     JSONPathError,
     JSONPathSyntaxError,
     JSONPathTypeError,

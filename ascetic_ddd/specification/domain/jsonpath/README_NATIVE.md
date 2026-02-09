@@ -19,7 +19,7 @@
 ## Использование
 
 ```python
-from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import parse
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import parse
 
 # Создать спецификацию
 spec = parse("$[?(@.age > %d)]")
@@ -205,14 +205,14 @@ python -m ascetic_ddd.specification.domain.jsonpath.example_usage_native
 - Переиспользование спецификаций
 - Boolean значения
 
-См. файл [example_usage_native.py](examples/jsonpath_native_example.py) для полного кода.
+См. файл [example_usage_native.py](examples/jsonpath_example.py) для полного кода.
 
 ## Примеры
 
 ### Базовое использование
 
 ```python
-from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import parse
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import parse
 
 # Простое сравнение
 spec = parse("$[?@.age > %d]")

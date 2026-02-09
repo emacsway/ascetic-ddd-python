@@ -3,7 +3,7 @@ import threading
 import unittest
 from typing import Any
 
-from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import (
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import (
     Lexer,
     NativeParametrizedSpecification,
     parse,

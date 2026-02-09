@@ -47,7 +47,7 @@ from ascetic_ddd.specification.domain.nodes import (
     Wildcard,
 )
 from ascetic_ddd.specification.domain.evaluate_visitor import EvaluateVisitor
-from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import (
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import (
     JSONPathTypeError,
 )
 

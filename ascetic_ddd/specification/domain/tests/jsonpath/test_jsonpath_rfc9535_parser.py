@@ -3,7 +3,7 @@ import unittest
 from typing import Any
 
 from ascetic_ddd.specification.domain.jsonpath.jsonpath_rfc9535_parser import parse
-from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import (
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import (
     JSONPathError,
     JSONPathSyntaxError,
 )

@@ -7,7 +7,7 @@ from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import (
     parse,
     ParametrizedSpecificationJsonPath2,
 )
-from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import (
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import (
     JSONPathTypeError,
 )
 from ascetic_ddd.specification.domain.evaluate_visitor import CollectionContext

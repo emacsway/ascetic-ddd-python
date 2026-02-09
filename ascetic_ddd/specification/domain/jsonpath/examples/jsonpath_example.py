@@ -1,7 +1,7 @@
 """Example usage of Native JSONPath Specification Parser (no external dependencies)."""
 from typing import Any
 
-from ascetic_ddd.specification.domain.jsonpath.jsonpath_native_parser import parse
+from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import parse
 
 
 class DictContext:
@@ -140,7 +140,7 @@ def main():
     print("\nExample 10: Behind the scenes - Lexer tokenization")
     print("  Expression: $[?(@.age > 25)]")
 
-    from .jsonpath_native_parser import Lexer
+    from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import Lexer
 
     lexer = Lexer("$[?(@.age > 25)]")
     tokens = lexer.tokenize()
