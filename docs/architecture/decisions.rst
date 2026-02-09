@@ -17,3 +17,5 @@ Summary of Key Decisions
 - :doc:`/adr/0003-go-portability` — Design choices that enable potential Go port
 - :doc:`/adr/0004-diamond-problem-in-provider-topology` — Handling diamond
   dependencies in faker provider topology
+- :doc:`/adr/0005-dag-change-manager-for-provider-populate-topology` — DAG
+  Change Manager (Mediator) for controlling provider populate order
