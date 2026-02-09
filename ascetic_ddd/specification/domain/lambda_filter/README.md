@@ -1,30 +1,33 @@
-# Lambda Filter Parser для Specification Pattern
+# Lambda Filter Parser for Specification Pattern
 
-Парсер Python lambda функций для преобразования в AST узлы Specification Pattern.
+Parser for Python lambda functions that converts them into Specification Pattern AST nodes.
 
-## Описание
+## Description
 
-Этот модуль преобразует Python lambda функции в AST узлы Specification Pattern, вдохновлён подходом из **hypothesis.internal.filtering** и **hypothesis.internal.lambda_sources**.
+This module converts Python lambda functions into Specification Pattern AST nodes, inspired by the approach from **hypothesis.internal.filtering** and **hypothesis.internal.lambda_sources**.
 
-## Ключевые возможности
+This allows using predicate functions in the Specification Pattern while maintaining high performance.
 
-✅ **Простые сравнения** - `==`, `!=`, `>`, `<`, `>=`, `<=`
-✅ **Логические операторы** - `and`, `or`, `not`
-✅ **Арифметические операторы** - `+`, `-`, `*`, `/`, `%`
-✅ **Вложенные выражения** - сложные комбинации операторов
-✅ **Wildcard коллекции** - `any([list comprehension])` и `any(generator)`
-✅ **Вложенные wildcard** - `any([any([...]) for ...])` - Wildcard внутри Wildcard
-✅ **Типы литералов** - строки, числа, boolean, float
+## Key Features
 
-## Использование
+- **Simple comparisons** - `==`, `!=`, `>`, `<`, `>=`, `<=`
+- **Logical operators** - `and`, `or`, `not`
+- **Arithmetic operators** - `+`, `-`, `*`, `/`, `%`
+- **Nested expressions** - complex combinations of operators
+- **Method-based operators** - `Eq()`, `Lt()`, `Gte()`, `IsNull()`, etc.
+- **Wildcard collections** - `any([list comprehension])` and `any(generator)`
+- **Nested wildcards** - `any([any([...]) for ...])` - Wildcard inside Wildcard
+- **Literal types** - strings, numbers, boolean, float
 
-### Базовые примеры
+## Usage
+
+### Basic Examples
 
 ```python
 from ascetic_ddd.specification.domain.lambda_filter import parse
 from ascetic_ddd.specification.domain.evaluate_visitor import EvaluateVisitor
 
-# Простое сравнение
+# Simple comparison
 spec = parse(lambda user: user.age > 25)
 
 class DictContext:
@@ -40,7 +43,7 @@ spec.accept(visitor)
 print(visitor.result())  # True
 ```
 
-### Логические операторы
+### Logical Operators
 
 ```python
 # AND
@@ -52,11 +55,53 @@ spec = parse(lambda user: user.age < 18 or user.age > 65)
 # NOT
 spec = parse(lambda user: not user.deleted)
 
-# Сложные выражения
+# Complex expressions
 spec = parse(lambda user: user.age >= 18 and user.age <= 65 and user.active == True)
 ```
 
-### Wildcard коллекции (any)
+### Method-Based Operators
+
+Method-based operators allow expressing comparisons as method calls on fields.
+Both operator syntax and method syntax produce identical AST nodes.
+
+```python
+# Comparison methods
+spec = parse(lambda user: user.age.Eq(30))       # Equal
+spec = parse(lambda user: user.age.Ne(30))        # NotEqual
+spec = parse(lambda user: user.age.Gt(25))        # GreaterThan
+spec = parse(lambda user: user.age.Gte(25))       # GreaterThanEqual
+spec = parse(lambda user: user.age.Lt(30))        # LessThan
+spec = parse(lambda user: user.age.Lte(30))       # LessThanEqual
+
+# Postfix methods
+spec = parse(lambda user: user.email.IsNull())    # IsNull
+spec = parse(lambda user: user.email.IsNotNull()) # IsNotNull
+
+# Nested paths
+spec = parse(lambda user: user.profile.age.Gte(18))
+
+# Combined with logical operators
+spec = parse(lambda user: user.age.Gte(18) and user.age.Lte(65))
+spec = parse(lambda user: user.email.IsNull() or user.email.Eq(""))
+
+# Inside wildcards
+spec = parse(lambda store: any(item.price.Gt(500) for item in store.items))
+```
+
+#### Supported Method Aliases
+
+| Node            | Method aliases                                               |
+|-----------------|--------------------------------------------------------------|
+| Equal           | `Equal()`, `Equals()`, `Eq()`                                |
+| NotEqual        | `NotEqual()`, `NotEquals()`, `Ne()`, `Neq()`                 |
+| LessThan        | `LessThan()`, `Lt()`                                         |
+| LessThanEqual   | `LessThanOrEqual()`, `LessThanEqual()`, `Lte()`, `Le()`      |
+| GreaterThan     | `GreaterThan()`, `Gt()`                                      |
+| GreaterThanEqual| `GreaterThanOrEqual()`, `GreaterThanEqual()`, `Gte()`, `Ge()`|
+| IsNull          | `IsNull()`                                                   |
+| IsNotNull       | `IsNotNull()`                                                |
+
+### Wildcard Collections (any)
 
 ```python
 from ascetic_ddd.specification.domain.evaluate_visitor import CollectionContext
@@ -79,23 +124,23 @@ print(visitor.result())  # True (Laptop price > 500)
 # List comprehension
 spec = parse(lambda store: any([item.price > 500 for item in store.items]))
 
-# Сложный предикат
+# Complex predicate
 spec = parse(lambda store: any(
     item.price > 100 and item.available == True
     for item in store.items
 ))
 ```
 
-### Вложенные Wildcard
+### Nested Wildcards
 
 ```python
-# Вложенный any - проверка товаров во всех категориях
+# Nested any - check items across all categories
 spec = parse(lambda order: any([
     any([item.price > 100 for item in category.items])
     for category in order.categories
 ]))
 
-# Создаём структуру данных
+# Create data structure
 item1 = DictContext({"name": "Laptop", "price": 150})
 item2 = DictContext({"name": "Mouse", "price": 50})
 items = CollectionContext([item1, item2])
@@ -106,44 +151,44 @@ order = DictContext({"id": 1, "categories": categories})
 
 visitor = EvaluateVisitor(order)
 spec.accept(visitor)
-print(visitor.result())  # True (есть товар с ценой > 100)
+print(visitor.result())  # True (there is an item with price > 100)
 ```
 
-## Поддерживаемые возможности
+## Supported Features
 
-### Операторы сравнения
-- `==` - Равенство
-- `!=` - Неравенство
-- `>` - Больше
-- `<` - Меньше
-- `>=` - Больше или равно
-- `<=` - Меньше или равно
+### Comparison Operators
+- `==` - Equal
+- `!=` - Not equal
+- `>` - Greater than
+- `<` - Less than
+- `>=` - Greater than or equal
+- `<=` - Less than or equal
 
-### Логические операторы
-- `and` - Логическое И
-- `or` - Логическое ИЛИ
-- `not` - Логическое НЕ
+### Logical Operators
+- `and` - Logical AND
+- `or` - Logical OR
+- `not` - Logical NOT
 
-### Арифметические операторы
-- `+` - Сложение
-- `-` - Вычитание
-- `*` - Умножение
-- `/` - Деление
-- `%` - Остаток от деления (модуло)
+### Arithmetic Operators
+- `+` - Addition
+- `-` - Subtraction
+- `*` - Multiplication
+- `/` - Division
+- `%` - Modulo
 
-### Коллекции
-- `any(generator)` - Преобразуется в `Wildcard`
-- `any([list comprehension])` - Преобразуется в `Wildcard`
-- `all(generator)` - Преобразуется в `Wildcard`
-- `all([list comprehension])` - Преобразуется в `Wildcard`
-- **Вложенные wildcard** - `any([any([...]) for ...])` ✅ Поддерживается
+### Collections
+- `any(generator)` - Converts to `Wildcard`
+- `any([list comprehension])` - Converts to `Wildcard`
+- `all(generator)` - Converts to `Wildcard`
+- `all([list comprehension])` - Converts to `Wildcard`
+- **Nested wildcards** - `any([any([...]) for ...])` - Supported
 
-### Типы литералов
+### Literal Types
 ```python
-# Строки
+# Strings
 parse(lambda user: user.name == "Alice")
 
-# Числа
+# Numbers
 parse(lambda user: user.age > 25)
 parse(lambda product: product.price > 99.99)
 
@@ -152,100 +197,125 @@ parse(lambda user: user.active == True)
 parse(lambda user: user.deleted == False)
 ```
 
-### Арифметические операции
+### Arithmetic Operations
 ```python
-# Сложение
+# Addition
 parse(lambda user: user.age + 5 > 30)
 
-# Вычитание
+# Subtraction
 parse(lambda user: user.age - 5 >= 18)
 
-# Умножение
+# Multiplication
 parse(lambda product: product.price * 2 > 100)
 
-# Деление
+# Division
 parse(lambda user: user.score / 2 >= 40)
 
-# Модуло (остаток от деления)
-parse(lambda user: user.id % 2 == 0)  # Чётные ID
+# Modulo
+parse(lambda user: user.id % 2 == 0)  # Even IDs
 
-# Сложные выражения
+# Complex expressions
 parse(lambda user: (user.age + 5) * 2 > 60)
 ```
 
-## Архитектура
+## Architecture
 
-### Процесс парсинга
+### Parsing Process
 
 ```
 Lambda Function
-      ↓
-[inspect.findsource] Извлечение исходного кода
-      ↓
-[ast.parse] Парсинг в Python AST
-      ↓
-[_find_all_lambdas] Поиск lambda узлов
-      ↓
-[_convert_node] Преобразование в Specification AST
-      ↓
+      |
+[inspect.findsource] Extract source code
+      |
+[ast.parse] Parse into Python AST
+      |
+[_find_all_lambdas] Find lambda nodes
+      |
+[_convert_node] Convert to Specification AST
+      |
 Specification Nodes (And, Or, Equal, Field, Value, Wildcard, etc.)
 ```
 
-### Компоненты
+### Components
 
-1. **LambdaParser** - Основной класс парсера
-   - `parse()` - Находит lambda в исходном коде
-   - `_convert_node()` - Диспетчеризация по типам AST узлов
-   - `_convert_compare()` - Операторы сравнения
-   - `_convert_bool_op()` - Логические операторы
-   - `_convert_call()` - Вызовы функций (any, all)
-   - `_convert_generator_to_wildcard()` - Generator → Wildcard
-   - `_convert_listcomp_to_wildcard()` - List comprehension → Wildcard
+1. **LambdaParser** - Main parser class
+   - `parse()` - Finds lambda in source code
+   - `_convert_node()` - Dispatches by AST node type
+   - `_convert_compare()` - Comparison operators
+   - `_convert_bool_op()` - Logical operators
+   - `_convert_call()` - Function and method calls (any, all, Eq, IsNull, etc.)
+   - `_convert_method_comparison()` - Method-based comparisons (receiver.Method(arg))
+   - `_convert_method_postfix()` - Postfix methods (receiver.Method())
+   - `_convert_generator_to_wildcard()` - Generator -> Wildcard
+   - `_convert_listcomp_to_wildcard()` - List comprehension -> Wildcard
 
 2. **Context Tracking**
-   - `arg_name` - Имя аргумента lambda
-   - `_in_item_context` - Флаг контекста внутри wildcard
+   - `arg_name` - Lambda argument name
+   - `_in_item_context` - Flag for wildcard context
 
 3. **AST Nodes Mapping**
    ```
-   ast.Compare + ast.Eq      → Equal
-   ast.Compare + ast.Gt      → GreaterThan
-   ast.Compare + ast.Lt      → LessThan
-   ast.BoolOp + ast.And      → And
-   ast.BoolOp + ast.Or       → Or
-   ast.UnaryOp + ast.Not     → Not
-   ast.BinOp + ast.Add       → Add
-   ast.BinOp + ast.Sub       → Sub
-   ast.BinOp + ast.Mult      → Mul
-   ast.BinOp + ast.Div       → Div
-   ast.BinOp + ast.Mod       → Mod
-   ast.Attribute             → Field
-   ast.Constant              → Value
-   ast.GeneratorExp          → Wildcard
-   ast.ListComp              → Wildcard
+   ast.Compare + ast.Eq      -> Equal
+   ast.Compare + ast.Gt      -> GreaterThan
+   ast.Compare + ast.Lt      -> LessThan
+   ast.BoolOp + ast.And      -> And
+   ast.BoolOp + ast.Or       -> Or
+   ast.UnaryOp + ast.Not     -> Not
+   ast.BinOp + ast.Add       -> Add
+   ast.BinOp + ast.Sub       -> Sub
+   ast.BinOp + ast.Mult      -> Mul
+   ast.BinOp + ast.Div       -> Div
+   ast.BinOp + ast.Mod       -> Mod
+   ast.Call + .Eq()           -> Equal
+   ast.Call + .IsNull()       -> IsNull
+   ast.Attribute              -> Field
+   ast.Constant               -> Value
+   ast.GeneratorExp           -> Wildcard
+   ast.ListComp               -> Wildcard
    ```
 
-## Примеры AST преобразований
+## AST Transformation Examples
 
-### Простое сравнение
+### Simple Comparison
 ```python
 lambda user: user.age > 25
 
-# Преобразуется в:
+# Transforms to:
 GreaterThan(
     Field(GlobalScope(), "age"),
     Value(25)
 )
 ```
 
-### Логическое И
+### Logical AND
 ```python
 lambda user: user.age > 25 and user.active == True
 
-# Преобразуется в:
+# Transforms to:
 And(
     GreaterThan(Field(GlobalScope(), "age"), Value(25)),
     Equal(Field(GlobalScope(), "active"), Value(True))
+)
+```
+
+### Method-Based Comparison
+```python
+lambda user: user.age.Gte(18)
+
+# Transforms to:
+GreaterThanEqual(
+    Field(GlobalScope(), "age"),
+    Value(18)
+)
+```
+
+### Postfix Method
+```python
+lambda user: user.email.IsNull()
+
+# Transforms to:
+IsNull(
+    Field(GlobalScope(), "email")
 )
 ```
 
@@ -253,21 +323,21 @@ And(
 ```python
 lambda store: any(item.price > 500 for item in store.items)
 
-# Преобразуется в:
+# Transforms to:
 Wildcard(
     Object(GlobalScope(), "items"),
     GreaterThan(Field(Item(), "price"), Value(500))
 )
 ```
 
-### Вложенный Wildcard
+### Nested Wildcard
 ```python
 lambda order: any([
     any([item.price > 100 for item in category.items])
     for category in order.categories
 ])
 
-# Преобразуется в:
+# Transforms to:
 Wildcard(
     Object(GlobalScope(), "categories"),
     Wildcard(
@@ -277,11 +347,11 @@ Wildcard(
 )
 ```
 
-### Арифметические операции
+### Arithmetic Operations
 ```python
 lambda user: user.age + 5 > 30
 
-# Преобразуется в:
+# Transforms to:
 GreaterThan(
     Add(Field(GlobalScope(), "age"), Value(5)),
     Value(30)
@@ -291,49 +361,45 @@ GreaterThan(
 ```python
 lambda user: user.id % 2 == 0
 
-# Преобразуется в:
+# Transforms to:
 Equal(
     Mod(Field(GlobalScope(), "id"), Value(2)),
     Value(0)
 )
 ```
 
-## Тестирование
+## Testing
 
 ```bash
-# Запустить тесты lambda парсера
-python -m unittest ascetic_ddd.specification.domain.lambda_filter.test_lambda_parser -v
-
-# Все тесты (26 тестов: сравнения, логика, арифметика, wildcard, вложенные wildcard)
-python -m unittest discover -s ascetic_ddd/specification/domain/lambda_filter -p "test_*.py" -v
+# Run lambda parser tests
+python -m unittest ascetic_ddd.specification.domain.tests.lambda_filter.test_lambda_parser -v
 ```
 
-## Когда использовать Lambda Filter
+## When to Use Lambda Filter
 
-**Выбирайте Lambda Filter, если:**
+**Choose Lambda Filter if:**
 
-- ✅ Нужна **IDE поддержка** и автодополнение
-- ✅ Важна **статическая проверка типов** (mypy, pyright)
-- ✅ Хотите **нативный Python синтаксис** без строк
-- ✅ Требуется **рефакторинг** кода (rename fields, etc.)
-- ✅ Минимум внешних зависимостей
+- You need **IDE support** and autocomplete
+- **Static type checking** matters (mypy, pyright)
+- You want **native Python syntax** without strings
+- You need **refactoring** support (rename fields, etc.)
+- Minimal external dependencies
 
 
-## Ограничения
+## Limitations
 
-Текущая версия **не поддерживает**:
+The current version **does not support**:
 
-- ❌ Вложенные lambda функции
-- ❌ Lambda с несколькими аргументами
-- ❌ Вызовы методов объектов (кроме any/all)
-- ❌ Slice операции (e.g., `list[0:5]`)
-- ❌ Тернарные операторы (`x if condition else y`)
-- ❌ Битовые операции (кроме `<<`, `>>`)
+- Nested lambda functions
+- Lambdas with multiple arguments
+- Slice operations (e.g., `list[0:5]`)
+- Ternary operators (`x if condition else y`)
+- Bitwise operations (except `<<`, `>>`)
 
-## Вдохновение
+## Inspiration
 
-Этот модуль вдохновлён подходами из:
+This module is inspired by approaches from:
 
-- **hypothesis.internal.filtering** - AST анализ предикатов
-- **hypothesis.internal.lambda_sources** - Извлечение исходного кода lambda
-- **JSONPath парсеры** - Преобразование в Specification AST
+- **hypothesis.internal.filtering** - AST analysis of predicates
+- **hypothesis.internal.lambda_sources** - Lambda source code extraction
+- **JSONPath parsers** - Conversion to Specification AST
