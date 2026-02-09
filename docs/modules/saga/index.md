@@ -1,5 +1,8 @@
 # Saga Pattern
 
+```{index} Saga, Distributed Transactions, Routing Slip, Compensation, Idempotency
+```
+
 A Python implementation of the Saga pattern using the **Routing Slip** approach, based on [Clemens Vasters' article](https://vasters.com/archive/Sagas.html).
 
 ## What is a Saga?
@@ -7,6 +10,9 @@ A Python implementation of the Saga pattern using the **Routing Slip** approach,
 A Saga is a **failure management pattern** for handling long-lived and distributed transactions across systems that cannot use traditional ACID transactions with two-phase commit.
 
 Rather than holding locks across multiple services, a Saga splits work into individual activities whose effects can be **compensated** (reversed) after work has been performed and committed.
+
+The :term:`Saga` module provides coordination for distributed transactions using compensating actions.
+
 
 ## When to Use Sagas
 
@@ -16,6 +22,7 @@ Traditional distributed transactions with locks are impractical when:
 - Transactions are long-lived and geographically distributed
 - Participants cannot be enlisted in a single ACID transaction
 - Services are autonomous and may be temporarily unavailable
+
 
 ## How It Works
 
@@ -43,6 +50,7 @@ The pattern operates through a **routing slip** mechanism:
 1. **Forward Path**: The routing slip progresses through sequential work items
 2. **Backward Path**: On failure, the routing slip reverses through completed steps for compensation
 
+
 ### Key Characteristics
 
 - No centralized coordinator
@@ -51,7 +59,9 @@ The pattern operates through a **routing slip** mechanism:
 - Decisions occur locally at each step
 - Can be serialized and transmitted between distributed systems
 
+
 ## Components
+
 
 ### Activity
 
@@ -80,6 +90,7 @@ class MyActivity(Activity):
         return "sb://./myActivityCompensation"
 ```
 
+
 ### RoutingSlip
 
 The document flowing through the system:
@@ -104,6 +115,7 @@ routing_slip = RoutingSlip([
 - `process_next()`: Execute next work item, returns success/failure
 - `undo_last()`: Compensate last completed work
 
+
 ### ActivityHost
 
 Manages message processing for a specific activity type:
@@ -118,6 +130,7 @@ def send(uri: str, routing_slip: RoutingSlip):
 host = ActivityHost(MyActivity, send)
 await host.accept_message(uri, routing_slip)
 ```
+
 
 ## Example: Travel Booking Saga
 
@@ -148,6 +161,7 @@ else:
     print("Saga completed successfully!")
 ```
 
+
 ## Risk Ordering Strategy
 
 Activities should be sequenced by success probability (least risky first):
@@ -158,6 +172,7 @@ Activities should be sequenced by success probability (least risky first):
 
 This minimizes the amount of compensation needed when failures occur.
 
+
 ## Compensation Semantics
 
 The `compensate()` method returns a boolean:
@@ -167,9 +182,11 @@ The `compensate()` method returns a boolean:
 
 This allows for sophisticated recovery strategies where compensation might involve retrying with different parameters.
 
+
 ## Idempotency Requirement
 
 **Activities MUST be idempotent.** This is a fundamental requirement for saga reliability.
+
 
 ### Why Idempotency?
 
@@ -181,6 +198,7 @@ In distributed systems with message queues, messages are typically delivered wit
 4. If worker crashes before Ack, message returns to queue and is redelivered
 
 This means `do_work()` and `compensate()` may be called multiple times for the same logical operation.
+
 
 ### Ensuring Idempotency
 
@@ -208,6 +226,7 @@ class ReserveHotelActivity(Activity):
         await db.cancel_reservation_if_exists(reservation_id)
         return True
 ```
+
 
 ### ParallelActivity and FallbackActivity
 
@@ -265,6 +284,7 @@ while not routing_slip.is_completed:
 - **Fail-fast**: On first failure, all branches are compensated
 - **Compensation**: All branches compensated in parallel (reverse order within each)
 
+
 ## Recovery Blocks (Fallback)
 
 Based on Section 6 of the original paper, `FallbackActivity` tries alternative RoutingSlips until one succeeds:
@@ -299,6 +319,7 @@ routing_slip = RoutingSlip([
 - Only the successful alternative needs compensation later
 - If all alternatives fail, returns `None` (saga can compensate previous steps)
 
+
 ## Combining Parallel and Fallback
 
 Activities can be nested for complex scenarios:
@@ -328,6 +349,7 @@ routing_slip = RoutingSlip([
     WorkItem(SendConfirmationActivity, WorkItemArguments({})),
 ])
 ```
+
 
 ## Distributed Execution
 
