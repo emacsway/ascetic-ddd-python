@@ -9,10 +9,10 @@ build upon.
 Domain Layer
 ------------
 
-.. index:: pair: seedwork; aggregate
-.. index:: pair: seedwork; entity
-.. index:: pair: seedwork; value object
-.. index:: pair: seedwork; identity
+.. index:: pair: seedwork; Aggregate
+.. index:: pair: seedwork; Entity
+.. index:: pair: seedwork; Value Object
+.. index:: pair: seedwork; Identity
 
 Core domain primitives:
 
