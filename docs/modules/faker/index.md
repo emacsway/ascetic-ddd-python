@@ -1,5 +1,8 @@
 # DDD Application Fake Data Generator
 
+```{index} Faker, Test Data Generation, Load Testing, Index Selectivity
+```
+
 # Why?
 
 Database index selectivity has a significant impact on load testing results.
