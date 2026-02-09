@@ -10,9 +10,29 @@ RFC 9535 Compliance:
 - Uses || for logical OR (double pipe)
 - Uses ! for logical NOT (exclamation mark)
 """
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple, Union
-import re
+
+from ascetic_ddd.specification.domain.nodes import (
+    And,
+    Equal,
+    Field,
+    GlobalScope,
+    GreaterThan,
+    GreaterThanEqual,
+    Item,
+    LessThan,
+    LessThanEqual,
+    Not,
+    NotEqual,
+    Object,
+    Or,
+    Value,
+    Visitable,
+    Wildcard,
+)
+from ascetic_ddd.specification.domain.evaluate_visitor import Context, EvaluateVisitor
 
 
 class JSONPathError(Exception):
@@ -87,26 +107,6 @@ class _ParseContext:
     """
     placeholder_bind_index: int = field(default=0)
     is_wildcard_context: bool = field(default=False)
-
-from ascetic_ddd.specification.domain.nodes import (
-    And,
-    Equal,
-    Field,
-    GlobalScope,
-    GreaterThan,
-    GreaterThanEqual,
-    Item,
-    LessThan,
-    LessThanEqual,
-    Not,
-    NotEqual,
-    Object,
-    Or,
-    Value,
-    Visitable,
-    Wildcard,
-)
-from ascetic_ddd.specification.domain.evaluate_visitor import Context, EvaluateVisitor
 
 
 class Token:
