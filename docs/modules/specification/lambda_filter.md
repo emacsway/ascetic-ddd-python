@@ -393,7 +393,7 @@ python -m unittest ascetic_ddd.specification.domain.tests.lambda_filter.test_lam
 
 The current version **does not support**:
 
-- Nested lambda functions
+- Nested lambda functions (`parse(lambda user: (lambda x: x > 25)(user.age))`)
 - Lambdas with multiple arguments
 - Slice operations (e.g., `list[0:5]`)
 - Ternary operators (`x if condition else y`)
