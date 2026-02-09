@@ -1,5 +1,8 @@
 # Inbox Pattern
 
+```{index} Inbox, Transactional Inbox, Idempotency, Causal Consistency, Causal Dependencies
+```
+
 Inbox pattern for idempotent message processing with causal consistency and worker partitioning.
 
 ## Features
