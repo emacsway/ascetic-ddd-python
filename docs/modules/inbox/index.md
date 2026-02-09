@@ -3,7 +3,7 @@
 ```{index} Inbox, Transactional Inbox, Idempotency, Causal Consistency, Causal Dependencies
 ```
 
-Inbox pattern for idempotent message processing with causal consistency and worker partitioning.
+Transactional Inbox pattern for idempotent message processing with causal consistency and worker partitioning.
 
 ## Features
 
@@ -238,3 +238,14 @@ ISubscriber: TypeAlias = Callable[[IPgSession, InboxMessage], Awaitable]
 |----------|---------------|----------|
 | `UriPartitionKeyStrategy` | `hashtext(uri)` | Topic-based routing (default) |
 | `StreamPartitionKeyStrategy` | `hashtext(tenant_id \|\| ':' \|\| stream_type \|\| ':' \|\| stream_id::text)` | Causal consistency within stream |
+
+
+```{seealso}
+
+- "[Domain Events in DDD](https://dckms.github.io/system-architecture/emacsway/it/ddd/tactical-design/domain-model/domain-events/domain-events-in-ddd.html)" by Ivan Zakrevsky
+- "[About the message race in terms of competing subscribers](https://dckms.github.io/system-architecture/emacsway/it/integration/asynchronous/message-ordering-in-competing-consumers.html)" by Ivan Zakrevsky
+- "[Enterprise Integration Patterns: Designing, Building, and Deploying Messaging Solutions](https://www.enterpriseintegrationpatterns.com/)" by Gregor Hohpe, Bobby Woolf, "Chapter 10.Messaging Endpoints :: Transactional Client"
+- "[Reactive Messaging Patterns with the Actor Model: Applications and Integration in Scala and Akka](https://kalele.io/books/)" by Vaughn Vernon, "Chapter 9. Message Endpoints :: Transactional Client/Actor"
+
+```
+
