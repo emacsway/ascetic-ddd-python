@@ -145,25 +145,6 @@ store = DictContext({"categories": categories})
 spec.match(store, (500.0,))  # True
 ```
 
-## Сравнение версий
-
-| Характеристика | Нативный | RFC 9535 | JSONPath2 | Lambda Filter |
-|----------------|----------|----------|-----------|---------------|
-| Внешние зависимости | ❌ Нет | jsonpath-rfc9535 | jsonpath2 | ❌ Нет |
-| Размер кода | ~500 строк | ~550 строк | ~670 строк | ~600 строк |
-| Синтаксис | JSONPath | JSONPath | JSONPath | Python lambda |
-| RFC 9535 compliance | ✅ Полное | ✅ Полное | ⚠️ Частичное | N/A |
-| Операторы (==, !=, >, <, >=, <=) | ✅ | ✅ | ✅ | ✅ |
-| Логические операторы (&&, \|\|, !) | ✅ | ✅ | ✅ (авто) | ✅ (and, or, not) |
-| Скобочки | ✅ | ✅ | ✅ (авто) | ✅ |
-| Параметризация | ✅ | ✅ | ✅ | ✓ |
-| Wildcard коллекции | ✅ | ✅ | ✅ | ❌ |
-| Вложенные wildcards | ✅ | ✅ | ✅ | ✓ |
-| Вложенные пути | ✅ | ✅ | ✅ | ✅ |
-| Скорость парсинга | Быстрая | Быстрая | Быстрая | Быстрая |
-| Контроль над AST | 🟢 Полный | Частичный | Частичный | 🟢 Полный |
-| Расширяемость | 🟢 Высокая | Ограничена | Ограничена | 🟢 Высокая |
-
 ## Поддерживаемые возможности
 
 Текущая реализация поддерживает:
@@ -182,7 +163,7 @@ spec.match(store, (500.0,))  # True
 
 ```bash
 # Запустить тесты нативного парсера
-python -m unittest ascetic_ddd.specification.domain.jsonpath.test_jsonpath_parser_native -v
+python -m unittest ascetic_ddd.specification.domain.jsonpath.test_jsonpath_parser -v
 
 # Все тесты
 python -m unittest discover -s ascetic_ddd/specification -p "test_*.py" -v
@@ -193,7 +174,7 @@ python -m unittest discover -s ascetic_ddd/specification -p "test_*.py" -v
 Запустите интерактивный пример с 11 демонстрациями:
 
 ```bash
-python -m ascetic_ddd.specification.domain.jsonpath.example_usage_native
+python -m ascetic_ddd.specification.domain.jsonpath.example_usage
 ```
 
 Пример демонстрирует:
@@ -205,7 +186,7 @@ python -m ascetic_ddd.specification.domain.jsonpath.example_usage_native
 - Переиспользование спецификаций
 - Boolean значения
 
-См. файл [example_usage_native.py](examples/jsonpath_example.py) для полного кода.
+См. файл [example_usage.py](examples/jsonpath_example.py) для полного кода.
 
 ## Примеры
 
