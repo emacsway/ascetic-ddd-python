@@ -1,5 +1,8 @@
 # Transactional Outbox Pattern
 
+```{index} Outbox, Transactional Outbox, Dual-Write, At-Least-Once Delivery
+```
+
 PostgreSQL implementation of the Transactional Outbox pattern for reliable message publishing.
 
 ## The Problem: Dual-Write
