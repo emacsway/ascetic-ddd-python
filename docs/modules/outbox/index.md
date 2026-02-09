@@ -1,9 +1,10 @@
-# Transactional Outbox Pattern
+# Transactional Outbox
 
 ```{index} Outbox, Transactional Outbox, Dual-Write, At-Least-Once Delivery
 ```
 
 PostgreSQL implementation of the Transactional Outbox pattern for reliable message publishing.
+
 
 ## The Problem: Dual-Write
 
@@ -17,6 +18,7 @@ await broker.publish(event)       # 2. Publish to message broker
 ```
 
 If the application crashes between steps 1 and 2, the database is updated but the message is never published.
+
 
 ## The Solution: Outbox Pattern
 
@@ -35,15 +37,19 @@ async with session.atomic():
 
 A separate dispatcher process reads unpublished messages and sends them to external systems.
 
+
 ## Key Concepts
+
 
 ### 1. Transactional Guarantee
 
 Messages are saved to the Outbox table within the **same database transaction** as business state changes. This ensures that either both the state change AND the message are persisted, or neither is.
 
+
 ### 2. At-Least-Once Delivery
 
 The dispatcher reads unpublished messages and sends them to external systems. If the dispatcher crashes after publishing but before marking as processed, the message will be resent. **Consumers MUST be idempotent**.
+
 
 ### 3. Ordering with transaction_id (xid8)
 
@@ -62,13 +68,16 @@ A consumer reading `position > 0` would see message 2 but miss message 1 (still 
 - Read only messages where `transaction_id < pg_snapshot_xmin(pg_current_snapshot())` (only from COMMITTED transactions visible to all)
 - Order by `(transaction_id, position)` for deterministic ordering
 
+
 ### 4. Consumer Groups
 
 Multiple consumers can independently track their position in the outbox. Each consumer group maintains its own `(last_processed_transaction_id, offset_acked)`.
 
+
 ### 5. Visibility Rule
 
 `transaction_id < pg_snapshot_xmin(pg_current_snapshot())` ensures we only read messages from transactions that are fully committed and visible to all sessions.
+
 
 ### 6. URI-Based Filtering and Partitioning
 
@@ -93,6 +102,7 @@ await outbox.dispatch(handler, consumer_group="broker", uri="kafka://orders")
 ```
 
 Each `(consumer_group, uri)` pair tracks its position independently.
+
 
 ### 7. Partitioning
 
@@ -121,6 +131,7 @@ await outbox.run(subscriber, consumer_group="broker", uri="kafka://orders", proc
 | `kafka://orders/order-123` | 0 | Process 0 |
 | `kafka://orders/order-456` | 2 | Process 2 |
 
+
 ## Installation
 
 ```python
@@ -128,6 +139,7 @@ from ascetic_ddd.outbox import Outbox, OutboxMessage
 ```
 
 ## Usage
+
 
 ### Setup
 
@@ -185,6 +197,7 @@ async with session.atomic():
 The part after the topic/queue name serves as a partition key for worker distribution. All messages with the same full URI go to the same worker, preserving order.
 
 ### Dispatching Messages
+
 
 #### Option 1: dispatch() - Single Batch
 
@@ -269,6 +282,7 @@ await outbox.set_position(session, "broker", uri="kafka://orders", transaction_i
 
 The `setup()` method creates:
 
+
 ### outbox table
 
 ```sql
@@ -304,7 +318,9 @@ The composite primary key `(consumer_group, uri)` allows:
 - `uri = ''` (empty string): Track position for ALL messages (default, backwards compatible)
 - `uri = 'kafka://orders'`: Track position for this URI only
 
+
 ## Considerations
+
 
 ### Duplicate Delivery
 
@@ -320,12 +336,14 @@ async def handle_message(message: OutboxMessage) -> None:
     await mark_as_processed(event_id)
 ```
 
+
 ### Message Ordering
 
 - Within a single transaction: ordered by `position`
 - Across transactions: ordered by `transaction_id`
 - With URI filter: order preserved within that URI
 - With partitioning: order preserved within each partition key (full URI)
+
 
 ### Table Growth
 
@@ -346,7 +364,9 @@ This implementation uses polling. For lower latency, consider:
 - PostgreSQL `LISTEN`/`NOTIFY`
 - `pg_logical` replication
 
+
 ## API Reference
+
 
 ### OutboxMessage
 
@@ -374,6 +394,7 @@ class OutboxMessage:
 | `setup()` | Create tables and indexes |
 | `cleanup()` | Cleanup resources |
 
+
 ### dispatch() Parameters
 
 | Parameter | Type | Default | Description |
@@ -383,6 +404,7 @@ class OutboxMessage:
 | `uri` | `str` | `''` | URI prefix filter (matches exact and `uri/*`) |
 | `worker_id` | `int` | `0` | This worker's ID (0 to num_workers-1) |
 | `num_workers` | `int` | `1` | Total number of workers for partitioning |
+
 
 ### run() Parameters
 
@@ -397,6 +419,7 @@ class OutboxMessage:
 | `poll_interval` | `float` | `1.0` | Seconds to wait when no messages |
 | `stop_event` | `Event` | `None` | For graceful shutdown |
 
+
 ### ISubscriber
 
 ```python
@@ -405,7 +428,16 @@ ISubscriber: TypeAlias = Callable[[OutboxMessage], Awaitable[None]]
 
 ## References
 
-- [The Outbox Pattern](https://www.kamilgrzybek.com/blog/posts/the-outbox-pattern) by Kamil Grzybek
-- [Handling Domain Event: Missing Part](https://www.kamilgrzybek.com/blog/posts/handling-domain-event-missing-part) by Kamil Grzybek
-- [Ordering in Postgres Outbox](https://event-driven.io/en/ordering_in_postgres_outbox/) by Oskar Dudycz
-- [Outbox, Inbox patterns and delivery guarantees explained](https://event-driven.io/en/outbox_inbox_patterns_and_delivery_guarantees_explained/) by Oskar Dudycz
+```{seealso}
+
+- "[Domain Events in DDD](https://dckms.github.io/system-architecture/emacsway/it/ddd/tactical-design/domain-model/domain-events/domain-events-in-ddd.html)" by Ivan Zakrevsky
+- "[.NET Microservices: Architecture for Containerized .NET Applications](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/multi-container-microservice-net-applications/subscribe-events#designing-atomicity-and-resiliency-when-publishing-to-the-event-bus)" by Cesar de la Torre, Bill Wagner, Mike Rousos, chapter "Designing atomicity and resiliency when publishing to the event bus"
+- "[Enterprise Integration Patterns: Designing, Building, and Deploying Messaging Solutions](https://www.enterpriseintegrationpatterns.com/)" by Gregor Hohpe, Bobby Woolf, "Chapter 10.Messaging Endpoints :: Transactional Client"
+- "[Reactive Messaging Patterns with the Actor Model: Applications and Integration in Scala and Akka](https://kalele.io/books/)" by Vaughn Vernon, "Chapter 9. Message Endpoints :: Transactional Client/Actor"
+- "[The Outbox Pattern](https://www.kamilgrzybek.com/blog/posts/the-outbox-pattern)" by Kamil Grzybek
+- "[Handling Domain Event: Missing Part](https://www.kamilgrzybek.com/blog/posts/handling-domain-event-missing-part)" by Kamil Grzybek
+- "[Ordering in Postgres Outbox](https://event-driven.io/en/ordering_in_postgres_outbox/)" by Oskar Dudycz
+- "[Outbox, Inbox patterns and delivery guarantees explained](https://event-driven.io/en/outbox_inbox_patterns_and_delivery_guarantees_explained/)" by Oskar Dudycz
+
+```
+

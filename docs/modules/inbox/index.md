@@ -1,9 +1,10 @@
-# Transactional Inbox Pattern
+# Transactional Inbox
 
 ```{index} Inbox, Transactional Inbox, Idempotency, Causal Consistency, Causal Dependencies
 ```
 
 Transactional Inbox pattern for idempotent message processing with causal consistency and worker partitioning.
+
 
 ## Features
 
@@ -11,6 +12,7 @@ Transactional Inbox pattern for idempotent message processing with causal consis
 - **Causal Consistency**: Messages are processed only after their causal dependencies
 - **Worker Partitioning**: Messages are distributed across workers by partition key strategy
 - **At-least-once delivery**: Messages are stored before processing
+
 
 ## Usage
 
@@ -21,9 +23,11 @@ inbox = Inbox(session_pool)
 await inbox.setup()
 ```
 
+
 ### Partition Key Strategies
 
 Two strategies determine how messages are distributed across workers:
+
 
 #### 1. UriPartitionKeyStrategy (default)
 
@@ -39,6 +43,7 @@ The URI may contain a partition key suffix (like Outbox):
 - `kafka://orders` — all messages go to one worker
 - `kafka://orders/order-123` — distributed by hash of full URI
 
+
 #### 2. StreamPartitionKeyStrategy
 
 Partition by stream identity `(tenant_id, stream_type, stream_id)`. Use when messages have causal dependencies within a stream.
@@ -50,6 +55,7 @@ inbox = Inbox(session_pool, partition_key_strategy=StreamPartitionKeyStrategy())
 ```
 
 All messages for the same stream go to the same worker, preserving causal order.
+
 
 ### Publishing Messages
 
@@ -72,7 +78,9 @@ await inbox.publish(InboxMessage(
 ))
 ```
 
+
 ### Processing Messages
+
 
 #### Option 1: dispatch() - Single Message
 
@@ -87,6 +95,7 @@ has_message = await inbox.dispatch(handle_message)
 # With partitioning (for manual worker management)
 has_message = await inbox.dispatch(handle_message, worker_id=0, num_workers=3)
 ```
+
 
 #### Option 2: run() - Continuous Loop
 
@@ -153,6 +162,7 @@ If dependencies are not satisfied, the Inbox skips to the next message and retri
 
 **Important**: When using causal dependencies, use `StreamPartitionKeyStrategy` to ensure causally related messages go to the same worker.
 
+
 ## Database Schema
 
 The Inbox uses PostgreSQL with the following schema:
@@ -178,7 +188,9 @@ CREATE TABLE inbox (
 - **received_position**: Order of message arrival
 - **processed_position**: Set when message is processed (NULL = unprocessed)
 
+
 ## API Reference
+
 
 ### InboxMessage
 
@@ -196,6 +208,7 @@ class InboxMessage:
     processed_position: int | None    # Set when processed
 ```
 
+
 ### IInbox Interface
 
 | Method | Description |
@@ -207,6 +220,7 @@ class InboxMessage:
 | `setup()` | Create tables and sequences |
 | `cleanup()` | Cleanup resources |
 
+
 ### dispatch() Parameters
 
 | Parameter | Type | Default | Description |
@@ -214,6 +228,7 @@ class InboxMessage:
 | `subscriber` | `ISubscriber` | required | Callback to handle each message |
 | `worker_id` | `int` | `0` | This worker's ID (0 to num_workers-1) |
 | `num_workers` | `int` | `1` | Total number of workers for partitioning |
+
 
 ### run() Parameters
 
@@ -226,11 +241,13 @@ class InboxMessage:
 | `poll_interval` | `float` | `1.0` | Seconds to wait when no messages |
 | `stop_event` | `Event` | `None` | For graceful shutdown |
 
+
 ### ISubscriber
 
 ```python
 ISubscriber: TypeAlias = Callable[[IPgSession, InboxMessage], Awaitable]
 ```
+
 
 ### Partition Key Strategies
 
@@ -239,6 +256,8 @@ ISubscriber: TypeAlias = Callable[[IPgSession, InboxMessage], Awaitable]
 | `UriPartitionKeyStrategy` | `hashtext(uri)` | Topic-based routing (default) |
 | `StreamPartitionKeyStrategy` | `hashtext(tenant_id \|\| ':' \|\| stream_type \|\| ':' \|\| stream_id::text)` | Causal consistency within stream |
 
+
+## References
 
 ```{seealso}
 
