@@ -43,18 +43,20 @@ def prepare_input_generator(input_generator):
 class IterableGenerator(typing.Generic[T]):
 
     def __init__(self, values: typing.Iterable[T]):
-        self._values = iter(values)
+        self._source = values
+        self._values = iter(self._source)
 
     async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> T:
         try:
             return next(self._values)
         except StopIteration as e:
-            raise StopAsyncIteration from e
+            self._values = iter(self._source)
+            return self.__call__(session=session, query=query, position=position)
 
 
 class HypothesisStrategyGenerator(typing.Generic[T]):
     """
-    Do we need it?
+    Do we actually need it?
     self._strategy.example() is a regular function.
     CallableGenerator can be used instead.
     """
