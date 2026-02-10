@@ -189,7 +189,7 @@ The example demonstrates:
 - Specification reuse
 - Boolean values
 
-See the file [example_usage.py](examples/jsonpath_example.py) for the full code.
+See the file `ascetic_ddd/specification/domain/jsonpath/examples/jsonpath_example.py` for the full code.
 
 ## Examples
 

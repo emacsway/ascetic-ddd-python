@@ -43,6 +43,7 @@ user = DictContext({"age": 30})
 
 # Check match
 result = spec.match(user, (25,))  # True
+```
 
 ## Supported Features
 
