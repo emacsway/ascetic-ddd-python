@@ -2,8 +2,8 @@
 import unittest
 
 from ascetic_ddd.faker.domain.query.operators import (
-    EqOperator, ComparisonOperator, InOperator, AndOperator, OrOperator,
-    RelOperator, CompositeQuery
+    EqOperator, ComparisonOperator, InOperator, IsNullOperator, AndOperator,
+    OrOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.domain.query.visitors import (
     QueryToDictVisitor,
@@ -194,6 +194,26 @@ class TestQueryToDictVisitorIn(unittest.TestCase):
         self.assertEqual(result, {'status': {'$in': ['active', 'pending']}})
 
 
+class TestQueryToDictVisitorIsNull(unittest.TestCase):
+    """Tests for QueryToDictVisitor with IsNullOperator."""
+
+    def test_visit_is_null_true(self):
+        visitor = QueryToDictVisitor()
+        result = visitor.visit(IsNullOperator(True))
+        self.assertEqual(result, {'$is_null': True})
+
+    def test_visit_is_null_false(self):
+        visitor = QueryToDictVisitor()
+        result = visitor.visit(IsNullOperator(False))
+        self.assertEqual(result, {'$is_null': False})
+
+    def test_visit_is_null_in_composite(self):
+        visitor = QueryToDictVisitor()
+        query = CompositeQuery({'name': IsNullOperator(True)})
+        result = visitor.visit(query)
+        self.assertEqual(result, {'name': {'$is_null': True}})
+
+
 class TestQueryToDictVisitorAnd(unittest.TestCase):
     """Tests for QueryToDictVisitor with AndOperator."""
 
@@ -337,6 +357,26 @@ class TestQueryToPlainValueVisitorIn(unittest.TestCase):
         query = CompositeQuery({'status': InOperator(('active', 'pending'))})
         result = visitor.visit(query)
         self.assertEqual(result, {'status': {'$in': ['active', 'pending']}})
+
+
+class TestQueryToPlainValueVisitorIsNull(unittest.TestCase):
+    """Tests for QueryToPlainValueVisitor with IsNullOperator."""
+
+    def test_visit_is_null_true(self):
+        visitor = QueryToPlainValueVisitor()
+        result = visitor.visit(IsNullOperator(True))
+        self.assertEqual(result, {'$is_null': True})
+
+    def test_visit_is_null_false(self):
+        visitor = QueryToPlainValueVisitor()
+        result = visitor.visit(IsNullOperator(False))
+        self.assertEqual(result, {'$is_null': False})
+
+    def test_visit_is_null_in_composite(self):
+        visitor = QueryToPlainValueVisitor()
+        query = CompositeQuery({'name': IsNullOperator(True)})
+        result = visitor.visit(query)
+        self.assertEqual(result, {'name': {'$is_null': True}})
 
 
 class TestQueryToPlainValueVisitorAnd(unittest.TestCase):

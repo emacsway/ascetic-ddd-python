@@ -18,7 +18,7 @@ from psycopg.types.json import Jsonb
 
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryVisitor, IQueryOperator, EqOperator, ComparisonOperator, InOperator,
-    AndOperator, OrOperator, RelOperator, CompositeQuery
+    IsNullOperator, AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.infrastructure.query.relation_resolver import IRelationResolver
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
@@ -134,6 +134,13 @@ class PgQueryCompiler(IQueryVisitor[None]):
             self._sql_parts.append(or_parts[0])
         else:
             self._sql_parts.append(f"({' OR '.join(or_parts)})")
+
+    def visit_is_null(self, op: IsNullOperator) -> None:
+        json_path = self._json_path_expr() if self._field_path else self._target_value_expr
+        if op.value:
+            self._sql_parts.append("%s IS NULL" % json_path)
+        else:
+            self._sql_parts.append("%s IS NOT NULL" % json_path)
 
     def visit_and(self, op: AndOperator) -> None:
         for operand in op.operands:

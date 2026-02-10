@@ -7,8 +7,8 @@ from ascetic_ddd.faker.domain.query.evaluate_visitor import (
     EvaluateWalker, EvaluateVisitor, IObjectResolver
 )
 from ascetic_ddd.faker.domain.query.operators import (
-    EqOperator, ComparisonOperator, InOperator, AndOperator, OrOperator,
-    RelOperator, CompositeQuery
+    EqOperator, ComparisonOperator, InOperator, IsNullOperator, AndOperator,
+    OrOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.domain.query.parser import QueryParser
 
@@ -120,6 +120,36 @@ class EvaluateWalkerBasicTestCase(IsolatedAsyncioTestCase):
         """$in should not match when value is not in the list."""
         op = InOperator(('active', 'pending'))
         self.assertFalse(await self.visitor.evaluate(self.session, op, 'deleted'))
+
+    async def test_is_null_true_matches_none(self):
+        """IsNullOperator(True) should match None."""
+        op = IsNullOperator(True)
+        self.assertTrue(await self.visitor.evaluate(self.session, op, None))
+
+    async def test_is_null_true_not_matches_value(self):
+        """IsNullOperator(True) should not match non-None."""
+        op = IsNullOperator(True)
+        self.assertFalse(await self.visitor.evaluate(self.session, op, 42))
+
+    async def test_is_null_false_matches_value(self):
+        """IsNullOperator(False) should match non-None."""
+        op = IsNullOperator(False)
+        self.assertTrue(await self.visitor.evaluate(self.session, op, 42))
+
+    async def test_is_null_false_not_matches_none(self):
+        """IsNullOperator(False) should not match None."""
+        op = IsNullOperator(False)
+        self.assertFalse(await self.visitor.evaluate(self.session, op, None))
+
+    async def test_is_null_in_composite(self):
+        """IsNullOperator in CompositeQuery."""
+        query = CompositeQuery({'name': IsNullOperator(True)})
+        self.assertTrue(await self.visitor.evaluate(
+            self.session, query, {'name': None}
+        ))
+        self.assertFalse(await self.visitor.evaluate(
+            self.session, query, {'name': 'Alice'}
+        ))
 
     async def test_and_operator_all_true(self):
         """AndOperator should match when all operands match."""
@@ -834,6 +864,18 @@ class EvaluateVisitorBasicTestCase(IsolatedAsyncioTestCase):
         op = InOperator(('active', 'pending'))
         self.assertFalse(await self._eval('deleted', op))
 
+    async def test_is_null_true_matches_none(self):
+        self.assertTrue(await self._eval(None, IsNullOperator(True)))
+
+    async def test_is_null_true_not_matches_value(self):
+        self.assertFalse(await self._eval(42, IsNullOperator(True)))
+
+    async def test_is_null_false_matches_value(self):
+        self.assertTrue(await self._eval(42, IsNullOperator(False)))
+
+    async def test_is_null_false_not_matches_none(self):
+        self.assertFalse(await self._eval(None, IsNullOperator(False)))
+
     async def test_and_operator_all_true(self):
         op = AndOperator((
             ComparisonOperator('$gt', 5),
@@ -1464,6 +1506,22 @@ class EvaluateWalkerSyncBasicTestCase(IsolatedAsyncioTestCase):
         """$in should not match when value is not in the list."""
         op = InOperator(('active', 'pending'))
         self.assertFalse(self.walker.evaluate_sync(op, 'deleted'))
+
+    def test_is_null_true_matches_none(self):
+        """IsNullOperator(True) should match None."""
+        self.assertTrue(self.walker.evaluate_sync(IsNullOperator(True), None))
+
+    def test_is_null_true_not_matches_value(self):
+        """IsNullOperator(True) should not match non-None."""
+        self.assertFalse(self.walker.evaluate_sync(IsNullOperator(True), 42))
+
+    def test_is_null_false_matches_value(self):
+        """IsNullOperator(False) should match non-None."""
+        self.assertTrue(self.walker.evaluate_sync(IsNullOperator(False), 42))
+
+    def test_is_null_false_not_matches_none(self):
+        """IsNullOperator(False) should not match None."""
+        self.assertFalse(self.walker.evaluate_sync(IsNullOperator(False), None))
 
     def test_and_operator_all_true(self):
         """AndOperator should match when all operands match."""

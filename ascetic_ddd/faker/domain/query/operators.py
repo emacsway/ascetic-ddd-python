@@ -33,6 +33,7 @@ __all__ = (
     'EqOperator',
     'ComparisonOperator',
     'InOperator',
+    'IsNullOperator',
     'AndOperator',
     'OrOperator',
     'RelOperator',
@@ -65,6 +66,10 @@ class IQueryVisitor(typing.Generic[T], metaclass=ABCMeta):
 
     @abstractmethod
     def visit_in(self, op: 'InOperator') -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def visit_is_null(self, op: 'IsNullOperator') -> T:
         raise NotImplementedError
 
     @abstractmethod
@@ -251,6 +256,43 @@ class InOperator(IQueryOperator):
 
     def __repr__(self) -> str:
         return f"InOperator({self.values!r})"
+
+
+class IsNullOperator(IQueryOperator):
+    """
+    Null check operator: {'$is_null': True} or {'$is_null': False}
+
+    When value=True, matches None values.
+    When value=False, matches non-None values.
+    """
+    __slots__ = ('value', '_hash')
+
+    def __init__(self, value: bool):
+        self.value = value
+        self._hash: int | None = None
+
+    def accept(self, visitor: IQueryVisitor[T]) -> T:
+        return visitor.visit_is_null(self)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, IsNullOperator):
+            return False
+        return self.value == other.value
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(('$is_null', self.value))
+        return self._hash
+
+    def __add__(self, other: 'IsNullOperator') -> 'IsNullOperator':
+        if not isinstance(other, IsNullOperator):
+            return NotImplemented
+        if self.value == other.value:
+            return self
+        raise MergeConflict(self.value, other.value)
+
+    def __repr__(self) -> str:
+        return "IsNullOperator(%r)" % self.value
 
 
 class AndOperator(IQueryOperator):

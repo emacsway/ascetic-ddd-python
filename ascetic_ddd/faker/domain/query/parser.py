@@ -19,6 +19,7 @@ from ascetic_ddd.faker.domain.query.operators import (
     EqOperator,
     ComparisonOperator,
     InOperator,
+    IsNullOperator,
     AndOperator,
     OrOperator,
     RelOperator,
@@ -103,6 +104,8 @@ class QueryParser:
             return self._parse_in(op_value)
         elif op_name == '$or':
             return self._parse_or(op_value)
+        elif op_name == '$is_null':
+            return self._parse_is_null(op_value)
         elif op_name == '$rel':
             return self._parse_rel(op_value)
         else:
@@ -136,6 +139,12 @@ class QueryParser:
         if len(values) < 1:
             raise ValueError(f"$in requires at least 1 value, got: {len(values)}")
         return InOperator(tuple(values))
+
+    def _parse_is_null(self, value: typing.Any) -> IsNullOperator:
+        """Parse $is_null operator value into IsNullOperator."""
+        if not isinstance(value, bool):
+            raise ValueError("$is_null value must be bool, got: %s" % type(value).__name__)
+        return IsNullOperator(value)
 
     def _parse_rel(self, constraints: typing.Any) -> RelOperator:
         """Parse $rel operator value into RelOperator."""

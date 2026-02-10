@@ -23,6 +23,7 @@ from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator,
     IQueryVisitor,
     EqOperator,
+    IsNullOperator,
     RelOperator,
     CompositeQuery,
 )
@@ -44,6 +45,7 @@ __all__ = (
     'IQueryOperator',
     'IQueryVisitor',
     'EqOperator',
+    'IsNullOperator',
     'RelOperator',
     'CompositeQuery',
     'MergeConflict',

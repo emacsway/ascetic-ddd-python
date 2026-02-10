@@ -8,7 +8,7 @@ import typing
 
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryVisitor, IQueryOperator, EqOperator, ComparisonOperator, InOperator,
-    AndOperator, OrOperator, RelOperator, CompositeQuery
+    IsNullOperator, AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 
 __all__ = (
@@ -44,6 +44,9 @@ class QueryToDictVisitor(IQueryVisitor[dict]):
 
     def visit_in(self, op: InOperator) -> dict:
         return {'$in': list(op.values)}
+
+    def visit_is_null(self, op: IsNullOperator) -> dict:
+        return {'$is_null': op.value}
 
     def visit_and(self, op: AndOperator) -> dict:
         result: dict = {}
@@ -87,6 +90,9 @@ class QueryToPlainValueVisitor(IQueryVisitor[typing.Any]):
 
     def visit_in(self, op: InOperator) -> typing.Any:
         return {'$in': list(op.values)}
+
+    def visit_is_null(self, op: IsNullOperator) -> typing.Any:
+        return {'$is_null': op.value}
 
     def visit_and(self, op: AndOperator) -> typing.Any:
         result: dict = {}

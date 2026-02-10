@@ -9,7 +9,7 @@ from abc import ABCMeta, abstractmethod
 
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, IQueryVisitor, EqOperator, ComparisonOperator, InOperator,
-    AndOperator, OrOperator, RelOperator, CompositeQuery
+    IsNullOperator, AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 
 __all__ = ('IObjectResolver', 'EvaluateWalker', 'EvaluateVisitor')
@@ -66,6 +66,9 @@ class EvaluateWalker:
         if isinstance(query, InOperator):
             return state in query.values
 
+        if isinstance(query, IsNullOperator):
+            return (state is None) == query.value
+
         if isinstance(query, AndOperator):
             for operand in query.operands:
                 if not await self.evaluate(session, operand, state, _field_context):
@@ -115,6 +118,9 @@ class EvaluateWalker:
 
         if isinstance(query, InOperator):
             return state in query.values
+
+        if isinstance(query, IsNullOperator):
+            return (state is None) == query.value
 
         if isinstance(query, AndOperator):
             for operand in query.operands:
@@ -279,6 +285,9 @@ class EvaluateVisitor(IQueryVisitor[typing.Awaitable[bool]]):
 
     async def visit_in(self, op: InOperator) -> bool:
         return self._state in op.values
+
+    async def visit_is_null(self, op: IsNullOperator) -> bool:
+        return (self._state is None) == op.value
 
     async def visit_and(self, op: AndOperator) -> bool:
         for operand in op.operands:

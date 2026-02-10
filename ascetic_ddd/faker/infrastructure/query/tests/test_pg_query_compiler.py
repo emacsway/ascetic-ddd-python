@@ -2,8 +2,8 @@
 import unittest
 
 from ascetic_ddd.faker.domain.query.operators import (
-    EqOperator, ComparisonOperator, InOperator, AndOperator, OrOperator,
-    RelOperator, CompositeQuery
+    EqOperator, ComparisonOperator, InOperator, IsNullOperator, AndOperator,
+    OrOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.infrastructure.query.pg_query_compiler import PgQueryCompiler
 from ascetic_ddd.faker.infrastructure.query.relation_resolver import (
@@ -346,6 +346,46 @@ class TestVisitNe(unittest.TestCase):
         self.assertEqual(sql, "value @> %s AND NOT (value @> %s)")
         self.assertEqual(params[0].obj, {'status': 'active'})
         self.assertEqual(params[1].obj, {'role': 'admin'})
+
+
+class TestVisitIsNull(unittest.TestCase):
+
+    def test_is_null_true_bare(self):
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(IsNullOperator(True))
+        self.assertEqual(sql, "value IS NULL")
+        self.assertEqual(params, ())
+
+    def test_is_null_false_bare(self):
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(IsNullOperator(False))
+        self.assertEqual(sql, "value IS NOT NULL")
+        self.assertEqual(params, ())
+
+    def test_is_null_in_composite(self):
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'name': IsNullOperator(True),
+        }))
+        self.assertEqual(sql, "value->'name' IS NULL")
+        self.assertEqual(params, ())
+
+    def test_is_null_false_in_composite(self):
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'name': IsNullOperator(False),
+        }))
+        self.assertEqual(sql, "value->'name' IS NOT NULL")
+        self.assertEqual(params, ())
+
+    def test_is_null_mixed_with_eq(self):
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'status': EqOperator('active'),
+            'deleted_at': IsNullOperator(True),
+        }))
+        self.assertIn("IS NULL", sql)
+        self.assertIn("@>", sql)
 
 
 class TestVisitIn(unittest.TestCase):

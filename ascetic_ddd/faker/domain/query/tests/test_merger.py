@@ -3,7 +3,7 @@ import unittest
 
 from ascetic_ddd.faker.domain.query.parser import normalize_query
 from ascetic_ddd.faker.domain.query.operators import (
-    MergeConflict, EqOperator, RelOperator, CompositeQuery
+    MergeConflict, EqOperator, IsNullOperator, RelOperator, CompositeQuery
 )
 
 
@@ -138,6 +138,36 @@ class TestCompositeQueryAdd(unittest.TestCase):
 
     def test_add_wrong_type_returns_not_implemented(self):
         result = CompositeQuery({'a': EqOperator(1)}).__add__(EqOperator(5))
+        self.assertIs(result, NotImplemented)
+
+
+class TestIsNullOperatorAdd(unittest.TestCase):
+    """Tests for IsNullOperator.__add__."""
+
+    def test_add_same_value_true(self):
+        left = IsNullOperator(True)
+        right = IsNullOperator(True)
+        result = left + right
+        self.assertIsInstance(result, IsNullOperator)
+        self.assertIs(result.value, True)
+
+    def test_add_same_value_false(self):
+        left = IsNullOperator(False)
+        right = IsNullOperator(False)
+        result = left + right
+        self.assertIsInstance(result, IsNullOperator)
+        self.assertIs(result.value, False)
+
+    def test_add_different_value_raises(self):
+        left = IsNullOperator(True)
+        right = IsNullOperator(False)
+        with self.assertRaises(MergeConflict) as cm:
+            left + right
+        self.assertIs(cm.exception.existing_value, True)
+        self.assertIs(cm.exception.new_value, False)
+
+    def test_add_wrong_type_returns_not_implemented(self):
+        result = IsNullOperator(True).__add__(EqOperator(None))
         self.assertIs(result, NotImplemented)
 
 

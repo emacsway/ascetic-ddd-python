@@ -3,8 +3,8 @@ import unittest
 
 from ascetic_ddd.faker.domain.query.parser import QueryParser
 from ascetic_ddd.faker.domain.query.operators import (
-    EqOperator, ComparisonOperator, InOperator, AndOperator, OrOperator,
-    RelOperator, CompositeQuery
+    EqOperator, ComparisonOperator, InOperator, IsNullOperator, AndOperator,
+    OrOperator, RelOperator, CompositeQuery
 )
 
 
@@ -306,6 +306,39 @@ class TestQueryParserIn(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             self.parser.parse({'$in': []})
         self.assertIn("at least 1 value", str(cm.exception))
+
+
+class TestQueryParserIsNull(unittest.TestCase):
+    """Tests for QueryParser.parse() with $is_null operator."""
+
+    def setUp(self):
+        self.parser = QueryParser()
+
+    def test_parse_is_null_true(self):
+        result = self.parser.parse({'$is_null': True})
+        self.assertIsInstance(result, IsNullOperator)
+        self.assertIs(result.value, True)
+
+    def test_parse_is_null_false(self):
+        result = self.parser.parse({'$is_null': False})
+        self.assertIsInstance(result, IsNullOperator)
+        self.assertIs(result.value, False)
+
+    def test_parse_is_null_in_composite(self):
+        result = self.parser.parse({'name': {'$is_null': True}})
+        self.assertIsInstance(result, CompositeQuery)
+        self.assertIsInstance(result.fields['name'], IsNullOperator)
+        self.assertIs(result.fields['name'].value, True)
+
+    def test_parse_is_null_non_bool_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            self.parser.parse({'$is_null': 1})
+        self.assertIn("$is_null value must be bool", str(cm.exception))
+
+    def test_parse_is_null_string_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            self.parser.parse({'$is_null': 'true'})
+        self.assertIn("$is_null value must be bool", str(cm.exception))
 
 
 class TestQueryParserAnd(unittest.TestCase):
