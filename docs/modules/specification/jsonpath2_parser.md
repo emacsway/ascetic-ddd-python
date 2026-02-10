@@ -1,3 +1,6 @@
+```{index} JSONPath2, JSONPath, Specification Pattern
+```
+
 # JSONPath2 Specification Parser
 
 JSONPath expression parser for the Specification Pattern using the **jsonpath2** library.
