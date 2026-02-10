@@ -139,5 +139,8 @@ html_theme_options = {
     'toc_title_is_page_title': True,
 }
 
+# -- Suppress unresolvable TypeVar cross-reference warnings ------------------
+suppress_warnings = ['ref.param']
+
 # -- Options for todo extension ----------------------------------------------
 todo_include_todos = True
