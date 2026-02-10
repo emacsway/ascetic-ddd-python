@@ -7,7 +7,7 @@
 ## Overview
 
 The faker module provides a framework for generating test data with realistic
-relationships between :term:`Aggregate` instances.
+relationships between {term}`Aggregate` instances.
 
 
 ## Why?
