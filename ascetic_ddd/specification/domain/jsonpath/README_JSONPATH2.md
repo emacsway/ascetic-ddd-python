@@ -1,33 +1,33 @@
 # JSONPath2 Specification Parser
 
-Парсер JSONPath выражений для Specification Pattern с использованием библиотеки **jsonpath2**.
+JSONPath expression parser for the Specification Pattern using the **jsonpath2** library.
 
-## Описание
+## Description
 
-Эта реализация использует библиотеку `jsonpath2` для парсинга JSONPath выражений и преобразует их в AST узлы Specification Pattern. Поддерживает параметризацию в стиле C-форматирования строк.
+This implementation uses the `jsonpath2` library to parse JSONPath expressions and converts them into Specification Pattern AST nodes. Supports C-style string formatting parameterization.
 
-## Ключевые особенности
+## Key Advantages
 
-✅ **Использует jsonpath2** - проверенную библиотеку для парсинга JSONPath
-✅ **Параметризация** - поддержка плейсхолдеров (%s, %d, %f, %(name)s)
-✅ **Операторы сравнения** - `=`, `!=`, `>`, `<`, `>=`, `<=`
-✅ **Коллекции с wildcard** - фильтрация элементов коллекций
-✅ **Вложенные wildcards** ✨ - фильтрация по вложенным коллекциям (`$.categories[*][?@.items[*][?@.price > 100]]`)
-✅ **Вложенные пути** - поддержка `@.profile.age`, `@.company.department.manager.level`
-✅ **Группировка скобками** - автоматическое добавление скобок для фильтров
-✅ **Переиспользование** - одна спецификация с разными параметрами
-✅ **Те же возможности** - полная совместимость с другими версиями парсера
+- **Uses jsonpath2** - a proven library for JSONPath parsing
+- **Parameterization** - placeholder support (%s, %d, %f, %(name)s)
+- **Comparison operators** - `=`, `!=`, `>`, `<`, `>=`, `<=`
+- **Wildcard collections** - filtering collection elements
+- **Nested wildcards** - filtering by nested collections (`$.categories[*][?@.items[*][?@.price > 100]]`)
+- **Nested paths** - support for `@.profile.age`, `@.company.department.manager.level`
+- **Parentheses grouping** - automatic parentheses insertion for filters
+- **Reusability** - one specification with different parameters
+- **Full feature parity** - fully compatible with other parser versions
 
-## Использование
+## Usage
 
 ```python
 from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import parse
 
-# Создать спецификацию
+# Create specification
 spec = parse("$[?(@.age > %d)]")
 
 
-# Создать контекст
+# Create context
 class DictContext:
   def __init__(self, data):
     self._data = data
@@ -38,32 +38,32 @@ class DictContext:
 
 user = DictContext({"age": 30})
 
-# Проверить соответствие
+# Check match
 result = spec.match(user, (25,))  # True
 
-## Поддерживаемые возможности
+## Supported Features
 
-### Операторы сравнения
-- `=` - Равенство (jsonpath2 использует одиночный `=`, а не `==`)
-- `!=` - Неравенство
-- `>` - Больше
-- `<` - Меньше
-- `>=` - Больше или равно
-- `<=` - Меньше или равно
+### Comparison Operators
+- `=` - Equal (jsonpath2 uses single `=`, not `==`)
+- `!=` - Not equal
+- `>` - Greater than
+- `<` - Less than
+- `>=` - Greater than or equal
+- `<=` - Less than or equal
 
-### Параметризация
+### Parameterization
 ```python
-# Позиционные
-parse("$[?(@.age > %d)]")          # Целое число
-parse("$[?(@.name = %s)]")          # Строка
-parse("$[?(@.price > %f)]")         # Число с плавающей точкой
+# Positional
+parse("$[?(@.age > %d)]")          # Integer
+parse("$[?(@.name = %s)]")          # String
+parse("$[?(@.price > %f)]")         # Floating point number
 
-# Именованные
+# Named
 parse("$[?(@.age > %(min_age)d)]")
 parse("$[?(@.name = %(name)s)]")
 ```
 
-### Коллекции с Wildcard
+### Wildcard Collections
 ```python
 spec = parse("$.items[*][?(@.price > %f)]")
 
@@ -75,87 +75,84 @@ item2 = DictContext({"name": "Mouse", "price": 29.99})
 collection = CollectionContext([item1, item2])
 store = DictContext({"items": collection})
 
-# Проверяет, есть ли хотя бы один товар с price > 500
+# Check if there is at least one item with price > 500
 spec.match(store, (500.0,))  # True
 ```
 
-## Особенности jsonpath2
+## jsonpath2 Specifics
 
-### Синтаксис
+### Syntax
 
-jsonpath2 библиотека **отклоняется от стандарта RFC 9535**:
+The jsonpath2 library **deviates from the RFC 9535 standard**:
 
-- **Поддерживаются оба варианта**: `=` и `==` для равенства ✨
-  - **RFC 9535 стандарт** определяет `==` для равенства
-  - **jsonpath2 библиотека** отклоняется от стандарта и использует `=`
-  - Наш парсер автоматически нормализует `==` → `=` для совместимости с библиотекой
-  - Это обеспечивает лучший UX и совместимость с Native парсерами
+- **Both variants supported**: `=` and `==` for equality
+  - **RFC 9535 standard** defines `==` for equality
+  - **jsonpath2 library** deviates from the standard and uses `=`
+  - Our parser automatically normalizes `==` → `=` for library compatibility
+  - This provides better UX and compatibility with Native parsers
 
-- **Логические операторы полностью поддерживаются!** ✨
-  - **RFC 9535 стандарт** использует: `&&` (AND), `||` (OR), `!` (NOT)
-  - **jsonpath2 библиотека** использует: `and`, `or`, `not` (текстовые операторы)
-  - Наш парсер автоматически нормализует: `&&` → `and`, `||` → `or`, `!` → `not`
-  - **Полная поддержка RFC 9535 синтаксиса!**
+- **Logical operators are fully supported!**
+  - **RFC 9535 standard** uses: `&&` (AND), `||` (OR), `!` (NOT)
+  - **jsonpath2 library** uses: `and`, `or`, `not` (text operators)
+  - Our parser automatically normalizes: `&&` → `and`, `||` → `or`, `!` → `not`
+  - **Full RFC 9535 syntax support!**
 
-- **Автоматическое добавление скобок в фильтрах** ✨
-  - **jsonpath2 библиотека** требует скобки вокруг условий: `$[?(@.age > 25)]`
-  - Наш парсер автоматически добавляет скобки, если они отсутствуют
-  - Можно писать: `$[?@.age > 25]` → автоматически преобразуется в `$[?(@.age > 25)]`
+- **Automatic parentheses insertion in filters**
+  - **jsonpath2 library** requires parentheses around conditions: `$[?(@.age > 25)]`
+  - Our parser automatically adds parentheses if they are missing
+  - You can write: `$[?@.age > 25]` → automatically converted to `$[?(@.age > 25)]`
 
-- Строгая проверка синтаксиса с подробными сообщениями об ошибках
+- Strict syntax validation with detailed error messages
 
-### Преимущества
+### Advantages
 
-1. **Простой синтаксис** - использует `=` вместо `==`
-2. **Подробные ошибки** - детальные сообщения при синтаксических ошибках
-3. **Производительность** - оптимизированный парсер на основе ANTLR
-4. **Поддержка сообщества** - активная разработка и поддержка
+1. **Performance** - optimized ANTLR-based parser
 
-### Ограничения (отклонения от RFC 9535)
+### Limitations (deviations from RFC 9535)
 
-1. **Синтаксис равенства** - использует `=` вместо стандартного `==`
-   - Наше улучшение добавляет поддержку `==` через автоматическую нормализацию
-2. **Требуются скобки** - фильтры требуют скобки вокруг условий
-   - Наше улучшение автоматически добавляет скобки
-3. **Строгая валидация** - более строгие требования к синтаксису
+1. **Equality syntax** - uses `=` instead of the standard `==`
+   - Our enhancement adds `==` support via automatic normalization
+2. **Parentheses required** - filters require parentheses around conditions
+   - Our enhancement automatically adds parentheses
+3. **Strict validation** - stricter syntax requirements
 
-Благодаря нашим улучшениям (автоматическая нормализация синтаксиса), большинство ограничений скрыты от пользователя.
+Thanks to our enhancements (automatic syntax normalization), most limitations are hidden from the user.
 
-## Поддержка вложенных путей
+## Nested Path Support
 
-JSONPath2 парсер поддерживает вложенные пути в фильтрах, позволяя обращаться к полям вложенных объектов:
+The JSONPath2 parser supports nested paths in filters, allowing access to fields of nested objects:
 
-### Синтаксис вложенных путей
+### Nested Path Syntax
 
 ```python
-# Простой вложенный путь
+# Simple nested path
 spec = parse("$[?(@.profile.age > %d)]")
 
-# Глубокая вложенность
+# Deep nesting
 spec = parse("$[?(@.company.department.manager.level >= %d)]")
 
-# Вложенные пути в составных условиях
+# Nested paths in compound conditions
 spec = parse("$[?(@.profile.age > %d && @.profile.status = %s)]")
 ```
 
-### Примеры использования вложенных путей
+### Nested Path Examples
 
 ```python
 from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import parse
 
-# Класс контекста с поддержкой вложенных объектов
+# Context class with nested object support
 class NestedDictContext:
     def __init__(self, data):
         self._data = data
 
     def get(self, key):
         value = self._data[key]
-        # Автоматически оборачиваем вложенные словари
+        # Automatically wrap nested dicts
         if isinstance(value, dict):
             return NestedDictContext(value)
         return value
 
-# Простой вложенный путь
+# Simple nested path
 spec = parse("$[?(@.profile.age > %d)]")
 user = NestedDictContext({
     "name": "Alice",
@@ -163,7 +160,7 @@ user = NestedDictContext({
 })
 spec.match(user, (25,))  # True
 
-# Глубокая вложенность (3+ уровня)
+# Deep nesting (3+ levels)
 spec = parse("$[?(@.company.department.manager.level >= %d)]")
 employee = NestedDictContext({
     "name": "Bob",
@@ -177,7 +174,7 @@ employee = NestedDictContext({
 })
 spec.match(employee, (3,))  # True
 
-# Вложенные пути в составных условиях
+# Nested paths in compound conditions
 spec = parse("$[?(@.profile.age > %d && @.profile.status = %s)]")
 user = NestedDictContext({
     "name": "Diana",
@@ -185,7 +182,7 @@ user = NestedDictContext({
 })
 spec.match(user, (25, "active"))  # True
 
-# Именованные параметры с вложенными путями
+# Named parameters with nested paths
 spec = parse("$[?(@.settings.notifications.email = %(enabled)s)]")
 user = NestedDictContext({
     "name": "Eve",
@@ -196,46 +193,46 @@ user = NestedDictContext({
 spec.match(user, {"enabled": True})  # True
 ```
 
-### Важные замечания
+### Important Notes
 
-1. **Автоматическая обработка цепочек**: Парсер автоматически распознает и обрабатывает вложенные пути любой глубины
+1. **Automatic chain handling**: The parser automatically recognizes and processes nested paths of any depth
 
-2. **Требования к контексту**: Контекст должен возвращать вложенные объекты, которые также поддерживают протокол `get()`:
+2. **Context requirements**: The context must return nested objects that also support the `get()` protocol:
    ```python
    class NestedDictContext:
        def get(self, key):
            value = self._data[key]
            if isinstance(value, dict):
-               return NestedDictContext(value)  # Важно!
+               return NestedDictContext(value)  # Important!
            return value
    ```
 
-3. **Совместимость**: Синтаксис полностью совместим с RFC 9535 и другими парсерами
+3. **Compatibility**: The syntax is fully compatible with RFC 9535 and other parsers
 
-## Примеры использования
+## Examples
 
-### Базовое использование
+### Basic Usage
 
 ```python
 from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import parse
 
-# Простое сравнение
+# Simple comparison
 spec = parse("$[?(@.age > %d)]")
 user = DictContext({"age": 30})
 spec.match(user, (25,))  # True
 
-# Строковое сравнение
+# String comparison
 spec = parse("$[?(@.status = %s)]")
 task = DictContext({"status": "done"})
 spec.match(task, ("done",))  # True
 
-# Именованные параметры
+# Named parameters
 spec = parse("$[?(@.score >= %(min_score)d)]")
 student = DictContext({"score": 85})
 spec.match(student, {"min_score": 80})  # True
 ```
 
-### Работа с коллекциями
+### Working with Collections
 
 ```python
 from ascetic_ddd.specification.domain.evaluate_visitor import CollectionContext
@@ -248,21 +245,21 @@ user2 = DictContext({"name": "Bob", "age": 25})
 users = CollectionContext([user1, user2])
 root = DictContext({"users": users})
 
-# Есть ли хотя бы один пользователь с age >= 28?
+# Is there at least one user with age >= 28?
 spec.match(root, (28,))  # True (Alice)
 ```
 
-### Вложенные Wildcards ✨
+### Nested Wildcards
 
-JSONPath2 парсер поддерживает вложенные wildcards для фильтрации по вложенным коллекциям:
+The JSONPath2 parser supports nested wildcards for filtering by nested collections:
 
 ```python
 from ascetic_ddd.specification.domain.evaluate_visitor import CollectionContext
 
-# Вложенные wildcards: фильтрация по вложенным коллекциям
+# Nested wildcards: filtering by nested collections
 spec = parse("$.categories[*][?@.items[*][?@.price > %f]]")
 
-# Создаем структуру данных
+# Create data structure
 item1 = DictContext({"name": "Laptop", "price": 999.0})
 item2 = DictContext({"name": "Mouse", "price": 29.0})
 items1 = CollectionContext([item1, item2])
@@ -275,14 +272,14 @@ category2 = DictContext({"name": "Clothing", "items": items2})
 categories = CollectionContext([category1, category2])
 store = DictContext({"categories": categories})
 
-# Есть ли хотя бы одна категория с товаром дороже 500?
+# Is there at least one category with an item costing more than 500?
 spec.match(store, (500.0,))  # True (Laptop)
 ```
 
-**Вложенные wildcards с логикой:**
+**Nested wildcards with logic:**
 
 ```python
-# Комбинация условий во вложенных фильтрах
+# Combining conditions in nested filters
 spec = parse("$.categories[*][?@.items[*][?@.price > %f && @.price < %f]]")
 
 item1 = DictContext({"name": "Monitor", "price": 599.0})
@@ -291,31 +288,23 @@ category = DictContext({"name": "Displays", "items": items})
 categories = CollectionContext([category])
 store = DictContext({"categories": categories})
 
-# Категория с товаром в диапазоне цен
+# Category with an item in the price range
 spec.match(store, (500.0, 700.0))  # True
 ```
 
-**С именованными параметрами:**
+**With named parameters:**
 
 ```python
 spec = parse("$.categories[*][?@.items[*][?@.price > %(min_price)f]]")
 spec.match(store, {"min_price": 500.0})  # True
 ```
 
-## Тестирование
+## Testing
 
 ```bash
-# Запустить тесты jsonpath2 парсера
+# Run jsonpath2 parser tests
 python -m unittest ascetic_ddd.specification.domain.jsonpath.test_jsonpath_parser_jsonpath2 -v
 
-# Все тесты
+# All tests
 python -m unittest discover -s ascetic_ddd/specification -p "test_*.py" -v
 ```
-
-## Зависимости
-
-- `jsonpath2` - парсинг JSONPath выражений (RFC 9535)
-- Модули из `ascetic_ddd.specification.domain`:
-  - `nodes` - AST узлы спецификации
-  - `evaluate_visitor` - выполнение спецификаций
-
