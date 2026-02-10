@@ -4,6 +4,13 @@
 ```
 
 
+```{toctree}
+:hidden:
+
+query
+```
+
+
 ## Overview
 
 The faker module provides a framework for generating test data with realistic
