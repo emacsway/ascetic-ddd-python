@@ -95,6 +95,8 @@ Queries are parsed into an operator tree (AST):
 - ``ComparisonOperator(op, value)`` -- comparisons: ``{'$gt': 5}``,
   ``{'$lt': 10}``, ``{'$ne': 'deleted'}``, ``{'$gte': 0}``, ``{'$lte': 100}``
 - ``InOperator(values)`` -- membership: ``{'$in': ['active', 'pending']}``
+- ``IsNullOperator(value)`` -- null check: ``{'$is_null': True}`` or
+  ``{'$is_null': False}``
 - ``AndOperator(operands)`` -- implicit AND when multiple operators appear at
   the same level: ``{'$gt': 5, '$lt': 10}``
 - ``OrOperator(operands)`` -- explicit OR: ``{'$or': [expr1, expr2]}``
@@ -147,8 +149,19 @@ This merging is essential for the diamond problem
 the provider graph contribute criteria to the same provider, and these criteria
 must be composed, not overwritten.
 
-Rejected alternative: IsNullOperator
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The ``$is_null`` operator
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``IsNullOperator(value: bool)`` checks whether a field is null (``True``) or
+not null (``False``). Syntax: ``{'$is_null': True}`` / ``{'$is_null': False}``.
+
+In evaluation, ``IsNullOperator(True)`` matches when state is ``None``;
+``IsNullOperator(False)`` matches when state is not ``None``.
+
+In PostgreSQL, compiles to ``IS NULL`` / ``IS NOT NULL`` (no parameters).
+
+Rejected alternative: IsNullOperator with absorption
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 An ``IsNullOperator`` with "absorption" semantics (``IsNullOperator + RelOperator
 = IsNullOperator``) was considered to replace ``ReferenceProvider``'s null FK
@@ -157,6 +170,10 @@ ReferenceProvider** ("if FK is null, ignore aggregate constraints"), not a
 property of operator algebra. Other providers might handle null differently
 (raise an error, use a default). The null FK logic remains localized in
 ``ReferenceProvider``, where it is semantically justified.
+
+The actual ``IsNullOperator`` uses standard merge semantics: same-type operators
+with equal values return self; conflicting values (``True`` vs ``False``) raise
+``MergeConflict``.
 
 Visitor pattern
 ^^^^^^^^^^^^^^^^

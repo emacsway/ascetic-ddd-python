@@ -6,6 +6,7 @@ Operators:
 - $ne: not equal
 - $gt, $gte, $lt, $lte: comparison operators
 - $in: value in list
+- $is_null: null check
 - $rel: constraints for related aggregate
 - $or: logical OR of expressions
 
@@ -17,6 +18,8 @@ Examples:
     {'$ne': 'deleted'}                             # not equal
     {'$gt': 5, '$lt': 10}                          # range (implicit AND)
     {'$in': ['active', 'pending']}                 # value in list
+    {'$is_null': True}                             # null check
+    {'$is_null': False}                            # not null check
     {'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}}  # composite PK
     {'$rel': {'is_active': {'$eq': True}}}         # related aggregate criteria
     {'$or': [{'status': {'$eq': 'active'}}, {'status': {'$eq': 'pending'}}]}

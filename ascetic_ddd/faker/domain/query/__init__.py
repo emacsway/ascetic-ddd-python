@@ -3,7 +3,11 @@ MongoDB-like query operators for faker providers.
 
 This module provides a query DSL for specifying criteria:
 - $eq: equality check
+- $ne, $gt, $gte, $lt, $lte: comparison operators
+- $in: value in list
+- $is_null: null check
 - $rel: constraints for related aggregate (ReferenceProvider)
+- $or: logical OR of expressions
 
 Examples:
     # Scalar value
@@ -11,6 +15,9 @@ Examples:
 
     # Composite PK
     {'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}}
+
+    # Null check
+    {'deleted_at': {'$is_null': True}}
 
     # Related aggregate criteria
     {'$rel': {'is_active': {'$eq': True}, 'status': {'$eq': 'active'}}}
