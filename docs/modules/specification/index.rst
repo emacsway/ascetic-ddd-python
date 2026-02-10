@@ -21,12 +21,12 @@ JSONPath (jsonpath2)
 Native JSONPath
 ---------------
 
-.. include:: ../../../ascetic_ddd/specification/domain/jsonpath/README_NATIVE.md
-   :parser: myst_parser.sphinx_
+See :doc:`jsonpath_parser` for the Native JSONPath parser documentation.
 
 .. toctree::
    :hidden:
 
+   jsonpath_parser
    lambda_filter
 
 Lambda Filter

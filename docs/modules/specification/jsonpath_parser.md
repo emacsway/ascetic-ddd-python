@@ -1,3 +1,6 @@
+```{index} Native JSONPath Parser, JSONPath, Specification Pattern
+```
+
 # Native JSONPath Parser (No External Dependencies)
 
 ## Description
