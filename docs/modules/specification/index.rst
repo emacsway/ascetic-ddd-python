@@ -9,8 +9,7 @@ multiple query backends.
 JSONPath (RFC 9535)
 -------------------
 
-.. include:: ../../../ascetic_ddd/specification/domain/jsonpath/README_RFC9535.md
-   :parser: myst_parser.sphinx_
+See :doc:`jsonpath_rfc9535_parser` for the JSONPath RFC 9535 parser documentation.
 
 JSONPath (jsonpath2)
 --------------------
@@ -26,6 +25,7 @@ See :doc:`jsonpath_parser` for the Native JSONPath parser documentation.
 .. toctree::
    :hidden:
 
+   jsonpath_rfc9535_parser
    jsonpath_parser
    lambda_filter
 

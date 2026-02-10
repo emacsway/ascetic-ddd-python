@@ -1,3 +1,6 @@
+```{index} JSONPath RFC 9535, JSONPath, Specification Pattern
+```
+
 # JSONPath RFC 9535 Specification Parser
 
 JSONPath expression parser for the Specification Pattern using the **jsonpath-rfc9535** library.
