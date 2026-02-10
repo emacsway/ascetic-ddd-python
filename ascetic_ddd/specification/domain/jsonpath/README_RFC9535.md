@@ -1,34 +1,34 @@
 # JSONPath RFC 9535 Specification Parser
 
-Парсер JSONPath выражений для Specification Pattern с использованием библиотеки **jsonpath-rfc9535**.
+JSONPath expression parser for the Specification Pattern using the **jsonpath-rfc9535** library.
 
-## Описание
+## Description
 
-Эта реализация использует библиотеку `jsonpath-rfc9535` для парсинга JSONPath выражений и преобразует их в AST узлы Specification Pattern. **Полностью соответствует стандарту RFC 9535** и поддерживает параметризацию в стиле C-форматирования строк.
+This implementation uses the `jsonpath-rfc9535` library to parse JSONPath expressions and converts them into Specification Pattern AST nodes. **Fully compliant with the RFC 9535 standard** and supports C-style string formatting parameterization.
 
-## Ключевые особенности
+## Key Advantages
 
-✅ **Полное соответствие RFC 9535** - использует официальный стандарт JSONPath
-✅ **Параметризация** - поддержка плейсхолдеров (%s, %d, %f, %(name)s)
-✅ **Стандартные операторы** - `==`, `!=`, `>`, `<`, `>=`, `<=`
-✅ **Логические операторы RFC 9535** - `&&` (AND), `||` (OR), `!` (NOT)
-✅ **Скобочки** - группировка логических выражений (`$[?(@.age >= 18 && @.age <= 65) && @.active == true]`)
-✅ **Коллекции с wildcard** - фильтрация элементов коллекций
-✅ **Вложенные wildcards** ✨ - фильтрация по вложенным коллекциям (`$.categories[*][?@.items[*][?@.price > 100]]`)
-✅ **Вложенные пути** ✨ - доступ к вложенным полям (`$[?@.profile.age > 25]`, `$[?@.company.department.manager.level > 5]`)
-✅ **Переиспользование** - одна спецификация с разными параметрами
-✅ **Строгое соответствие стандарту** - гарантированная совместимость
+- **Full RFC 9535 compliance** - uses the official JSONPath standard
+- **Parameterization** - placeholder support (%s, %d, %f, %(name)s)
+- **Standard operators** - `==`, `!=`, `>`, `<`, `>=`, `<=`
+- **RFC 9535 logical operators** - `&&` (AND), `||` (OR), `!` (NOT)
+- **Parentheses** - logical expression grouping (`$[?(@.age >= 18 && @.age <= 65) && @.active == true]`)
+- **Wildcard collections** - filtering collection elements
+- **Nested wildcards** - filtering by nested collections (`$.categories[*][?@.items[*][?@.price > 100]]`)
+- **Nested paths** - access to nested fields (`$[?@.profile.age > 25]`, `$[?@.company.department.manager.level > 5]`)
+- **Reusability** - one specification with different parameters
+- **Strict standard compliance** - guaranteed compatibility
 
-## Использование
+## Usage
 
 ```python
 from ascetic_ddd.specification.domain.jsonpath.jsonpath_rfc9535_parser import parse
 
-# Создать спецификацию
+# Create specification
 spec = parse("$[?@.age > %d]")
 
 
-# Создать контекст
+# Create context
 class DictContext:
     def __init__(self, data):
         self._data = data
@@ -39,79 +39,79 @@ class DictContext:
 
 user = DictContext({"age": 30})
 
-# Проверить соответствие
+# Check match
 result = spec.match(user, (25,))  # True
 ```
 
-## Соответствие RFC 9535
+## RFC 9535 Compliance
 
-Эта реализация **полностью соответствует** стандарту RFC 9535:
+This implementation is **fully compliant** with the RFC 9535 standard:
 
-### ✅ Операторы сравнения (RFC 9535)
-- `==` - Равенство (**двойной знак**, как в стандарте)
-- `!=` - Неравенство
-- `>` - Больше
-- `<` - Меньше
-- `>=` - Больше или равно
-- `<=` - Меньше или равно
+### Comparison Operators (RFC 9535)
+- `==` - Equal (**double sign**, as per the standard)
+- `!=` - Not equal
+- `>` - Greater than
+- `<` - Less than
+- `>=` - Greater than or equal
+- `<=` - Less than or equal
 
-### ✅ Логические операторы (RFC 9535)
-- `&&` - Логическое AND (как в стандарте)
-- `||` - Логическое OR (как в стандарте)
-- `!` - Логическое NOT (как в стандарте)
+### Logical Operators (RFC 9535)
+- `&&` - Logical AND (as per the standard)
+- `||` - Logical OR (as per the standard)
+- `!` - Logical NOT (as per the standard)
 
-### ✅ Референсы
-- `@` - Текущий узел (current node)
-- `$` - Корневой узел (root node)
+### References
+- `@` - Current node
+- `$` - Root node
 
-## Поддерживаемые возможности
+## Supported Features
 
-### Операторы сравнения
+### Comparison Operators
 
 ```python
-# RFC 9535 использует == для равенства (двойной знак)
-parse("$[?@.age == %d]")           # Равно
-parse("$[?@.age != %d]")           # Не равно
-parse("$[?@.age > %d]")            # Больше
-parse("$[?@.age < %d]")            # Меньше
-parse("$[?@.age >= %d]")           # Больше или равно
-parse("$[?@.age <= %d]")           # Меньше или равно
+# RFC 9535 uses == for equality (double sign)
+parse("$[?@.age == %d]")           # Equal
+parse("$[?@.age != %d]")           # Not equal
+parse("$[?@.age > %d]")            # Greater than
+parse("$[?@.age < %d]")            # Less than
+parse("$[?@.age >= %d]")           # Greater than or equal
+parse("$[?@.age <= %d]")           # Less than or equal
 ```
 
-### Логические операторы
+### Logical Operators
 
 ```python
-# RFC 9535 использует && для AND
+# RFC 9535 uses && for AND
 parse("$[?@.age > %d && @.active == %s]")
 
-# RFC 9535 использует || для OR
+# RFC 9535 uses || for OR
 parse("$[?@.age < %d || @.age > %d]")
 
-# RFC 9535 использует ! для NOT
+# RFC 9535 uses ! for NOT
 parse("$[?!(@.active == %s)]")
 
-# Сложные выражения
+# Complex expressions
 parse("$[?(@.age >= %d && @.age <= %d) && @.status == %s]")
 ```
 
-### Параметризация
+### Parameterization
 
 ```python
-# Позиционные параметры
-parse("$[?@.age > %d]")            # Целое число
-parse("$[?@.name == %s]")          # Строка
-parse("$[?@.price > %f]")          # Число с плавающей точкой
+# Positional parameters
+parse("$[?@.age > %d]")            # Integer
+parse("$[?@.name == %s]")          # String
+parse("$[?@.price > %f]")          # Floating point number
 
-# Именованные параметры
+# Named parameters
 parse("$[?@.age > %(min_age)d]")
 parse("$[?@.name == %(name)s]")
 parse("$[?@.price > %(min_price)f]")
 
-# Множественные параметры
+# Multiple parameters
 parse("$[?@.age >= %(min_age)d && @.age <= %(max_age)d]")
 ```
 
-### Коллекции с Wildcard
+### Wildcard Collections
 
 ```python
 spec = parse("$.items[*][?@.price > %f]")
@@ -124,17 +124,17 @@ item2 = DictContext({"name": "Mouse", "price": 29.99})
 collection = CollectionContext([item1, item2])
 store = DictContext({"items": collection})
 
-# Проверяет, есть ли хотя бы один товар с price > 500
+# Check if there is at least one item with price > 500
 spec.match(store, (500.0,))  # True
 ```
 
-### Вложенные Wildcards ✨
+### Nested Wildcards
 
 ```python
-# Вложенные коллекции: категории -> товары
+# Nested collections: categories -> items
 spec = parse("$.categories[*][?@.items[*][?@.price > %f]]")
 
-# Создаём структуру данных
+# Create data structure
 item1 = DictContext({"name": "Laptop", "price": 999.0})
 items = CollectionContext([item1])
 category = DictContext({"name": "Electronics", "items": items})
@@ -142,53 +142,53 @@ category = DictContext({"name": "Electronics", "items": items})
 categories = CollectionContext([category])
 store = DictContext({"categories": categories})
 
-# Есть ли категория с товаром дороже 500?
+# Is there a category with an item costing more than 500?
 spec.match(store, (500.0,))  # True
 ```
 
-## Примеры использования
+## Examples
 
-### Базовое использование
+### Basic Usage
 
 ```python
 from ascetic_ddd.specification.domain.jsonpath.jsonpath_rfc9535_parser import parse
 
-# Простое сравнение (RFC 9535: ==)
+# Simple comparison (RFC 9535: ==)
 spec = parse("$[?@.age > %d]")
 user = DictContext({"age": 30})
 spec.match(user, (25,))  # True
 
-# Строковое сравнение (RFC 9535: ==)
+# String comparison (RFC 9535: ==)
 spec = parse("$[?@.status == %s]")
 task = DictContext({"status": "done"})
 spec.match(task, ("done",))  # True
 
-# Именованные параметры
+# Named parameters
 spec = parse("$[?@.score >= %(min_score)d]")
 student = DictContext({"score": 85})
 spec.match(student, {"min_score": 80})  # True
 ```
 
-### Логические операторы (RFC 9535)
+### Logical Operators (RFC 9535)
 
 ```python
-# AND оператор (RFC 9535: &&)
+# AND operator (RFC 9535: &&)
 spec = parse("$[?@.age > %d && @.active == %s]")
 user = DictContext({"age": 30, "active": True})
 spec.match(user, (25, True))  # True
 
-# OR оператор (RFC 9535: ||)
+# OR operator (RFC 9535: ||)
 spec = parse("$[?@.age < %d || @.age > %d]")
 user_young = DictContext({"age": 15})
 spec.match(user_young, (18, 65))  # True
 
-# NOT оператор (RFC 9535: !)
+# NOT operator (RFC 9535: !)
 spec = parse("$[?!(@.active == %s)]")
 user_inactive = DictContext({"active": False})
 spec.match(user_inactive, (True,))  # True
 ```
 
-### Работа с коллекциями
+### Working with Collections
 
 ```python
 from ascetic_ddd.specification.domain.evaluate_visitor import CollectionContext
@@ -201,19 +201,19 @@ user2 = DictContext({"name": "Bob", "age": 25})
 users = CollectionContext([user1, user2])
 root = DictContext({"users": users})
 
-# Есть ли хотя бы один пользователь с age >= 28?
+# Is there at least one user with age >= 28?
 spec.match(root, (28,))  # True (Alice)
 ```
 
-### Вложенные Wildcards ✨ NEW!
+### Nested Wildcards
 
 ```python
 from ascetic_ddd.specification.domain.evaluate_visitor import CollectionContext
 
-# Вложенные wildcards: фильтрация по вложенным коллекциям
+# Nested wildcards: filtering by nested collections
 spec = parse("$.categories[*][?@.items[*][?@.price > %f]]")
 
-# Создаём структуру: категории -> товары
+# Create structure: categories -> items
 item1 = DictContext({"name": "Laptop", "price": 999.0})
 item2 = DictContext({"name": "Mouse", "price": 29.0})
 items1 = CollectionContext([item1, item2])
@@ -226,30 +226,30 @@ category2 = DictContext({"name": "Clothing", "items": items2})
 categories = CollectionContext([category1, category2])
 store = DictContext({"categories": categories})
 
-# Есть ли категория, в которой есть товар дороже 500?
-spec.match(store, (500.0,))  # True (category1 имеет Laptop)
+# Is there a category with an item costing more than 500?
+spec.match(store, (500.0,))  # True (category1 has Laptop)
 ```
 
-**Вложенные wildcards с логикой:**
+**Nested wildcards with logic:**
 
 ```python
-# Вложенный wildcard с AND оператором
+# Nested wildcard with AND operator
 spec = parse("$.categories[*][?@.items[*][?@.price > %f && @.price < %f]]")
 
-# Есть ли категория с товаром в диапазоне 500-1000?
+# Is there a category with an item in the 500-1000 range?
 spec.match(store, (500.0, 1000.0))  # True (Laptop: 999)
 
-# Есть ли категория с товаром в диапазоне 1000-2000?
+# Is there a category with an item in the 1000-2000 range?
 spec.match(store, (1000.0, 2000.0))  # False
 ```
 
-**Множественные совпадения:**
+**Multiple matches:**
 
 ```python
-# Проверка на несколько категорий с дорогими товарами
+# Check for multiple categories with expensive items
 spec = parse("$.categories[*][?@.items[*][?@.price > %f]]")
 
-# Добавим дорогой товар во вторую категорию
+# Add an expensive item to the second category
 item4 = DictContext({"name": "Designer Jeans", "price": 299.0})
 items2 = CollectionContext([item3, item4])
 category2 = DictContext({"name": "Clothing", "items": items2})
@@ -257,26 +257,26 @@ category2 = DictContext({"name": "Clothing", "items": items2})
 categories = CollectionContext([category1, category2])
 store = DictContext({"categories": categories})
 
-# Теперь обе категории имеют товары дороже 200
+# Now both categories have items costing more than 200
 spec.match(store, (200.0,))  # True
 ```
 
-### Вложенные Пути ✨ NEW!
+### Nested Paths
 
 ```python
-# Создать специальный контекст для вложенных структур
+# Create a special context for nested structures
 class NestedDictContext:
     def __init__(self, data):
         self._data = data
 
     def get(self, key):
         value = self._data[key]
-        # Автоматически оборачиваем вложенные dict
+        # Automatically wrap nested dicts
         if isinstance(value, dict):
             return NestedDictContext(value)
         return value
 
-# Простой вложенный путь: $[?@.profile.age > 25]
+# Simple nested path: $[?@.profile.age > 25]
 spec = parse("$[?@.profile.age > %d]")
 
 data = NestedDictContext({
@@ -289,10 +289,10 @@ data = NestedDictContext({
 spec.match(data, (25,))  # True
 ```
 
-**Глубоко вложенные пути:**
+**Deeply nested paths:**
 
 ```python
-# Глубокая вложенность: $[?@.company.department.manager.level > 5]
+# Deep nesting: $[?@.company.department.manager.level > 5]
 spec = parse("$[?@.company.department.manager.level > %d]")
 
 data = NestedDictContext({
@@ -309,7 +309,7 @@ data = NestedDictContext({
 spec.match(data, (5,))  # True
 ```
 
-**Вложенные пути с логическими операторами:**
+**Nested paths with logical operators:**
 
 ```python
 # $[?@.profile.age > 25 && @.profile.active == true]
@@ -325,10 +325,10 @@ data = NestedDictContext({
 spec.match(data, (25, True))  # True
 ```
 
-**Вложенные пути со скобочками:**
+**Nested paths with parentheses:**
 
 ```python
-# Скобочки для приоритета операций
+# Parentheses for operator precedence
 spec = parse("$[?(@.profile.age >= %d && @.profile.age <= %d) && @.profile.active == %s]")
 
 data = NestedDictContext({
@@ -341,50 +341,50 @@ data = NestedDictContext({
 spec.match(data, (25, 35, True))  # True
 ```
 
-### Сложные выражения
+### Complex Expressions
 
 ```python
-# Комбинация операторов
+# Combining operators
 spec = parse("$[?(@.age >= %d && @.age <= %d) && @.status == %s]")
 user = DictContext({"age": 30, "status": "active"})
 spec.match(user, (25, 35, "active"))  # True
 
-# Множественные именованные параметры
+# Multiple named parameters
 spec = parse("$[?@.age >= %(min_age)d && @.age <= %(max_age)d]")
 user = DictContext({"age": 30})
 spec.match(user, {"min_age": 25, "max_age": 35})  # True
 ```
 
-## Тестирование
+## Testing
 
 ```bash
-# Запустить тесты RFC 9535 парсера
+# Run RFC 9535 parser tests
 python -m unittest ascetic_ddd.specification.domain.jsonpath.test_jsonpath_parser_rfc9535 -v
 
-# Запустить примеры
+# Run examples
 python ascetic_ddd/specification/domain/jsonpath/example_usage_rfc9535.py
 
-# Все тесты
+# All tests
 python -m unittest discover -s ascetic_ddd/specification -p "test_*.py" -v
 ```
 
-## Преимущества RFC 9535
+## Advantages of RFC 9535
 
-1. **Соответствие стандарту** - полная совместимость с RFC 9535
-2. **Официальная спецификация** - основан на официальном стандарте IETF
-3. **Переносимость** - легко интегрируется с другими RFC 9535 системами
-4. **Стабильность** - стандарт обеспечивает долгосрочную стабильность
-5. **Понятный синтаксис** - `==` для равенства, `&&`/`||` для логики
-6. **Активная поддержка** - библиотека jsonpath-rfc9535 активно поддерживается
+1. **Standard compliance** - full compatibility with RFC 9535
+2. **Official specification** - based on the official IETF standard
+3. **Portability** - easily integrates with other RFC 9535 systems
+4. **Stability** - the standard ensures long-term stability
+5. **Clear syntax** - `==` for equality, `&&`/`||` for logic
+6. **Active support** - the jsonpath-rfc9535 library is actively maintained
 
-## Зависимости
+## Dependencies
 
-- `jsonpath-rfc9535` - парсинг JSONPath выражений (RFC 9535 compliant)
-- Модули из `ascetic_ddd.specification.domain`:
-  - `nodes` - AST узлы спецификации
-  - `evaluate_visitor` - выполнение спецификаций
+- `jsonpath-rfc9535` - JSONPath expression parsing (RFC 9535 compliant)
+- Modules from `ascetic_ddd.specification.domain`:
+  - `nodes` - Specification AST nodes
+  - `evaluate_visitor` - Specification evaluation
 
-## Установка
+## Installation
 
 ```bash
 pip install jsonpath-rfc9535
