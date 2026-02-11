@@ -287,7 +287,7 @@ class ModelParser:
                     self._vo_map[class_name] = ValueObjectDef(
                         class_name=class_name,
                         snake_name=camel_to_snake(class_name),
-                        kind=VoKind.STRING,
+                        kind=VoKind.SIMPLE,
                         import_path=import_path,
                     )
                 field_type_str = class_name
@@ -375,7 +375,7 @@ class ModelParser:
         if 'fields' in vo_data:
             return VoKind.COMPOSITE
         # Default: string-like VO
-        return VoKind.STRING
+        return VoKind.SIMPLE
 
     def _compute_dispatch_kind(self, effective_type, is_collection, is_primitive):
         if is_primitive:

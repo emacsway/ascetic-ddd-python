@@ -10,7 +10,7 @@ from enum import Enum
 
 class VoKind(str, Enum):
     IDENTITY = 'identity'
-    STRING = 'string'
+    SIMPLE = 'simple'
     COMPOSITE = 'composite'
     ENUM = 'enum'
 

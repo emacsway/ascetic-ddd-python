@@ -13,7 +13,7 @@ TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
 
 VO_TEMPLATE_MAP = {
     VoKind.IDENTITY: 'domain/values/identity_vo.py.j2',
-    VoKind.STRING: 'domain/values/string_vo.py.j2',
+    VoKind.SIMPLE: 'domain/values/simple_vo.py.j2',
     VoKind.ENUM: 'domain/values/enum_vo.py.j2',
     VoKind.COMPOSITE: 'domain/values/composite_vo.py.j2',
 }
@@ -103,6 +103,7 @@ class RenderWalker:
             VO_TEMPLATE_MAP[vo.kind],
             os.path.join(ctx.values_dir, '%s.py' % vo.snake_name),
             vo=vo,
+            primitive_type=vo_primitive_type(vo),
         )
 
         if vo.kind == VoKind.COMPOSITE:

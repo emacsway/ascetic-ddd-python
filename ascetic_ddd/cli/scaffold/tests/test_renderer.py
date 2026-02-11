@@ -199,7 +199,7 @@ class TestCustomTemplates(unittest.TestCase):
             self.templates_dir, 'domain', 'values',
         )
         os.makedirs(tpl_dir)
-        with open(os.path.join(tpl_dir, 'string_vo.py.j2'), 'w') as f:
+        with open(os.path.join(tpl_dir, 'simple_vo.py.j2'), 'w') as f:
             f.write('# custom {{ vo.class_name }}\n')
 
         render_bounded_context(

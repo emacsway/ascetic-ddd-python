@@ -50,7 +50,7 @@ class TestParseYaml(unittest.TestCase):
         title = next(
             vo for vo in resume.value_objects if vo.class_name == 'Title'
         )
-        self.assertEqual(title.kind, VoKind.STRING)
+        self.assertEqual(title.kind, VoKind.SIMPLE)
         self.assertFalse(title.constraints.blank)
         self.assertEqual(title.constraints.max_length, 255)
         self.assertIn('strip', title.maps)
@@ -98,7 +98,7 @@ class TestParseYaml(unittest.TestCase):
         money = next(
             vo for vo in resume.value_objects if vo.class_name == 'Money'
         )
-        self.assertEqual(money.kind, VoKind.STRING)
+        self.assertEqual(money.kind, VoKind.SIMPLE)
         self.assertEqual(
             money.import_path,
             'ascetic_ddd.seedwork.domain.values.money',
