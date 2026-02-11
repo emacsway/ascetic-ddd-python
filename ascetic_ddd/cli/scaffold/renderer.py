@@ -90,40 +90,26 @@ class RenderWalker:
         self._visit_commands(ctx, model)
 
     def _visit_value_objects(self, ctx):
-        all_vo_names = []
         for vo in ctx.agg.value_objects:
-            if vo.import_path:
-                all_vo_names.append(vo.class_name)
-                if vo.kind == VoKind.COMPOSITE:
-                    all_vo_names.append('I%sExporter' % vo.class_name)
-                    all_vo_names.append('%sExporter' % vo.class_name)
-            else:
-                names = self._visit_value_object(vo, ctx)
-                all_vo_names.extend(names)
+            if not vo.import_path:
+                self._visit_value_object(vo, ctx)
 
         self._render_template(
             'domain/values/__init__.py.j2',
             os.path.join(ctx.values_dir, '__init__.py'),
             value_objects=ctx.agg.value_objects,
-            all_names=sorted(all_vo_names),
             package_prefix=ctx.pkg,
         )
 
     def _visit_value_object(self, vo, ctx):
-        """Render a single VO. Returns exported names for __init__."""
         self._render_template(
             VO_TEMPLATE_MAP[vo.kind],
             os.path.join(ctx.values_dir, '%s.py' % vo.snake_name),
             vo=vo,
         )
-        names = [vo.class_name]
 
         if vo.kind == VoKind.COMPOSITE:
             self._visit_composite_vo_exporter(vo, ctx)
-            names.append('I%sExporter' % vo.class_name)
-            names.append('%sExporter' % vo.class_name)
-
-        return names
 
     def _visit_composite_vo_exporter(self, vo, ctx):
         imports = [
