@@ -17,7 +17,6 @@ from ascetic_ddd.cli.scaffold.model import (
     DispatchKind,
     DomainEventDef,
     FieldDef,
-    MapDef,
     ValueObjectDef,
     VoKind,
 )
@@ -164,7 +163,7 @@ class ModelParser:
             )
 
         constraints = self._parse_constraints(vo_data.get('constraints', {}))
-        map_def = self._parse_map(vo_data.get('map', {}))
+        maps = self._parse_maps(vo_data.get('map', ()))
 
         vo_fields = []
         if kind == VoKind.COMPOSITE:
@@ -189,7 +188,7 @@ class ModelParser:
             identity_mode=identity_mode,
             identity_base_class=identity_base_class,
             constraints=constraints,
-            map_def=map_def,
+            maps=maps,
             fields=vo_fields,
             enum_values=enum_values,
             reference=reference,
@@ -253,12 +252,10 @@ class ModelParser:
             max_length=data.get('max_length', 0),
         )
 
-    def _parse_map(self, data):
+    def _parse_maps(self, data):
         if not data:
-            return MapDef()
-        return MapDef(
-            strip=data.get('strip', False),
-        )
+            return ()
+        return tuple(data)
 
     # --- semantic analysis ---
 

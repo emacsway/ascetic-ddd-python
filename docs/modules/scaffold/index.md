@@ -108,14 +108,14 @@ aggregates:
           blank: false
           max_length: 255
         map:
-          strip: true
+          - strip
 
       Description:                       # string VO with validation
         type: str
         constraints:
           blank: false
         map:
-          strip: true
+          - strip
 
       Rate:                              # composite VO
         fields:
@@ -275,7 +275,7 @@ Title:
     blank: false          # reject empty / whitespace-only (default: true)
     max_length: 255       # reject strings over N chars (default: no limit)
   map:
-    strip: true           # strip whitespace on init (default: false)
+    - strip               # strip whitespace on init
 ```
 
 Discriminator: no `identity`, no `fields`, no `values`.
@@ -423,11 +423,13 @@ from ascetic_ddd.seedwork.domain.values.money_exporter import MoneyExporter
 | `blank` | string VO | `true` | Empty / whitespace-only is allowed |
 | `max_length` | string VO | `0` (no limit) | Maximum string length |
 
-### Map reference
+### Maps reference
 
-| Key | Applies to | Default | Description |
-|-----|------------|---------|-------------|
-| `strip` | string VO | `false` | Strip leading/trailing whitespace on init |
+The `map` key accepts a list of mapping names applied to the value on init:
+
+| Map | Applies to | Description |
+|-----|------------|-------------|
+| `strip` | string VO | Strip leading/trailing whitespace |
 
 
 ### Domain Events

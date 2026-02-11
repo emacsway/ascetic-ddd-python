@@ -37,11 +37,6 @@ class ConstraintsDef:
 
 
 @dataclass
-class MapDef:
-    strip: bool = False
-
-
-@dataclass
 class FieldDef:
     name: str                   # e.g. "_id", "_title"
     param_name: str             # e.g. "id", "title" (without _ prefix)
@@ -62,7 +57,7 @@ class ValueObjectDef:
     identity_mode: str = ''
     identity_base_class: str = ''
     constraints: ConstraintsDef = field(default_factory=ConstraintsDef)
-    map_def: MapDef = field(default_factory=MapDef)
+    maps: tuple = ()
     fields: list[FieldDef] = field(default_factory=list)
     enum_values: dict[str, str] = field(default_factory=dict)
     is_external_ref: bool = False

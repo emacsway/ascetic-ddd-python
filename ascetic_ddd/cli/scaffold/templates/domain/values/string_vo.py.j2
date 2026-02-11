@@ -13,7 +13,7 @@ class {{ vo.class_name }}:
         if len(value) > {{ vo.constraints.max_length }}:
             raise ValueError("{{ vo.class_name }} cannot exceed {{ vo.constraints.max_length }} characters")
 {% endif %}
-{% if vo.map_def.strip %}
+{% if 'strip' in vo.maps %}
         self._value = value.strip()
 {% else %}
         self._value = value

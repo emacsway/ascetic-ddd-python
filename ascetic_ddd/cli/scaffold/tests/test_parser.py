@@ -56,7 +56,7 @@ class TestParseYaml(unittest.TestCase):
         self.assertEqual(title.kind, VoKind.STRING)
         self.assertFalse(title.constraints.blank)
         self.assertEqual(title.constraints.max_length, 255)
-        self.assertTrue(title.map_def.strip)
+        self.assertIn('strip', title.maps)
 
     def test_enum_vo(self):
         resume = self.model.aggregates[0]
