@@ -97,11 +97,8 @@ aggregates:
         constraints:
           required: true
 
-      SpecializationId:                  # string VO with cross-aggregate reference
-        type: int
-        reference: Specialization
-        constraints:
-          required: true
+      SpecializationId:                  # relative import from another aggregate
+        import: .specialization.values.specialization_id
 
       Title:                             # string VO with validation + strip
         type: str
@@ -394,6 +391,21 @@ from ascetic_ddd.seedwork.domain.values.money import Money
 
 This is useful for value objects that already exist in a shared library
 (e.g. seedwork) and should not be re-generated.
+
+**Relative imports.** A `.` prefix resolves relative to the `domain` package
+(i.e. `{package_name}.domain`). This enables cross-aggregate VO sharing
+without hardcoding the full package path:
+
+```yaml
+SpecializationId:
+  import: .specialization.values.specialization_id
+```
+
+With `--package app.jobs`, this generates:
+
+```python
+from app.jobs.domain.specialization.values.specialization_id import SpecializationId
+```
 
 The `import` key can be combined with other keys. For instance, a composite
 imported VO (`import` + `fields`) will also import its exporter interface
@@ -816,12 +828,13 @@ scaffold("domain-model.yaml", "./output", "app.jobs",
 
 ## Limitations
 
-- **No cross-aggregate VO sharing.** Each aggregate defines its own VOs.
-  Shared types (e.g. `SpecializationId` used by both `Resume` and
-  `Specialization`) must be duplicated in each aggregate's `value_objects`.
-  The `reference` key documents the relationship but is not followed.
-  External VOs from shared libraries can be referenced via `import` key
+- **Cross-aggregate VO sharing via import.** Each aggregate defines its own
+  VOs. When two aggregates share a type (e.g. `SpecializationId`), use
+  `import` with a `.` prefix for relative resolution:
+  `import: .specialization.values.specialization_id`
   (see [Imported VO](#imported-vo)).
+  External VOs from shared libraries use an absolute path:
+  `import: ascetic_ddd.seedwork.domain.values.money`.
 
 - **No cyclic references.** The YAML schema is a tree. If cross-aggregate
   VO references are needed in the future, topological sorting (e.g.

@@ -1,9 +1,12 @@
 {% for vo in value_objects %}
-{% if vo.import_path and vo.kind == 'composite' %}
-from {{ vo.import_path }} import {{ vo.class_name }}, I{{ vo.class_name }}Exporter
-from {{ vo.import_path }}_exporter import {{ vo.class_name }}Exporter
-{% elif vo.import_path %}
-from {{ vo.import_path }} import {{ vo.class_name }}
+{% if vo.import_path %}
+{% set resolved = (package_prefix.rsplit('.', 1)[0] ~ vo.import_path) if vo.import_path.startswith('.') else vo.import_path %}
+{% if vo.kind == 'composite' %}
+from {{ resolved }} import {{ vo.class_name }}, I{{ vo.class_name }}Exporter
+from {{ resolved }}_exporter import {{ vo.class_name }}Exporter
+{% else %}
+from {{ resolved }} import {{ vo.class_name }}
+{% endif %}
 {% elif vo.kind == 'composite' %}
 from {{ package_prefix }}.values.{{ vo.snake_name }} import {{ vo.class_name }}, I{{ vo.class_name }}Exporter
 from {{ package_prefix }}.values.{{ vo.snake_name }}_exporter import {{ vo.class_name }}Exporter

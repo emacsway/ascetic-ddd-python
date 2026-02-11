@@ -153,6 +153,25 @@ class TestRenderer(unittest.TestCase):
             content,
         )
 
+    def test_relative_imported_vo_not_generated(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'values',
+            'specialization_id.py',
+        )
+        self.assertFalse(os.path.exists(path))
+
+    def test_relative_imported_vo_in_init(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'values', '__init__.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn(
+            'from app.jobs.domain.specialization.values.specialization_id'
+            ' import SpecializationId',
+            content,
+        )
+
     def test_no_fstrings(self):
         """Generated code must not contain f-strings."""
         for fpath in self.files:

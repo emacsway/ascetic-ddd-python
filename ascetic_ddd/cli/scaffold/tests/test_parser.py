@@ -107,6 +107,17 @@ class TestParseYaml(unittest.TestCase):
             'ascetic_ddd.seedwork.domain.values.money',
         )
 
+    def test_relative_imported_vo(self):
+        resume = self.model.aggregates[0]
+        spec_id = next(
+            vo for vo in resume.value_objects
+            if vo.class_name == 'SpecializationId'
+        )
+        self.assertEqual(
+            spec_id.import_path,
+            '.specialization.values.specialization_id',
+        )
+
     def test_external_references(self):
         self.assertEqual(len(self.model.external_value_objects), 1)
         ext = self.model.external_value_objects[0]

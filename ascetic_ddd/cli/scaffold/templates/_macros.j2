@@ -1,14 +1,14 @@
 {% macro vo_imports(used_vos, package_prefix, with_exporters=false) %}
 {% for vo in used_vos %}
 {% if vo.import_path %}
-from {{ vo.import_path }} import {{ vo.class_name }}
+{% set resolved = (package_prefix.rsplit('.', 1)[0] ~ vo.import_path) if vo.import_path.startswith('.') else vo.import_path %}
+from {{ resolved }} import {{ vo.class_name }}
+{% if with_exporters and vo.kind == 'composite' %}
+from {{ resolved }}_exporter import {{ vo.class_name }}Exporter
+{% endif %}
 {% else %}
 from {{ package_prefix }}.values import {{ vo.class_name }}
-{% endif %}
 {% if with_exporters and vo.kind == 'composite' %}
-{% if vo.import_path %}
-from {{ vo.import_path }}_exporter import {{ vo.class_name }}Exporter
-{% else %}
 from {{ package_prefix }}.values import {{ vo.class_name }}Exporter
 {% endif %}
 {% endif %}
