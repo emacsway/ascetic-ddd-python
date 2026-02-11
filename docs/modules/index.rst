@@ -19,4 +19,5 @@ Detailed documentation for each module in the ascetic-ddd package.
    mediator/index
    event-bus/index
    batch/index
+   scaffold/index
    utils/index
