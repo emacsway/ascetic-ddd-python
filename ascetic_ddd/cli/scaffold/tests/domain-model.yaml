@@ -1,0 +1,113 @@
+
+aggregates:
+  Resume:
+    fields:
+      _id: ResumeId
+      _user_id: UserId
+      _title: Title
+      _description: Description
+      _specialization_ids: list[SpecializationId]
+      _rate: Rate
+      _employment_types: list[EmploymentType]
+      _work_formats: list[WorkFormat]
+      _show_reputation: bool
+      _created_at: datetime
+      _updated_at: datetime
+      _is_active: bool
+
+    value_objects:
+      ResumeId:
+        type: int
+        identity: transient
+
+      UserId:
+        type: int
+        reference: external
+        constraints:
+          required: true
+
+      SpecializationId:
+        import: .specialization.values.specialization_id
+
+      Title:
+        type: str
+        constraints:
+          blank: false
+          max_length: 255
+        map:
+          - strip
+
+      Description:
+        type: str
+        constraints:
+          blank: false
+        map:
+          - strip
+
+      Rate:
+        fields:
+          _rate_period: PaymentPeriod
+          _rate: Money
+        constraints:
+          required: true
+
+      Money:
+        import: ascetic_ddd.seedwork.domain.values.money
+
+      EmploymentType:
+        type: Enum[str]
+        values:
+          FULL_TIME: "full_time"
+          PART_TIME: "part_time"
+          ONE_TIME: "one_time"
+          CONSULTING: "consulting"
+          MENTORING: "mentoring"
+
+      PaymentPeriod:
+        type: Enum[str]
+        values:
+          HOURLY: "hourly"
+          MONTHLY: "monthly"
+          YEARLY: "yearly"
+          ONE_TIME: "one_time"
+
+      WorkFormat:
+        type: Enum[str]
+        values:
+          OFFICE: "office"
+          HYBRID: "hybrid"
+          REMOTE: "remote"
+
+    domain_events:
+      ResumeCreated:
+        fields:
+          aggregate_id: ResumeId
+          user_id: UserId
+          title: Title
+          description: Description
+          specialization_ids: tuple[SpecializationId, ...]
+          rate: Rate
+          employment_types: tuple[EmploymentType, ...]
+          work_formats: tuple[WorkFormat, ...]
+          show_reputation: bool
+          created_at: datetime
+          is_active: bool
+          event_version: 1
+
+
+  Specialization:
+    fields:
+      _id: SpecializationId
+
+    value_objects:
+      SpecializationId:
+        type: int
+        identity: transient
+
+external_references:
+    value_objects:
+      UserId:
+        type: int
+        reference: User
+        constraints:
+          required: true

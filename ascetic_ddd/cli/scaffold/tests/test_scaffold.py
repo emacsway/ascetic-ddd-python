@@ -7,10 +7,7 @@ import unittest
 from ascetic_ddd.cli.scaffold import scaffold
 
 
-YAML_PATH = os.path.join(
-    os.path.dirname(__file__),
-    '..', '..', '..', '..', 'domain-model.yaml',
-)
+YAML_PATH = os.path.join(os.path.dirname(__file__), 'domain-model.yaml')
 
 
 class TestScaffoldEndToEnd(unittest.TestCase):

@@ -5,10 +5,7 @@ from ascetic_ddd.cli.scaffold.model import CollectionKind, DispatchKind, VoKind
 from ascetic_ddd.cli.scaffold.parser import parse_yaml
 
 
-YAML_PATH = os.path.join(
-    os.path.dirname(__file__),
-    '..', '..', '..', '..', 'domain-model.yaml',
-)
+YAML_PATH = os.path.join(os.path.dirname(__file__), 'domain-model.yaml')
 
 
 class TestParseYaml(unittest.TestCase):
