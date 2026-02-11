@@ -56,6 +56,7 @@ python -m ascetic_ddd.cli scaffold \
 | `-i, --input` | Path to domain-model YAML file (required) |
 | `-o, --output` | Output directory for generated code (required) |
 | `-p, --package` | Base package name for imports, e.g. `app.jobs` (optional) |
+| `-t, --templates` | Custom templates directory (optional, see [Custom templates](#custom-templates)) |
 
 Programmatic usage:
 
@@ -744,6 +745,7 @@ Pure functions for name transformations:
 | `is_primitive_type` | `datetime` -> `True`, `ResumeId` -> `False` |
 
 
+(templates)=
 ### Templates
 
 17 Jinja2 templates under `ascetic_ddd/cli/scaffold/templates/`:
@@ -771,6 +773,45 @@ Pure functions for name transformations:
 Jinja2 environment settings: `trim_blocks`, `lstrip_blocks`,
 `keep_trailing_newline`. Custom filters: `singularize` (naive plural -> singular),
 `snake` (CamelCase -> snake_case).
+
+
+(custom-templates)=
+## Custom templates
+
+The `-t` / `--templates` flag specifies a directory with custom Jinja2
+templates. Templates found in this directory take priority over the built-in
+ones; any template not present falls back to the default.
+
+```bash
+python -m ascetic_ddd.cli scaffold \
+    -i domain-model.yaml \
+    -o ./output \
+    -p app.jobs \
+    -t ./my-templates
+```
+
+To override a single template, create a file at the same relative path.
+For example, to customize string VO generation:
+
+```
+my-templates/
+  domain/
+    values/
+      string_vo.py.j2
+```
+
+The custom template receives the same context variables as the original
+(see [Templates](#templates) for the full list). All other templates
+continue to use the built-in versions.
+
+Programmatic usage:
+
+```python
+from ascetic_ddd.cli.scaffold import scaffold
+
+scaffold("domain-model.yaml", "./output", "app.jobs",
+         templates_dir="./my-templates")
+```
 
 
 ## Limitations

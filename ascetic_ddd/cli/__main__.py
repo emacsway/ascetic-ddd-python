@@ -29,10 +29,15 @@ def main():
         default=None,
         help='Base package name for imports (e.g. "app.jobs")',
     )
+    scaffold_parser.add_argument(
+        '--templates', '-t',
+        default=None,
+        help='Custom templates directory (overrides built-in templates)',
+    )
 
     args = parser.parse_args()
     if args.command == 'scaffold':
-        scaffold(args.input, args.output, args.package)
+        scaffold(args.input, args.output, args.package, args.templates)
     else:
         parser.print_help()
         sys.exit(1)

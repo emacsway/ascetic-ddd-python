@@ -168,5 +168,49 @@ class TestRenderer(unittest.TestCase):
             )
 
 
+class TestCustomTemplates(unittest.TestCase):
+    def setUp(self):
+        self.output_dir = tempfile.mkdtemp()
+        self.templates_dir = tempfile.mkdtemp()
+        self.model = parse_yaml(YAML_PATH)
+
+    def tearDown(self):
+        shutil.rmtree(self.output_dir)
+        shutil.rmtree(self.templates_dir)
+
+    def test_custom_template_overrides_default(self):
+        tpl_dir = os.path.join(
+            self.templates_dir, 'domain', 'values',
+        )
+        os.makedirs(tpl_dir)
+        with open(os.path.join(tpl_dir, 'string_vo.py.j2'), 'w') as f:
+            f.write('# custom {{ vo.class_name }}\n')
+
+        render_bounded_context(
+            self.model, self.output_dir, 'app.jobs',
+            self.templates_dir,
+        )
+
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'values', 'title.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertEqual(content, '# custom Title\n')
+
+    def test_non_overridden_templates_use_default(self):
+        render_bounded_context(
+            self.model, self.output_dir, 'app.jobs',
+            self.templates_dir,
+        )
+
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'values', 'resume_id.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('class ResumeId(IntIdentity)', content)
+
+
 if __name__ == '__main__':
     unittest.main()

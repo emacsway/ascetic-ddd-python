@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import ChoiceLoader, Environment, FileSystemLoader
 
 from ascetic_ddd.cli.scaffold.model import FieldDef, VoKind
 from ascetic_ddd.cli.scaffold.naming import camel_to_snake, is_primitive_type
@@ -31,9 +31,16 @@ def _singularize(name):
     return name
 
 
-def _make_env():
+def _make_env(templates_dir=None):
+    if templates_dir:
+        loader = ChoiceLoader([
+            FileSystemLoader(templates_dir),
+            FileSystemLoader(TEMPLATES_DIR),
+        ])
+    else:
+        loader = FileSystemLoader(TEMPLATES_DIR)
     env = Environment(
-        loader=FileSystemLoader(TEMPLATES_DIR),
+        loader=loader,
         trim_blocks=True,
         lstrip_blocks=True,
         keep_trailing_newline=True,
@@ -61,8 +68,8 @@ class _AggregateContext:
 class RenderWalker:
     """Walks BoundedContextModel and renders files via Jinja2 templates."""
 
-    def __init__(self, output_dir, package_name=None):
-        self._env = _make_env()
+    def __init__(self, output_dir, package_name=None, templates_dir=None):
+        self._env = _make_env(templates_dir)
         self._output_dir = output_dir
         self._package_name = package_name
         self._generated = []
@@ -303,8 +310,9 @@ class RenderWalker:
 # --- Public facade ---
 
 
-def render_bounded_context(model, output_dir, package_name=None):
-    walker = RenderWalker(output_dir, package_name)
+def render_bounded_context(model, output_dir, package_name=None,
+                           templates_dir=None):
+    walker = RenderWalker(output_dir, package_name, templates_dir)
     return walker.walk(model)
 
 
