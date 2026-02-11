@@ -260,21 +260,6 @@ class RenderWalker:
 
         entity_pkg = self._dir_to_pkg(entity_dir)
 
-        # Build vo_map from referenced parent VOs + entity's own VOs
-        domain_pkg = self._dir_to_pkg(
-            os.path.join(self._output_dir, 'domain'),
-        )
-        vo_map = {}
-        for vo in entity.referenced_vos:
-            if vo.import_path.startswith('.'):
-                resolved = domain_pkg + vo.import_path
-                vo_map[vo.class_name] = dataclass_replace(
-                    vo, import_path=resolved,
-                )
-            else:
-                vo_map[vo.class_name] = vo
-        vo_map.update({vo.class_name: vo for vo in entity.value_objects})
-
         # Generate entity VOs
         for vo in entity.value_objects:
             if not vo.import_path:
@@ -288,7 +273,8 @@ class RenderWalker:
 
         # Generate entity class, exporter, reconstitutor
         fields = entity.fields
-        used_vos = _collect_used_vos(fields, vo_map)
+        used_vos = _collect_used_vos(fields)
+        used_vos = self._resolve_vo_imports(used_vos)
         collection_fields = [f for f in fields if f.is_collection]
         reconstitutor_params = _build_reconstitutor_params(fields)
 
@@ -343,6 +329,20 @@ class RenderWalker:
             return '%s.%s' % (self._package_name, pkg)
         return pkg
 
+    def _resolve_vo_imports(self, used_vos):
+        """Resolve relative import_path to absolute for entity context."""
+        domain_pkg = self._dir_to_pkg(
+            os.path.join(self._output_dir, 'domain'),
+        )
+        result = []
+        for vo in used_vos:
+            if vo.import_path.startswith('.'):
+                vo = dataclass_replace(
+                    vo, import_path=domain_pkg + vo.import_path,
+                )
+            result.append(vo)
+        return result
+
     def _make_aggregate_context(self, agg):
         agg_dir = os.path.join(self._output_dir, 'domain', agg.snake_name)
         values_dir = os.path.join(agg_dir, 'values')
@@ -387,12 +387,8 @@ def render_bounded_context(model, output_dir, package_name=None,
 # --- Shared helpers ---
 
 
-def _collect_used_vos(fields, vo_map=None):
-    """Return deduplicated, sorted list of VOs referenced by fields.
-
-    When vo_map is provided (entity context with parent VOs), it is
-    used to prefer resolved copies with correct import_path.
-    """
+def _collect_used_vos(fields):
+    """Return deduplicated, sorted list of VOs referenced by fields."""
     seen = set()
     result = []
     for f in fields:
@@ -400,11 +396,8 @@ def _collect_used_vos(fields, vo_map=None):
         if isinstance(type_ref, CollectionType):
             type_ref = type_ref.element
         if isinstance(type_ref, VoRef) and type_ref.vo.class_name not in seen:
-            name = type_ref.vo.class_name
-            seen.add(name)
-            # Prefer vo_map version (has resolved import_path in entity context)
-            vo = vo_map.get(name, type_ref.vo) if vo_map else type_ref.vo
-            result.append(vo)
+            seen.add(type_ref.vo.class_name)
+            result.append(type_ref.vo)
     return sorted(result, key=lambda vo: vo.class_name)
 
 

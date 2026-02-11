@@ -169,7 +169,6 @@ class EntityDef:
     fields: list[FieldDef] = field(default_factory=list)
     value_objects: list[ValueObjectDef] = field(default_factory=list)
     entities: list[EntityDef] = field(default_factory=list)
-    referenced_vos: list[ValueObjectDef] = field(default_factory=list)
 
 
 @dataclass

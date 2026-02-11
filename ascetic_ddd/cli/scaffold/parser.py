@@ -224,9 +224,10 @@ class ModelParser:
     def _parse_entity(self, ent_name, ent_data):
         self._validate_entity(ent_name, ent_data)
 
-        # Save parent vo_map and entity_map; entity inherits parent VOs
+        # Shallow copy so entity modifications don't leak to parent scope
         saved_vo_map = self._vo_map
         saved_entity_map = self._entity_map
+        self._vo_map = dict(self._vo_map)
         self._entity_map = {}
 
         # Entity VOs: parsed in context of parent vo_map
@@ -237,7 +238,7 @@ class ModelParser:
             self._vo_map[vo_name] = vo
 
         # Entity fields: may contain import path references
-        fields, referenced_vos = self._parse_entity_fields(
+        fields = self._parse_entity_fields(
             ent_data.get('fields', {}),
         )
 
@@ -258,17 +259,11 @@ class ModelParser:
             fields=fields,
             value_objects=entity_vos,
             entities=nested_entities,
-            referenced_vos=referenced_vos,
         )
 
     def _parse_entity_fields(self, fields_data):
-        """Parse entity fields. Handles import path references in types.
-
-        Returns (fields, referenced_vos) where referenced_vos are
-        parent VO copies with import_path set.
-        """
+        """Parse entity fields. Handles import path references in types."""
         result = []
-        referenced_vos = []
         for field_name, field_type in fields_data.items():
             field_type_str = str(field_type)
             param = strip_underscore_prefix(field_name)
@@ -286,13 +281,12 @@ class ModelParser:
                         kind=VoKind.SIMPLE,
                         import_path=import_path,
                     )
-                    self._vo_map[class_name] = vo
                 else:
-                    # Known parent VO — create copy with import_path
-                    existing = self._vo_map[class_name]
-                    referenced_vos.append(dataclass_replace(
-                        existing, import_path=import_path,
-                    ))
+                    # Known parent VO — copy with import_path
+                    vo = dataclass_replace(
+                        self._vo_map[class_name], import_path=import_path,
+                    )
+                self._vo_map[class_name] = vo
                 field_type_str = class_name
 
             type_ref = self._resolve_type(field_type_str)
@@ -301,7 +295,7 @@ class ModelParser:
                 param_name=param,
                 type_ref=type_ref,
             ))
-        return result, referenced_vos
+        return result
 
     def _parse_fields(self, fields_data):
         result = []
