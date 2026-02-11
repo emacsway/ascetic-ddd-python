@@ -67,6 +67,7 @@ class ValueObjectDef:
     enum_values: dict[str, str] = field(default_factory=dict)
     is_external_ref: bool = False
     reference: str = ''
+    import_path: str = ''
 
 
 @dataclass

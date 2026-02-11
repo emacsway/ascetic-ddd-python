@@ -136,6 +136,23 @@ class TestRenderer(unittest.TestCase):
         self.assertNotIn('Title', content)
         self.assertNotIn('ResumeId', content)
 
+    def test_imported_vo_not_generated(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'values', 'money.py',
+        )
+        self.assertFalse(os.path.exists(path))
+
+    def test_imported_vo_in_init(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'values', '__init__.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn(
+            'from ascetic_ddd.seedwork.domain.values.money import Money',
+            content,
+        )
+
     def test_no_fstrings(self):
         """Generated code must not contain f-strings."""
         for fpath in self.files:

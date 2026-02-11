@@ -85,8 +85,14 @@ class RenderWalker:
     def _visit_value_objects(self, ctx):
         all_vo_names = []
         for vo in ctx.agg.value_objects:
-            names = self._visit_value_object(vo, ctx)
-            all_vo_names.extend(names)
+            if vo.import_path:
+                all_vo_names.append(vo.class_name)
+                if vo.kind == VoKind.COMPOSITE:
+                    all_vo_names.append('I%sExporter' % vo.class_name)
+                    all_vo_names.append('%sExporter' % vo.class_name)
+            else:
+                names = self._visit_value_object(vo, ctx)
+                all_vo_names.extend(names)
 
         self._render_template(
             'domain/values/__init__.py.j2',
@@ -319,9 +325,18 @@ def _compute_field_imports(fields, vo_map, pkg):
                 exporter_names.add('%sExporter' % effective)
     result = []
     for name in sorted(vo_names):
-        result.append('from %s.values import %s' % (pkg, name))
+        vo = vo_map.get(name)
+        if vo and vo.import_path:
+            result.append('from %s import %s' % (vo.import_path, name))
+        else:
+            result.append('from %s.values import %s' % (pkg, name))
     for name in sorted(exporter_names):
-        result.append('from %s.values import %s' % (pkg, name))
+        vo_name = name.replace('Exporter', '')
+        vo = vo_map.get(vo_name)
+        if vo and vo.import_path:
+            result.append('from %s_exporter import %s' % (vo.import_path, name))
+        else:
+            result.append('from %s.values import %s' % (pkg, name))
     return result
 
 

@@ -34,6 +34,7 @@ class TestParseYaml(unittest.TestCase):
         self.assertIn('Title', vo_names)
         self.assertIn('Description', vo_names)
         self.assertIn('Rate', vo_names)
+        self.assertIn('Money', vo_names)
         self.assertIn('EmploymentType', vo_names)
         self.assertIn('WorkFormat', vo_names)
         self.assertIn('PaymentPeriod', vo_names)
@@ -94,6 +95,17 @@ class TestParseYaml(unittest.TestCase):
         cmd = resume.commands[0]
         for f in cmd.fields:
             self.assertTrue(f.is_primitive, '%s should be primitive' % f.param_name)
+
+    def test_imported_vo(self):
+        resume = self.model.aggregates[0]
+        money = next(
+            vo for vo in resume.value_objects if vo.class_name == 'Money'
+        )
+        self.assertEqual(money.kind, VoKind.STRING)
+        self.assertEqual(
+            money.import_path,
+            'ascetic_ddd.seedwork.domain.values.money',
+        )
 
     def test_external_references(self):
         self.assertEqual(len(self.model.external_value_objects), 1)

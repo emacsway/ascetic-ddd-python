@@ -52,6 +52,7 @@ class ModelParser:
     _VALID_AGGREGATE_KEYS = frozenset({'fields', 'value_objects', 'domain_events'})
     _VALID_VO_KEYS = frozenset({
         'type', 'identity', 'fields', 'values', 'constraints', 'map', 'reference',
+        'import',
     })
 
     def __init__(self):
@@ -178,6 +179,7 @@ class ModelParser:
             enum_values = vo_data.get('values', {})
 
         reference = vo_data.get('reference', '')
+        import_path = vo_data.get('import', '')
 
         return ValueObjectDef(
             class_name=vo_name,
@@ -191,6 +193,7 @@ class ModelParser:
             fields=vo_fields,
             enum_values=enum_values,
             reference=reference,
+            import_path=import_path,
         )
 
     def _parse_domain_event(self, ev_name, ev_data):

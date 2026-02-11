@@ -66,6 +66,130 @@ scaffold("domain-model.yaml", "./output", "app.jobs")
 ```
 
 
+## Complete YAML Example
+
+```yaml
+aggregates:
+  Resume:
+    fields:
+      _id: ResumeId
+      _user_id: UserId
+      _title: Title
+      _description: Description
+      _specialization_ids: list[SpecializationId]
+      _rate: Rate
+      _employment_types: list[EmploymentType]
+      _work_formats: list[WorkFormat]
+      _show_reputation: bool
+      _created_at: datetime
+      _updated_at: datetime
+      _is_active: bool
+
+    value_objects:
+      ResumeId:                          # identity VO
+        type: int
+        identity: transient
+
+      UserId:                            # string VO with external reference
+        type: int
+        reference: external
+        constraints:
+          required: true
+
+      SpecializationId:                  # string VO with cross-aggregate reference
+        type: int
+        reference: Specialization
+        constraints:
+          required: true
+
+      Title:                             # string VO with validation + strip
+        type: str
+        constraints:
+          blank: false
+          max_length: 255
+        map:
+          strip: true
+
+      Description:                       # string VO with validation
+        type: str
+        constraints:
+          blank: false
+        map:
+          strip: true
+
+      Rate:                              # composite VO
+        fields:
+          _rate_period: PaymentPeriod
+          _rate: Money
+        constraints:
+          required: true
+
+      Money:                             # imported VO (no file generated)
+        import: ascetic_ddd.seedwork.domain.values.money
+
+      EmploymentType:                    # enum VO
+        type: Enum[str]
+        values:
+          FULL_TIME: "full_time"
+          PART_TIME: "part_time"
+          ONE_TIME: "one_time"
+          CONSULTING: "consulting"
+          MENTORING: "mentoring"
+
+      PaymentPeriod:                     # enum VO (used inside composite Rate)
+        type: Enum[str]
+        values:
+          HOURLY: "hourly"
+          MONTHLY: "monthly"
+          YEARLY: "yearly"
+          ONE_TIME: "one_time"
+
+      WorkFormat:                        # enum VO
+        type: Enum[str]
+        values:
+          OFFICE: "office"
+          HYBRID: "hybrid"
+          REMOTE: "remote"
+
+    domain_events:
+      ResumeCreated:                     # -> derives CreateResumeCommand
+        fields:
+          aggregate_id: ResumeId
+          user_id: UserId
+          title: Title
+          description: Description
+          specialization_ids: tuple[SpecializationId, ...]
+          rate: Rate
+          employment_types: tuple[EmploymentType, ...]
+          work_formats: tuple[WorkFormat, ...]
+          show_reputation: bool
+          created_at: datetime
+          is_active: bool
+          event_version: 1               # metadata, not a domain field
+
+  Specialization:                        # minimal aggregate — only identity
+    fields:
+      _id: SpecializationId
+
+    value_objects:
+      SpecializationId:
+        type: int
+        identity: transient
+
+external_references:                     # VOs from other bounded contexts
+  value_objects:
+    UserId:
+      type: int
+      reference: User
+      constraints:
+        required: true
+```
+
+This model generates 29 files across two aggregates, including value objects
+of all four kinds (identity, string, enum, composite), a domain event with
+exporter, and a derived command with handler.
+
+
 ## YAML Schema
 
 ### Top-level structure
@@ -118,7 +242,7 @@ instead of `set_*`.
 
 A VO kind is determined by which keys are present in its definition.
 Allowed keys: `type`, `identity`, `fields`, `values`, `constraints`, `map`,
-`reference`. Unknown keys raise `ValueError`.
+`reference`, `import`. Unknown keys raise `ValueError`.
 
 
 #### Identity VO
@@ -248,6 +372,47 @@ UserId:
 ```
 
 The `reference` value is stored as metadata; the scaffold does not follow it.
+
+
+(imported-vo)=
+#### Imported VO
+
+```yaml
+Money:
+  import: ascetic_ddd.seedwork.domain.values.money
+```
+
+Discriminator: presence of the `import` key.
+
+When `import` is specified, the scaffold does not generate a file for this VO.
+Instead, it uses the given module path in import statements:
+
+```python
+from ascetic_ddd.seedwork.domain.values.money import Money
+```
+
+This is useful for value objects that already exist in a shared library
+(e.g. seedwork) and should not be re-generated.
+
+The `import` key can be combined with other keys. For instance, a composite
+imported VO (`import` + `fields`) will also import its exporter interface
+and exporter class from the external package, following the same naming
+convention as locally generated composite VOs:
+
+```yaml
+Money:
+  import: ascetic_ddd.seedwork.domain.values.money
+  fields:
+    _amount: Decimal
+    _currency: str
+```
+
+Generates:
+
+```python
+from ascetic_ddd.seedwork.domain.values.money import Money, IMoneyExporter
+from ascetic_ddd.seedwork.domain.values.money_exporter import MoneyExporter
+```
 
 
 ### Constraints reference
@@ -612,6 +777,8 @@ Jinja2 environment settings: `trim_blocks`, `lstrip_blocks`,
   Shared types (e.g. `SpecializationId` used by both `Resume` and
   `Specialization`) must be duplicated in each aggregate's `value_objects`.
   The `reference` key documents the relationship but is not followed.
+  External VOs from shared libraries can be referenced via `import` key
+  (see [Imported VO](#imported-vo)).
 
 - **No cyclic references.** The YAML schema is a tree. If cross-aggregate
   VO references are needed in the future, topological sorting (e.g.
