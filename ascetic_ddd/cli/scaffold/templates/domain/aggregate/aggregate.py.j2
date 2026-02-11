@@ -12,9 +12,8 @@ from ascetic_ddd.seedwork.domain.aggregate import (
     IVersionedAggregateExporter,
     IVersionedAggregateReconstitutor,
 )
-{% for imp in imports %}
-{{ imp }}
-{% endfor %}
+{% from "_macros.j2" import vo_imports %}
+{{ vo_imports(used_vos, package_prefix) }}
 
 
 class I{{ agg.class_name }}Exporter(IVersionedAggregateExporter, metaclass=ABCMeta):

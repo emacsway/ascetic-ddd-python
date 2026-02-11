@@ -1,7 +1,6 @@
 from ascetic_ddd.seedwork.domain.aggregate import VersionedAggregateExporter
-{% for imp in imports %}
-{{ imp }}
-{% endfor %}
+{% from "_macros.j2" import vo_imports %}
+{{ vo_imports(used_vos, package_prefix, with_exporters=true) }}
 from {{ package_prefix }}.{{ agg.snake_name }} import I{{ agg.class_name }}Exporter
 
 

@@ -59,7 +59,7 @@ class _AggregateContext:
     values_dir: str
     events_dir: str
     vo_map: dict
-    vo_imports: list
+    used_vos: list
     fields: list
     collection_fields: list
     needs_datetime: bool
@@ -129,7 +129,8 @@ class RenderWalker:
             agg=agg,
             fields=ctx.fields,
             collection_fields=ctx.collection_fields,
-            imports=ctx.vo_imports,
+            used_vos=ctx.used_vos,
+            package_prefix=ctx.pkg,
             needs_datetime=ctx.needs_datetime,
         )
 
@@ -140,7 +141,7 @@ class RenderWalker:
             agg=agg,
             fields=ctx.fields,
             collection_fields=ctx.collection_fields,
-            imports=ctx.vo_imports,
+            used_vos=ctx.used_vos,
             package_prefix=ctx.pkg,
         )
 
@@ -154,9 +155,9 @@ class RenderWalker:
             agg=agg,
             fields=ctx.fields,
             reconstitutor_params=reconstitutor_params,
-            imports=ctx.vo_imports,
-            needs_datetime=ctx.needs_datetime,
+            used_vos=ctx.used_vos,
             package_prefix=ctx.pkg,
+            needs_datetime=ctx.needs_datetime,
         )
 
         # __init__.py
@@ -175,14 +176,15 @@ class RenderWalker:
         )
 
     def _visit_domain_event(self, event, ctx):
-        ev_imports = _compute_field_imports(event.fields, ctx.vo_map, ctx.pkg)
+        ev_used_vos = _collect_used_vos(event.fields, ctx.vo_map)
         ev_collection_fields = [f for f in event.fields if f.is_collection]
 
         self._render_template(
             'domain/events/domain_event.py.j2',
             os.path.join(ctx.events_dir, '%s.py' % event.snake_name),
             event=event,
-            imports=ev_imports,
+            used_vos=ev_used_vos,
+            package_prefix=ctx.pkg,
             needs_datetime=_needs_datetime(event.fields),
         )
 
@@ -191,8 +193,8 @@ class RenderWalker:
             os.path.join(ctx.events_dir, '%s_exporter.py' % event.snake_name),
             event=event,
             collection_fields=ev_collection_fields,
-            imports=ev_imports,
-            events_package='%s.events' % ctx.pkg,
+            used_vos=ev_used_vos,
+            package_prefix=ctx.pkg,
         )
 
     def _visit_commands(self, ctx, model):
@@ -273,7 +275,7 @@ class RenderWalker:
             values_dir=values_dir,
             events_dir=events_dir,
             vo_map=vo_map,
-            vo_imports=_compute_field_imports(fields, vo_map, pkg),
+            used_vos=_collect_used_vos(fields, vo_map),
             fields=fields,
             collection_fields=[f for f in fields if f.is_collection],
             needs_datetime=_needs_datetime(fields),
@@ -300,33 +302,18 @@ def render_bounded_context(model, output_dir, package_name=None,
 # --- Shared helpers ---
 
 
-def _compute_field_imports(fields, vo_map, pkg):
-    """Compute import statements for value objects used in fields."""
-    vo_names = set()
-    exporter_names = set()
+def _collect_used_vos(fields, vo_map):
+    """Return deduplicated, sorted list of VOs referenced by fields."""
+    seen = set()
+    result = []
     for f in fields:
         effective = f.inner_type if f.is_collection else f.type_name
-        if not is_primitive_type(effective):
-            vo_names.add(effective)
-            # If this VO is composite, also need its exporter
+        if not is_primitive_type(effective) and effective not in seen:
+            seen.add(effective)
             vo = vo_map.get(effective)
-            if vo and vo.kind == VoKind.COMPOSITE:
-                exporter_names.add('%sExporter' % effective)
-    result = []
-    for name in sorted(vo_names):
-        vo = vo_map.get(name)
-        if vo and vo.import_path:
-            result.append('from %s import %s' % (vo.import_path, name))
-        else:
-            result.append('from %s.values import %s' % (pkg, name))
-    for name in sorted(exporter_names):
-        vo_name = name.replace('Exporter', '')
-        vo = vo_map.get(vo_name)
-        if vo and vo.import_path:
-            result.append('from %s_exporter import %s' % (vo.import_path, name))
-        else:
-            result.append('from %s.values import %s' % (pkg, name))
-    return result
+            if vo:
+                result.append(vo)
+    return sorted(result, key=lambda vo: vo.class_name)
 
 
 def _needs_datetime(fields):

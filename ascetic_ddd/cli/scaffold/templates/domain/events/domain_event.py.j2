@@ -8,9 +8,8 @@ from ascetic_ddd.seedwork.domain.aggregate import (
     PersistentDomainEvent,
     IPersistentDomainEventExporter,
 )
-{% for imp in imports %}
-{{ imp }}
-{% endfor %}
+{% from "_macros.j2" import vo_imports %}
+{{ vo_imports(used_vos, package_prefix) }}
 
 
 class I{{ event.class_name }}Exporter(IPersistentDomainEventExporter, metaclass=ABCMeta):

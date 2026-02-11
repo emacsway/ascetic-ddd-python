@@ -3,9 +3,8 @@ from datetime import datetime
 {% endif %}
 
 from ascetic_ddd.seedwork.domain.aggregate import VersionedAggregateReconstitutor
-{% for imp in imports %}
-{{ imp }}
-{% endfor %}
+{% from "_macros.j2" import vo_imports %}
+{{ vo_imports(used_vos, package_prefix) }}
 from {{ package_prefix }}.{{ agg.snake_name }} import I{{ agg.class_name }}Reconstitutor
 
 
