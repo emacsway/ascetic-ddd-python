@@ -743,6 +743,89 @@ files = render_bounded_context(model, "./output", "app.jobs")
 ```
 
 
+### AST Renderer (`ast_renderer.py`)
+
+`AstRenderWalker` generates the same file set as `RenderWalker`, but builds
+Python code programmatically via `ast.Module` + `ast.unparse()` instead of
+Jinja2 templates. This enables **additive merge** with existing files: when
+a file already exists, missing imports, classes, methods, fields, and
+`__init__` parameters are added without touching user-written code.
+
+Walk order is identical to `RenderWalker`. The key difference is
+`_write_module()`:
+
+- **File does not exist** — generate from scratch, write.
+- **File exists** — parse existing AST, merge with generated AST
+  (see [AST Merge](#ast-merge)), write if changed.
+
+Public facade:
+
+```python
+from ascetic_ddd.cli.scaffold.ast_renderer import ast_render_bounded_context
+
+files = ast_render_bounded_context(model, "./output", "app.jobs")
+```
+
+Convenience wrapper:
+
+```python
+from ascetic_ddd.cli.scaffold import ast_scaffold
+
+ast_scaffold("domain-model.yaml", "./output", "app.jobs")
+```
+
+
+### AST Builders (`ast_builders.py`)
+
+Pure functions that build `ast.Module` for each file type. No filesystem I/O.
+One builder per template equivalent:
+
+| Builder | Equivalent template |
+|---------|---------------------|
+| `build_identity_vo(vo)` | `identity_vo.py.j2` |
+| `build_string_vo(vo)` | `string_vo.py.j2` |
+| `build_enum_vo(vo)` | `enum_vo.py.j2` |
+| `build_composite_vo(vo)` | `composite_vo.py.j2` |
+| `build_composite_vo_exporter(vo, pkg)` | `composite_vo_exporter.py.j2` |
+| `build_values_init(vos, pkg)` | `values/__init__.py.j2` |
+| `build_aggregate(...)` | `aggregate.py.j2` |
+| `build_aggregate_exporter(...)` | `aggregate_exporter.py.j2` |
+| `build_aggregate_reconstitutor(...)` | `aggregate_reconstitutor.py.j2` |
+| `build_domain_event(...)` | `domain_event.py.j2` |
+| `build_domain_event_exporter(...)` | `domain_event_exporter.py.j2` |
+| `build_command(cmd, ...)` | `command.py.j2` |
+| `build_command_handler(cmd, pkg)` | `command_handler.py.j2` |
+| `build_commands_init(cmds, pkg)` | `commands/__init__.py.j2` |
+| `build_empty_init()` | `__init__.py.j2` |
+
+
+(ast-merge)=
+### AST Merge (`ast_merge.py`)
+
+`merge_modules(existing, generated)` performs additive merge — adds missing
+elements from the generated AST into the existing AST. Never removes or
+modifies existing code.
+
+What gets merged:
+
+| Element | Action |
+|---------|--------|
+| `from X import Y` | Add missing names to existing import, or add new import |
+| `import X` | Add if absent |
+| Class (by name) | Add if absent; merge members if present |
+| Field annotation (`x: int`) | Add if absent |
+| Method (`def foo`) | Add if absent; preserve existing body |
+| `__init__` params | Add missing params before `*args`/`**kwargs` |
+| `self._x = x` in `__init__` | Add missing assignments |
+| `__all__` list | Add missing names |
+
+What is **not** modified:
+
+- Existing method bodies (user business logic is preserved)
+- Existing class hierarchy / decorators
+- Existing import order
+
+
 ### Naming (`naming.py`)
 
 Pure functions for name transformations:
@@ -860,4 +943,6 @@ python -m unittest discover -s ascetic_ddd/cli/scaffold/tests -p "test_*.py" -v
 | `test_naming.py` | CamelCase conversion, collection detection, primitive classification |
 | `test_parser.py` | YAML parsing, VO classification, command derivation, validation errors |
 | `test_renderer.py` | Generated file contents, directory structure, no f-strings in output |
+| `test_ast_builders.py` | AST builder functions, AST merge logic |
+| `test_ast_renderer.py` | AST renderer: file contents, merge with existing, skip-unchanged |
 | `test_scaffold.py` | End-to-end: YAML -> compilable Python files |
