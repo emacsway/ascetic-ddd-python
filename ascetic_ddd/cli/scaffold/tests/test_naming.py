@@ -1,7 +1,7 @@
 import unittest
 
-from ascetic_ddd.cli.model import CollectionKind
-from ascetic_ddd.cli.naming import (
+from ascetic_ddd.cli.scaffold.model import CollectionKind
+from ascetic_ddd.cli.scaffold.naming import (
     camel_to_snake,
     strip_underscore_prefix,
     is_collection_type,

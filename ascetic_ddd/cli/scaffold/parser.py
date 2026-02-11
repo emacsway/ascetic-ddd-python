@@ -1,6 +1,6 @@
 import yaml
 
-from ascetic_ddd.cli.naming import (
+from ascetic_ddd.cli.scaffold.naming import (
     camel_to_snake,
     strip_underscore_prefix,
     is_collection_type,
@@ -8,7 +8,7 @@ from ascetic_ddd.cli.naming import (
     collection_kind,
     is_primitive_type,
 )
-from ascetic_ddd.cli.model import (
+from ascetic_ddd.cli.scaffold.model import (
     AggregateDef,
     BoundedContextModel,
     CollectionKind,

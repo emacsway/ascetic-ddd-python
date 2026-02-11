@@ -9,7 +9,7 @@ from ascetic_ddd.cli.scaffold import scaffold
 
 YAML_PATH = os.path.join(
     os.path.dirname(__file__),
-    '..', '..', '..', 'domain-model.yaml',
+    '..', '..', '..', '..', 'domain-model.yaml',
 )
 
 

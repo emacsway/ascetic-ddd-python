@@ -3,13 +3,13 @@ import shutil
 import tempfile
 import unittest
 
-from ascetic_ddd.cli.parser import parse_yaml
-from ascetic_ddd.cli.renderer import render_bounded_context
+from ascetic_ddd.cli.scaffold.parser import parse_yaml
+from ascetic_ddd.cli.scaffold.renderer import render_bounded_context
 
 
 YAML_PATH = os.path.join(
     os.path.dirname(__file__),
-    '..', '..', '..', 'domain-model.yaml',
+    '..', '..', '..', '..', 'domain-model.yaml',
 )
 
 

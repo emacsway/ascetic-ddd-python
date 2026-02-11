@@ -1,5 +1,5 @@
-from ascetic_ddd.cli.parser import parse_yaml
-from ascetic_ddd.cli.renderer import render_bounded_context
+from ascetic_ddd.cli.scaffold.parser import parse_yaml
+from ascetic_ddd.cli.scaffold.renderer import render_bounded_context
 
 
 def scaffold(input_path, output_dir, package_name=None):

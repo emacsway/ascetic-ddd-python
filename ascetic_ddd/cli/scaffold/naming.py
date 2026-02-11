@@ -1,6 +1,6 @@
 import re
 
-from ascetic_ddd.cli.model import CollectionKind
+from ascetic_ddd.cli.scaffold.model import CollectionKind
 
 
 def camel_to_snake(name):

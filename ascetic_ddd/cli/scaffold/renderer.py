@@ -3,9 +3,9 @@ from dataclasses import dataclass
 
 from jinja2 import Environment, FileSystemLoader
 
-from ascetic_ddd.cli.model import FieldDef, VoKind
-from ascetic_ddd.cli.naming import camel_to_snake, is_primitive_type
-from ascetic_ddd.cli.parser import vo_primitive_type
+from ascetic_ddd.cli.scaffold.model import FieldDef, VoKind
+from ascetic_ddd.cli.scaffold.naming import camel_to_snake, is_primitive_type
+from ascetic_ddd.cli.scaffold.parser import vo_primitive_type
 
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
