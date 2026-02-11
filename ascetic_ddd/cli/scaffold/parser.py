@@ -123,7 +123,16 @@ class ModelParser:
         self._vo_map = {}
         self._entity_map = {}
         vos = []
+        # Two-pass: non-composite first, then composite (may reference other VOs)
+        deferred = []
         for vo_name, vo_data in agg_data.get('value_objects', {}).items():
+            if self._classify_vo(vo_data) == 'composite':
+                deferred.append((vo_name, vo_data))
+                continue
+            vo = self._parse_value_object(vo_name, vo_data)
+            vos.append(vo)
+            self._vo_map[vo_name] = vo
+        for vo_name, vo_data in deferred:
             vo = self._parse_value_object(vo_name, vo_data)
             vos.append(vo)
             self._vo_map[vo_name] = vo
@@ -183,9 +192,8 @@ class ModelParser:
             )
 
         if kind == 'composite':
-            # Composite VO fields don't reference aggregate VOs
             saved = self._vo_map
-            self._vo_map = {}
+            self._vo_map = dict(self._vo_map)
             vo_fields = self._parse_fields(vo_data.get('fields', {}))
             self._vo_map = saved
             return CompositeVoDef(

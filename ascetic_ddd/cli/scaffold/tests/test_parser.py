@@ -76,6 +76,20 @@ class TestParseYaml(unittest.TestCase):
         self.assertIsInstance(rate, CompositeVoDef)
         self.assertEqual(len(rate.fields), 2)
 
+    def test_composite_vo_fields_resolve_vos(self):
+        resume = self.model.aggregates[0]
+        rate = next(
+            vo for vo in resume.value_objects if vo.class_name == 'Rate'
+        )
+        rate_period = next(
+            f for f in rate.fields if f.param_name == 'rate_period'
+        )
+        self.assertIsInstance(rate_period.type_ref, VoRef)
+        rate_money = next(
+            f for f in rate.fields if f.param_name == 'rate'
+        )
+        self.assertIsInstance(rate_money.type_ref, VoRef)
+
     def test_domain_events(self):
         resume = self.model.aggregates[0]
         self.assertEqual(len(resume.domain_events), 1)
