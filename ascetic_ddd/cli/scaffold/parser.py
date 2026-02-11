@@ -123,17 +123,17 @@ class ModelParser:
         self._vo_map = {}
         self._entity_map = {}
         vos = []
-        # Two-pass: non-composite first, then composite (may reference other VOs)
-        deferred = []
+        # Two-pass: non-composite first, then composite in dependency order
+        composites = {}
         for vo_name, vo_data in agg_data.get('value_objects', {}).items():
             if self._classify_vo(vo_data) == 'composite':
-                deferred.append((vo_name, vo_data))
+                composites[vo_name] = vo_data
                 continue
             vo = self._parse_value_object(vo_name, vo_data)
             vos.append(vo)
             self._vo_map[vo_name] = vo
-        for vo_name, vo_data in deferred:
-            vo = self._parse_value_object(vo_name, vo_data)
+        for vo_name in self._topo_sort_composites(composites):
+            vo = self._parse_value_object(vo_name, composites[vo_name])
             vos.append(vo)
             self._vo_map[vo_name] = vo
 
@@ -373,6 +373,39 @@ class ModelParser:
             return 'composite'
         # Default: string-like VO
         return 'simple'
+
+    def _topo_sort_composites(self, composites):
+        """Topological sort composite VOs by field dependencies (Kahn's)."""
+        deps = {}
+        for vo_name, vo_data in composites.items():
+            vo_deps = set()
+            for field_type in vo_data.get('fields', {}).values():
+                type_str = str(field_type)
+                if is_collection_type(type_str):
+                    type_str = extract_inner_type(type_str)
+                if type_str in composites:
+                    vo_deps.add(type_str)
+            deps[vo_name] = vo_deps
+
+        in_degree = {name: len(d) for name, d in deps.items()}
+        queue = [name for name, deg in in_degree.items() if deg == 0]
+        result = []
+        while queue:
+            name = queue.pop(0)
+            result.append(name)
+            for other, other_deps in deps.items():
+                if name in other_deps:
+                    in_degree[other] -= 1
+                    if in_degree[other] == 0:
+                        queue.append(other)
+
+        if len(result) != len(composites):
+            cycle = sorted(set(composites) - set(result))
+            raise ValueError(
+                'Circular dependency among composite VOs: %s'
+                % ', '.join(cycle)
+            )
+        return result
 
     def _derive_commands(self, events):
         commands = []
