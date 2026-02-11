@@ -1,6 +1,7 @@
+{% from "_macros.j2" import resolve_import %}
 {% for vo in value_objects %}
 {% if vo.import_path %}
-{% set resolved = (package_prefix.rsplit('.', 1)[0] ~ vo.import_path) if vo.import_path.startswith('.') else vo.import_path %}
+{% set resolved = resolve_import(vo.import_path, package_prefix) %}
 {% if vo.kind == 'composite' %}
 from {{ resolved }} import {{ vo.class_name }}, I{{ vo.class_name }}Exporter
 from {{ resolved }}_exporter import {{ vo.class_name }}Exporter
