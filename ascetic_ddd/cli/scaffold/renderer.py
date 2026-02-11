@@ -112,16 +112,11 @@ class RenderWalker:
             self._visit_composite_vo_exporter(vo, ctx)
 
     def _visit_composite_vo_exporter(self, vo, ctx):
-        imports = [
-            'from %s.values.%s import I%sExporter' % (
-                ctx.pkg, vo.snake_name, vo.class_name,
-            ),
-        ]
         self._render_template(
             'domain/values/composite_vo_exporter.py.j2',
             os.path.join(ctx.values_dir, '%s_exporter.py' % vo.snake_name),
             vo=vo,
-            imports=imports,
+            package_prefix=ctx.pkg,
         )
 
     def _visit_aggregate_module(self, ctx):
