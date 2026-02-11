@@ -98,7 +98,7 @@ class RenderWalker:
         self._render_template(
             'domain/values/__init__.py.j2',
             os.path.join(ctx.values_dir, '__init__.py'),
-            value_objects=ctx.agg.value_objects,
+            value_objects=self._resolve_vo_imports(ctx.agg.value_objects),
             package_prefix=ctx.pkg,
         )
 
@@ -178,7 +178,7 @@ class RenderWalker:
         )
 
     def _visit_domain_event(self, event, ctx):
-        ev_used_vos = _collect_used_vos(event.fields)
+        ev_used_vos = self._resolve_vo_imports(_collect_used_vos(event.fields))
         ev_collection_fields = [f for f in event.fields if f.is_collection]
 
         self._render_template(
@@ -333,7 +333,7 @@ class RenderWalker:
         return pkg
 
     def _resolve_vo_imports(self, used_vos):
-        """Resolve relative import_path to absolute for entity context."""
+        """Resolve relative import_path to absolute."""
         domain_pkg = self._dir_to_pkg(
             os.path.join(self._output_dir, 'domain'),
         )
@@ -363,7 +363,7 @@ class RenderWalker:
             agg_dir=agg_dir,
             values_dir=values_dir,
             events_dir=events_dir,
-            used_vos=_collect_used_vos(fields),
+            used_vos=self._resolve_vo_imports(_collect_used_vos(fields)),
             fields=fields,
             collection_fields=[f for f in fields if f.is_collection],
             needs_datetime=_needs_datetime(fields),
