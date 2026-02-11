@@ -184,14 +184,18 @@ class TestAstRenderer(unittest.TestCase):
             content,
         )
 
-    def test_skip_existing_files(self):
-        """Files that already exist must not be overwritten."""
+    def test_merge_preserves_user_method(self):
+        """Existing user methods must survive merge."""
         path = os.path.join(
-            self.output_dir, 'domain', 'resume', 'values', 'title.py',
+            self.output_dir, 'domain', 'resume', 'resume.py',
         )
-        original = 'existing content\n'
+        with open(path) as f:
+            original = f.read()
+        # Add a custom user method to the aggregate class
         with open(path, 'w') as f:
-            f.write(original)
+            f.write(original.rstrip('\n') + '\n\n'
+                    '    def publish(self):\n'
+                    '        pass\n')
 
         from ascetic_ddd.cli.scaffold.ast_renderer import AstRenderWalker
         walker = AstRenderWalker(self.output_dir, 'app.jobs')
@@ -199,8 +203,35 @@ class TestAstRenderer(unittest.TestCase):
 
         with open(path) as f:
             content = f.read()
-        self.assertEqual(content, original)
-        self.assertIn(path, walker.skipped)
+        # User method preserved
+        self.assertIn('def publish(self)', content)
+        # Generated code still present
+        self.assertIn('class Resume(', content)
+
+    def test_merge_adds_missing_method(self):
+        """Merge should add methods that are missing in existing file."""
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'resume_exporter.py',
+        )
+        with open(path) as f:
+            original = f.read()
+        # Remove set_title method to simulate an outdated file
+        lines = [
+            line for line in original.split('\n')
+            if 'set_title' not in line
+        ]
+        with open(path, 'w') as f:
+            f.write('\n'.join(lines))
+
+        from ascetic_ddd.cli.scaffold.ast_renderer import AstRenderWalker
+        walker = AstRenderWalker(self.output_dir, 'app.jobs')
+        walker.walk(self.model)
+
+        with open(path) as f:
+            content = f.read()
+        # Missing method was re-added
+        self.assertIn('set_title', content)
+        self.assertIn(path, walker.updated)
 
     def test_no_fstrings(self):
         """Generated code must not contain f-strings."""

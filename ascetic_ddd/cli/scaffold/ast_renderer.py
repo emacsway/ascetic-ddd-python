@@ -3,6 +3,7 @@ import os
 import re
 
 from ascetic_ddd.cli.scaffold import ast_builders as builders
+from ascetic_ddd.cli.scaffold.ast_merge import merge_modules
 from ascetic_ddd.cli.scaffold.model import VoKind
 from ascetic_ddd.cli.scaffold.renderer import (
     _AggregateContext,
@@ -22,7 +23,7 @@ class AstRenderWalker:
         self._output_dir = output_dir
         self._package_name = package_name
         self._generated = []
-        self._skipped = []
+        self._updated = []
 
     def walk(self, model):
         """Walk the entire model and return list of generated file paths."""
@@ -31,8 +32,8 @@ class AstRenderWalker:
         return self._generated
 
     @property
-    def skipped(self):
-        return list(self._skipped)
+    def updated(self):
+        return list(self._updated)
 
     # --- visit methods ---
 
@@ -225,11 +226,24 @@ class AstRenderWalker:
         )
 
     def _write_module(self, module, path):
-        """Unparse AST module and write to file, skipping existing files."""
-        if os.path.exists(path):
-            self._skipped.append(path)
-            return
+        """Write AST module to file. Merges with existing file if present."""
         ast.fix_missing_locations(module)
+
+        if os.path.exists(path):
+            with open(path) as f:
+                existing_source = f.read()
+            existing = ast.parse(existing_source)
+            merge_modules(existing, module)
+            ast.fix_missing_locations(existing)
+            source = ast.unparse(existing)
+            source = _postformat(source)
+            source = source.rstrip('\n') + '\n'
+            if source != existing_source:
+                with open(path, 'w') as f:
+                    f.write(source)
+                self._updated.append(path)
+            return
+
         source = ast.unparse(module)
         source = _postformat(source)
         source = source.rstrip('\n') + '\n'
