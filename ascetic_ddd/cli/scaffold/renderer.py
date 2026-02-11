@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
 
+import inflection
 from jinja2 import ChoiceLoader, Environment, FileSystemLoader
 
 from ascetic_ddd.cli.scaffold.model import DispatchKind, FieldDef, VoKind
@@ -19,16 +20,11 @@ VO_TEMPLATE_MAP = {
 
 
 def _singularize(name):
-    """Naive singularization: remove trailing 's' or 'es'."""
-    if name.endswith('_ids'):
-        return name[:-1]  # specialization_ids -> specialization_id
-    if name.endswith('_types'):
-        return name[:-1]  # employment_types -> employment_type
-    if name.endswith('_formats'):
-        return name[:-1]  # work_formats -> work_format
-    if name.endswith('s'):
-        return name[:-1]
-    return name
+    return inflection.singularize(name)
+
+
+def _pluralize(name):
+    return inflection.pluralize(name)
 
 
 def _make_env(templates_dir=None):
@@ -46,6 +42,7 @@ def _make_env(templates_dir=None):
         keep_trailing_newline=True,
     )
     env.filters['singularize'] = _singularize
+    env.filters['pluralize'] = _pluralize
     env.filters['snake'] = camel_to_snake
     return env
 
