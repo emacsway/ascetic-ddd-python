@@ -53,7 +53,7 @@ that there are two ways to solve this problem (and reduce Coupling):
     David Rice, Matthew Foemmel, Edward Hieatt, Robert Mee, Randy Stafford,
     chapter "Metadata Mapping".
 
-In his article `Orm Hate <https://martinfowler.com/bliki/OrmHate.html>`__ he
+In his article "`Orm Hate <https://martinfowler.com/bliki/OrmHate.html>`__" he
 wrote that ORM solves a problem that does not exist in a CQRS application. In
 other words, using CQRS can be seen as an alternative to using an ORM:
 
@@ -62,13 +62,13 @@ other words, using CQRS can be seen as an alternative to using an ORM:
     your needs aren't too complex and you are comfortable with SQL.
     This is one of the arguments for CQRS.
 
-    -- `Orm Hate <https://martinfowler.com/bliki/OrmHate.html>`__ by Martin Fowler
+    -- "`Orm Hate <https://martinfowler.com/bliki/OrmHate.html>`__" by Martin Fowler
 
-In the write model, ORM becomes unnecessary -- putting an object into a
+In the write-model, ORM becomes unnecessary -- putting an object into a
 Repository and retrieving it are operations so simple that using an ORM would
 be overengineering.
 
-As for the read model, there is a large number of off-the-shelf query filters
+As for the read-model, there is a large number of off-the-shelf query filters
 that accept requests in RQL, OData, JSONPath, or AIP-160 format and produce
 ready-made SQL queries. Once again, there is no place for an ORM.
 
