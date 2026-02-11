@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from ascetic_ddd.cli.scaffold.naming import CollectionKind, PRIMITIVE_TYPES
+
 
 # str mixin so Jinja2 template comparisons like
 # ``vo.kind == 'identity'`` keep working.
@@ -13,17 +15,6 @@ class VoKind(str, Enum):
     SIMPLE = 'simple'
     COMPOSITE = 'composite'
     ENUM = 'enum'
-
-
-class CollectionKind(str, Enum):
-    NONE = ''
-    LIST = 'list'
-    TUPLE = 'tuple'
-
-
-PRIMITIVE_TYPES = frozenset({
-    'bool', 'int', 'str', 'float', 'datetime', 'Decimal',
-})
 
 
 # --- Type system ---

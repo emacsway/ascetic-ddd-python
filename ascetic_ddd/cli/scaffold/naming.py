@@ -1,6 +1,16 @@
 import re
+from enum import Enum
 
-from ascetic_ddd.cli.scaffold.model import CollectionKind, PRIMITIVE_TYPES
+
+class CollectionKind(str, Enum):
+    NONE = ''
+    LIST = 'list'
+    TUPLE = 'tuple'
+
+
+PRIMITIVE_TYPES = frozenset({
+    'bool', 'int', 'str', 'float', 'datetime', 'Decimal',
+})
 
 
 def camel_to_snake(name):
