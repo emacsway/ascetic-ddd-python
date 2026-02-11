@@ -1,0 +1,67 @@
+{% if needs_datetime %}
+from datetime import datetime
+{% endif %}
+from abc import ABCMeta, abstractmethod
+
+{% from "_macros.j2" import vo_imports %}
+{% from "_field_macros.j2" import export_field, import_field %}
+{{ vo_imports(used_vos, package_prefix) }}
+
+
+class I{{ entity.class_name }}Exporter(metaclass=ABCMeta):
+{% for f in fields %}
+{% if f.is_collection %}
+    @abstractmethod
+    def add_{{ f.param_name | singularize }}(self, value) -> None:
+        raise NotImplementedError
+{% else %}
+    @abstractmethod
+    def set_{{ f.param_name }}(self, value) -> None:
+        raise NotImplementedError
+{% endif %}
+{% endfor %}
+
+
+class I{{ entity.class_name }}Reconstitutor(metaclass=ABCMeta):
+{% for f in fields %}
+    @abstractmethod
+    def {{ f.param_name }}(self):
+        raise NotImplementedError
+{% endfor %}
+
+
+class {{ entity.class_name }}:
+{% for f in fields %}
+    {{ f.name }}: {{ f.type_name }}
+{% endfor %}
+
+    def __init__(
+        self,
+{% for f in fields %}
+        {{ f.param_name }},
+{% endfor %}
+    ) -> None:
+{% for f in fields %}
+        self.{{ f.name }} = {{ f.param_name }}
+{% endfor %}
+
+    def export(self, exporter: "I{{ entity.class_name }}Exporter") -> None:
+{% for f in fields %}
+{{ export_field(f) }}
+{% endfor %}
+
+    def _import(self, provider: "I{{ entity.class_name }}Reconstitutor") -> None:
+{% for f in fields %}
+{{ import_field(f) }}
+{% endfor %}
+
+    @classmethod
+    def _make_empty(cls):
+        entity = cls.__new__(cls)
+        return entity
+
+    @classmethod
+    def reconstitute(cls, reconstitutor: "I{{ entity.class_name }}Reconstitutor") -> "{{ entity.class_name }}":
+        entity = cls._make_empty()
+        entity._import(reconstitutor)
+        return entity

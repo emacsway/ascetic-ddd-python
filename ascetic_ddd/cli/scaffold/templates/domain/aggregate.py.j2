@@ -13,7 +13,11 @@ from ascetic_ddd.seedwork.domain.aggregate import (
     IVersionedAggregateReconstitutor,
 )
 {% from "_macros.j2" import vo_imports %}
+{% from "_field_macros.j2" import export_field, import_field %}
 {{ vo_imports(used_vos, package_prefix) }}
+{% for ent in entities %}
+from {{ package_prefix }}.{{ ent.snake_name }}.{{ ent.snake_name }} import {{ ent.class_name }}
+{% endfor %}
 
 
 class I{{ agg.class_name }}Exporter(IVersionedAggregateExporter, metaclass=ABCMeta):
@@ -46,18 +50,28 @@ class {{ agg.class_name }}(EventiveEntity[PersistentDomainEvent], VersionedAggre
     def __init__(
         self,
 {% for f in fields %}
+{% if not f.is_entity %}
         {{ f.param_name }},
+{% endif %}
 {% endfor %}
         **kwargs,
     ) -> None:
 {% for f in fields %}
+{% if not f.is_entity %}
 {% if f.param_name == 'id' %}
         assert isinstance({{ f.param_name }}, {{ f.type_name if not f.is_collection else f.inner_type }})
+{% endif %}
 {% endif %}
 {% endfor %}
         super().__init__(**kwargs)
 {% for f in fields %}
+{% if f.is_entity and f.is_collection %}
+        self.{{ f.name }} = []
+{% elif f.is_entity %}
+        self.{{ f.name }} = None
+{% else %}
         self.{{ f.name }} = {{ f.param_name }}
+{% endif %}
 {% endfor %}
 
     def _add_domain_event(self, event: PersistentDomainEvent) -> None:
@@ -67,23 +81,28 @@ class {{ agg.class_name }}(EventiveEntity[PersistentDomainEvent], VersionedAggre
     def export(self, exporter: "I{{ agg.class_name }}Exporter") -> None:
         super().export(exporter)
 {% for f in fields %}
-{% if f.is_collection %}
-        for item in self.{{ f.name }}:
-            exporter.add_{{ f.param_name | singularize }}(item)
-{% else %}
-        exporter.set_{{ f.param_name }}(self.{{ f.name }})
-{% endif %}
+{{ export_field(f) }}
 {% endfor %}
 
     def _import(self, provider: "I{{ agg.class_name }}Reconstitutor") -> None:
         super()._import(provider)
 {% for f in fields %}
-{% if f.is_collection %}
-        self.{{ f.name }} = {{ f.collection_kind }}(provider.{{ f.param_name }}())
-{% else %}
-        self.{{ f.name }} = provider.{{ f.param_name }}()
+{{ import_field(f) }}
+{% endfor %}
+{% if entities %}
+
+    @classmethod
+    def _make_empty(cls):
+        agg = super()._make_empty()
+{% for f in fields %}
+{% if f.is_entity and f.is_collection %}
+        agg.{{ f.name }} = []
+{% elif f.is_entity %}
+        agg.{{ f.name }} = None
 {% endif %}
 {% endfor %}
+        return agg
+{% endif %}
 
     @classmethod
     def reconstitute(cls, reconstitutor: "I{{ agg.class_name }}Reconstitutor") -> typing.Self:

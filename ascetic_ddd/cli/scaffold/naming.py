@@ -1,6 +1,6 @@
 import re
 
-from ascetic_ddd.cli.scaffold.model import CollectionKind
+from ascetic_ddd.cli.scaffold.model import CollectionKind, PRIMITIVE_TYPES
 
 
 def camel_to_snake(name):
@@ -37,11 +37,6 @@ def collection_kind(type_str):
     if type_str.startswith('tuple['):
         return CollectionKind.TUPLE
     return CollectionKind.NONE
-
-
-PRIMITIVE_TYPES = frozenset({
-    'bool', 'int', 'str', 'float', 'datetime', 'Decimal',
-})
 
 
 def is_primitive_type(type_str):

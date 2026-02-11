@@ -169,6 +169,207 @@ class TestRenderer(unittest.TestCase):
             content,
         )
 
+    # --- Collection entity (Resume.Experience) ---
+
+    def test_entity_directory_structure(self):
+        exp_dir = os.path.join(
+            self.output_dir, 'domain', 'resume', 'experience',
+        )
+        self.assertTrue(os.path.isdir(exp_dir))
+        self.assertTrue(os.path.isdir(os.path.join(exp_dir, 'values')))
+
+    def test_entity_class_content(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'experience',
+            'experience.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('class Experience:', content)
+        self.assertIn('class IExperienceExporter', content)
+        self.assertIn('class IExperienceReconstitutor', content)
+        self.assertIn('def export(self, exporter', content)
+        self.assertIn('def _import(self, provider', content)
+        self.assertIn('def reconstitute(cls', content)
+        self.assertIn('def _make_empty(cls)', content)
+
+    def test_entity_class_imports_aggregate_vo(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'experience',
+            'experience.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        # ResumeId should import from aggregate's values, not entity's
+        self.assertIn(
+            'from app.jobs.domain.resume.values.resume_id import ResumeId',
+            content,
+        )
+
+    def test_entity_exporter_content(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'experience',
+            'experience_exporter.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn(
+            'class ExperienceExporter(IExperienceExporter)',
+            content,
+        )
+        self.assertIn('self.data = {}', content)
+        self.assertIn('def set_resume_id', content)
+
+    def test_entity_reconstitutor_content(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'experience',
+            'experience_reconstitutor.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn(
+            'class ExperienceReconstitutor(IExperienceReconstitutor)',
+            content,
+        )
+        self.assertIn('self._data =', content)
+        self.assertIn('def resume_id(self)', content)
+
+    def test_entity_vo_content(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'experience', 'values',
+            'company_name.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('class CompanyName:', content)
+        self.assertIn('cannot be empty', content)
+        self.assertIn('cannot exceed 255 characters', content)
+
+    def test_entity_imported_vo_not_generated(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'experience', 'values',
+            'time_range.py',
+        )
+        self.assertFalse(os.path.exists(path))
+
+    def test_aggregate_with_entity_make_empty(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'resume.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('def _make_empty(cls)', content)
+        self.assertIn('agg._experience = []', content)
+
+    def test_aggregate_with_entity_export(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'resume.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('exporter.add_experience(item)', content)
+
+    def test_aggregate_exporter_with_entity(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume', 'resume_exporter.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('ExperienceExporter', content)
+        self.assertIn('def add_experience(self, value)', content)
+        self.assertIn("self.data['experience'] = []", content)
+
+    def test_aggregate_reconstitutor_with_entity(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'resume',
+            'resume_reconstitutor.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('ExperienceReconstitutor', content)
+        self.assertIn('def experience(self)', content)
+        self.assertIn('ExperienceReconstitutor(**d)', content)
+
+    # --- Single entity (Specialization.SpecializationProfile) ---
+
+    def test_single_entity_directory(self):
+        ent_dir = os.path.join(
+            self.output_dir, 'domain', 'specialization',
+            'specialization_profile',
+        )
+        self.assertTrue(os.path.isdir(ent_dir))
+
+    def test_single_entity_class_content(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'specialization',
+            'specialization_profile', 'specialization_profile.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('class SpecializationProfile:', content)
+        self.assertIn('class ISpecializationProfileExporter', content)
+
+    def test_single_entity_aggregate_set(self):
+        """Single entity field must use set_X, not add_X."""
+        path = os.path.join(
+            self.output_dir, 'domain', 'specialization',
+            'specialization.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('def set_profile(self, value)', content)
+        self.assertNotIn('add_profile', content)
+
+    def test_single_entity_init_none(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'specialization',
+            'specialization.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('self._profile = None', content)
+
+    def test_single_entity_make_empty_none(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'specialization',
+            'specialization.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('agg._profile = None', content)
+
+    def test_single_entity_export_set(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'specialization',
+            'specialization.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('exporter.set_profile(self._profile)', content)
+
+    def test_single_entity_exporter_set(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'specialization',
+            'specialization_exporter.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('def set_profile(self, value)', content)
+        self.assertNotIn('add_profile', content)
+        self.assertIn("self.data['profile'] = exporter.data", content)
+
+    def test_single_entity_reconstitutor(self):
+        path = os.path.join(
+            self.output_dir, 'domain', 'specialization',
+            'specialization_reconstitutor.py',
+        )
+        with open(path) as f:
+            content = f.read()
+        self.assertIn('SpecializationProfileReconstitutor', content)
+        self.assertIn('def profile(self)', content)
+        # Single entity — direct call, not list comprehension
+        self.assertNotIn('for d in', content)
+
     def test_no_fstrings(self):
         """Generated code must not contain f-strings."""
         for fpath in self.files:

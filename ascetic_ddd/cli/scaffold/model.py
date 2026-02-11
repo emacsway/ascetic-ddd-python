@@ -5,7 +5,7 @@ from enum import Enum
 
 
 # str mixin so Jinja2 template comparisons like
-# ``f.dispatch_kind == 'primitive'`` keep working.
+# ``vo.kind == 'identity'`` keep working.
 
 
 class VoKind(str, Enum):
@@ -15,20 +15,47 @@ class VoKind(str, Enum):
     ENUM = 'enum'
 
 
-class DispatchKind(str, Enum):
-    PRIMITIVE = 'primitive'
-    SIMPLE_VO = 'simple_vo'
-    COMPOSITE_VO = 'composite_vo'
-    COLLECTION_SIMPLE_VO = 'collection_simple_vo'
-    COLLECTION_COMPOSITE_VO = 'collection_composite_vo'
-    ENTITY = 'entity'
-    COLLECTION_ENTITY = 'collection_entity'
-
-
 class CollectionKind(str, Enum):
     NONE = ''
     LIST = 'list'
     TUPLE = 'tuple'
+
+
+PRIMITIVE_TYPES = frozenset({
+    'bool', 'int', 'str', 'float', 'datetime', 'Decimal',
+})
+
+
+# --- Type system ---
+
+
+@dataclass
+class TypeRef:
+    """Base for all type references in the model."""
+
+    @property
+    def class_name(self):
+        raise NotImplementedError
+
+    @property
+    def primitive_type(self):
+        raise NotImplementedError
+
+
+@dataclass
+class PrimitiveType(TypeRef):
+    name: str
+
+    @property
+    def class_name(self):
+        return self.name
+
+    @property
+    def primitive_type(self):
+        return self.name
+
+
+# --- Domain model definitions ---
 
 
 @dataclass
@@ -36,21 +63,6 @@ class ConstraintsDef:
     required: bool = False
     blank: bool = True  # True means blank is allowed
     max_length: int = 0  # 0 means no limit
-
-
-@dataclass
-class FieldDef:
-    name: str                   # e.g. "_id", "_title"
-    param_name: str             # e.g. "id", "title" (without _ prefix)
-    type_name: str              # e.g. "ResumeId", "Title", "bool", "datetime"
-    collection_kind: CollectionKind = CollectionKind.NONE
-    inner_type: str = ''        # for collections, the element type
-    is_primitive: bool = False
-    dispatch_kind: DispatchKind = DispatchKind.PRIMITIVE
-
-    @property
-    def is_collection(self):
-        return self.collection_kind != CollectionKind.NONE
 
 
 @dataclass
@@ -68,6 +80,79 @@ class ValueObjectDef:
     is_external_ref: bool = False
     reference: str = ''
     import_path: str = ''
+
+    @property
+    def primitive_type(self):
+        if self.kind == VoKind.IDENTITY:
+            return self.base_type
+        if self.kind == VoKind.ENUM:
+            return 'str'
+        if self.kind == VoKind.COMPOSITE:
+            return 'dict'
+        if self.base_type and self.base_type in PRIMITIVE_TYPES:
+            return self.base_type
+        return 'str'
+
+
+@dataclass
+class VoRef(TypeRef):
+    vo: ValueObjectDef
+
+    @property
+    def class_name(self):
+        return self.vo.class_name
+
+    @property
+    def primitive_type(self):
+        return self.vo.primitive_type
+
+
+@dataclass
+class FieldDef:
+    name: str           # e.g. "_id", "_title"
+    param_name: str     # e.g. "id", "title" (without _ prefix)
+    type_ref: TypeRef
+
+    @property
+    def type_name(self):
+        return self.type_ref.class_name
+
+    @property
+    def is_collection(self):
+        return isinstance(self.type_ref, CollectionType)
+
+    @property
+    def collection_kind(self):
+        if isinstance(self.type_ref, CollectionType):
+            return self.type_ref.kind
+        return CollectionKind.NONE
+
+    @property
+    def inner_type(self):
+        if isinstance(self.type_ref, CollectionType):
+            return self.type_ref.element.class_name
+        return ''
+
+    @property
+    def is_primitive(self):
+        effective = self.type_ref
+        if isinstance(effective, CollectionType):
+            effective = effective.element
+        return isinstance(effective, PrimitiveType)
+
+    @property
+    def is_entity(self):
+        effective = self.type_ref
+        if isinstance(effective, CollectionType):
+            effective = effective.element
+        return isinstance(effective, EntityRef)
+
+    @property
+    def is_composite_vo(self):
+        effective = self.type_ref
+        if isinstance(effective, CollectionType):
+            effective = effective.element
+        return isinstance(effective, VoRef) and effective.vo.kind == VoKind.COMPOSITE
 
 
 @dataclass
@@ -93,6 +178,34 @@ class EntityDef:
     fields: list[FieldDef] = field(default_factory=list)
     value_objects: list[ValueObjectDef] = field(default_factory=list)
     entities: list[EntityDef] = field(default_factory=list)
+    referenced_vos: list[ValueObjectDef] = field(default_factory=list)
+
+
+@dataclass
+class EntityRef(TypeRef):
+    entity: EntityDef
+
+    @property
+    def class_name(self):
+        return self.entity.class_name
+
+    @property
+    def primitive_type(self):
+        return 'dict'
+
+
+@dataclass
+class CollectionType(TypeRef):
+    kind: CollectionKind
+    element: TypeRef
+
+    @property
+    def class_name(self):
+        return '%s[%s]' % (self.kind.value, self.element.class_name)
+
+    @property
+    def primitive_type(self):
+        return '%s[%s]' % (self.kind.value, self.element.primitive_type)
 
 
 @dataclass

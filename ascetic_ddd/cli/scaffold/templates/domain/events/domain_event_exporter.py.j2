@@ -1,5 +1,6 @@
 from ascetic_ddd.seedwork.domain.aggregate import PersistentDomainEventExporter
 {% from "_macros.j2" import vo_imports %}
+{% from "_field_macros.j2" import exporter_method %}
 {{ vo_imports(used_vos, package_prefix, with_exporters=true) }}
 from {{ package_prefix }}.events.{{ event.snake_name }} import I{{ event.class_name }}Exporter
 
@@ -7,31 +8,10 @@ from {{ package_prefix }}.events.{{ event.snake_name }} import I{{ event.class_n
 class {{ event.class_name }}Exporter(PersistentDomainEventExporter, I{{ event.class_name }}Exporter):
     def __init__(self) -> None:
         super().__init__()
-{% for f in collection_fields %}
+{% for f in event.fields if f.is_collection %}
         self.data['{{ f.param_name }}'] = []
 {% endfor %}
 {% for f in event.fields %}
 
-{% if f.is_collection %}
-{% if f.dispatch_kind == 'collection_composite_vo' %}
-    def add_{{ f.param_name | singularize }}(self, value) -> None:
-        exporter = {{ f.inner_type }}Exporter()
-        value.export(exporter)
-        self.data['{{ f.param_name }}'].append(exporter.data)
-{% else %}
-    def add_{{ f.param_name | singularize }}(self, value) -> None:
-        value.export(lambda val: self.data['{{ f.param_name }}'].append(val))
-{% endif %}
-{% elif f.dispatch_kind == 'primitive' %}
-    def set_{{ f.param_name }}(self, value) -> None:
-        self.data['{{ f.param_name }}'] = value
-{% elif f.dispatch_kind == 'composite_vo' %}
-    def set_{{ f.param_name }}(self, value) -> None:
-        exporter = {{ f.type_name }}Exporter()
-        value.export(exporter)
-        self.data['{{ f.param_name }}'] = exporter.data
-{% else %}
-    def set_{{ f.param_name }}(self, value) -> None:
-        value.export(lambda val: self.data.update({'{{ f.param_name }}': val}))
-{% endif %}
+{{ exporter_method(f) }}
 {% endfor %}

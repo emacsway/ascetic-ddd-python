@@ -1,7 +1,9 @@
 import os
 import unittest
 
-from ascetic_ddd.cli.scaffold.model import CollectionKind, DispatchKind, VoKind
+from ascetic_ddd.cli.scaffold.model import (
+    CollectionKind, CollectionType, EntityRef, VoKind, VoRef,
+)
 from ascetic_ddd.cli.scaffold.parser import parse_yaml
 
 
@@ -126,14 +128,12 @@ class TestParseYaml(unittest.TestCase):
         self.assertEqual(spec.class_name, 'Specialization')
         self.assertEqual(len(spec.fields), 2)
 
-    def test_single_entity_dispatch_kind(self):
+    def test_single_entity_type_ref(self):
         spec = self.model.aggregates[1]
         profile_field = next(
             f for f in spec.fields if f.param_name == 'profile'
         )
-        self.assertEqual(
-            profile_field.dispatch_kind, DispatchKind.ENTITY,
-        )
+        self.assertIsInstance(profile_field.type_ref, EntityRef)
         self.assertFalse(profile_field.is_collection)
 
     def test_single_entity_parsed(self):
@@ -143,7 +143,7 @@ class TestParseYaml(unittest.TestCase):
         self.assertEqual(ent.class_name, 'SpecializationProfile')
         self.assertEqual(len(ent.fields), 2)
 
-    def test_collection_field_dispatch(self):
+    def test_collection_field_type_ref(self):
         resume = self.model.aggregates[0]
         spec_ids = next(
             f for f in resume.fields if f.param_name == 'specialization_ids'
@@ -151,7 +151,8 @@ class TestParseYaml(unittest.TestCase):
         self.assertTrue(spec_ids.is_collection)
         self.assertEqual(spec_ids.collection_kind, CollectionKind.LIST)
         self.assertEqual(spec_ids.inner_type, 'SpecializationId')
-        self.assertEqual(spec_ids.dispatch_kind, DispatchKind.COLLECTION_SIMPLE_VO)
+        self.assertIsInstance(spec_ids.type_ref, CollectionType)
+        self.assertIsInstance(spec_ids.type_ref.element, VoRef)
 
     def test_entity_parsed(self):
         resume = self.model.aggregates[0]
@@ -176,15 +177,13 @@ class TestParseYaml(unittest.TestCase):
         )
         self.assertEqual(resume_id_field.type_name, 'ResumeId')
 
-    def test_entity_field_dispatch_kind(self):
+    def test_entity_field_type_ref(self):
         resume = self.model.aggregates[0]
         experience_field = next(
             f for f in resume.fields if f.param_name == 'experience'
         )
-        self.assertEqual(
-            experience_field.dispatch_kind,
-            DispatchKind.COLLECTION_ENTITY,
-        )
+        self.assertIsInstance(experience_field.type_ref, CollectionType)
+        self.assertIsInstance(experience_field.type_ref.element, EntityRef)
         self.assertTrue(experience_field.is_collection)
 
     def test_entity_imported_vo(self):

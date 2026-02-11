@@ -1,12 +1,13 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dataclass_replace
 
 import inflection
 from jinja2 import ChoiceLoader, Environment, FileSystemLoader
 
-from ascetic_ddd.cli.scaffold.model import DispatchKind, FieldDef, VoKind
-from ascetic_ddd.cli.scaffold.naming import camel_to_snake, is_primitive_type
-from ascetic_ddd.cli.scaffold.parser import vo_primitive_type
+from ascetic_ddd.cli.scaffold.model import (
+    CollectionType, EntityRef, FieldDef, PrimitiveType, VoKind, VoRef,
+)
+from ascetic_ddd.cli.scaffold.naming import camel_to_snake
 
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
@@ -55,7 +56,6 @@ class _AggregateContext:
     agg_dir: str
     values_dir: str
     events_dir: str
-    vo_map: dict
     used_vos: list
     fields: list
     collection_fields: list
@@ -82,6 +82,7 @@ class RenderWalker:
     def _visit_aggregate(self, agg, model):
         ctx = self._make_aggregate_context(agg)
         self._visit_value_objects(ctx)
+        self._visit_entities(ctx)
         self._visit_aggregate_module(ctx)
         self._visit_domain_events(ctx)
         self._visit_commands(ctx, model)
@@ -89,7 +90,7 @@ class RenderWalker:
     def _visit_value_objects(self, ctx):
         for vo in ctx.agg.value_objects:
             if not vo.import_path:
-                self._visit_value_object(vo, ctx)
+                self._visit_value_object(vo, ctx.values_dir, ctx.pkg)
 
         self._render_template(
             'domain/values/__init__.py.j2',
@@ -98,24 +99,23 @@ class RenderWalker:
             package_prefix=ctx.pkg,
         )
 
-    def _visit_value_object(self, vo, ctx):
+    def _visit_value_object(self, vo, values_dir, pkg):
         self._render_template(
             VO_TEMPLATE_MAP[vo.kind],
-            os.path.join(ctx.values_dir, '%s.py' % vo.snake_name),
+            os.path.join(values_dir, '%s.py' % vo.snake_name),
             vo=vo,
-            primitive_type=vo_primitive_type(vo),
+            primitive_type=vo.primitive_type,
         )
 
         if vo.kind == VoKind.COMPOSITE:
-            self._visit_composite_vo_exporter(vo, ctx)
-
-    def _visit_composite_vo_exporter(self, vo, ctx):
-        self._render_template(
-            'domain/values/composite_vo_exporter.py.j2',
-            os.path.join(ctx.values_dir, '%s_exporter.py' % vo.snake_name),
-            vo=vo,
-            package_prefix=ctx.pkg,
-        )
+            self._render_template(
+                'domain/values/composite_vo_exporter.py.j2',
+                os.path.join(
+                    values_dir, '%s_exporter.py' % vo.snake_name,
+                ),
+                vo=vo,
+                package_prefix=pkg,
+            )
 
     def _visit_aggregate_module(self, ctx):
         agg = ctx.agg
@@ -130,6 +130,7 @@ class RenderWalker:
             used_vos=ctx.used_vos,
             package_prefix=ctx.pkg,
             needs_datetime=ctx.needs_datetime,
+            entities=agg.entities,
         )
 
         # aggregate_exporter.py
@@ -141,12 +142,11 @@ class RenderWalker:
             collection_fields=ctx.collection_fields,
             used_vos=ctx.used_vos,
             package_prefix=ctx.pkg,
+            entities=agg.entities,
         )
 
         # aggregate_reconstitutor.py
-        reconstitutor_params = _build_reconstitutor_params(
-            ctx.fields, agg.value_objects,
-        )
+        reconstitutor_params = _build_reconstitutor_params(ctx.fields)
         self._render_template(
             'domain/aggregate_reconstitutor.py.j2',
             os.path.join(ctx.agg_dir, '%s_reconstitutor.py' % agg.snake_name),
@@ -156,6 +156,7 @@ class RenderWalker:
             used_vos=ctx.used_vos,
             package_prefix=ctx.pkg,
             needs_datetime=ctx.needs_datetime,
+            entities=agg.entities,
         )
 
         # __init__.py
@@ -174,7 +175,7 @@ class RenderWalker:
         )
 
     def _visit_domain_event(self, event, ctx):
-        ev_used_vos = _collect_used_vos(event.fields, ctx.vo_map)
+        ev_used_vos = _collect_used_vos(event.fields)
         ev_collection_fields = [f for f in event.fields if f.is_collection]
 
         self._render_template(
@@ -248,7 +249,99 @@ class RenderWalker:
             commands_package=cmds_pkg,
         )
 
+    def _visit_entities(self, ctx):
+        for entity in ctx.agg.entities:
+            self._visit_entity(entity, ctx.agg_dir)
+
+    def _visit_entity(self, entity, parent_dir):
+        entity_dir = os.path.join(parent_dir, entity.snake_name)
+        entity_values_dir = os.path.join(entity_dir, 'values')
+        os.makedirs(entity_values_dir, exist_ok=True)
+
+        entity_pkg = self._dir_to_pkg(entity_dir)
+
+        # Build vo_map from referenced parent VOs + entity's own VOs
+        domain_pkg = self._dir_to_pkg(
+            os.path.join(self._output_dir, 'domain'),
+        )
+        vo_map = {}
+        for vo in entity.referenced_vos:
+            if vo.import_path.startswith('.'):
+                resolved = domain_pkg + vo.import_path
+                vo_map[vo.class_name] = dataclass_replace(
+                    vo, import_path=resolved,
+                )
+            else:
+                vo_map[vo.class_name] = vo
+        vo_map.update({vo.class_name: vo for vo in entity.value_objects})
+
+        # Generate entity VOs
+        for vo in entity.value_objects:
+            if not vo.import_path:
+                self._visit_value_object(vo, entity_values_dir, entity_pkg)
+        self._render_template(
+            'domain/values/__init__.py.j2',
+            os.path.join(entity_values_dir, '__init__.py'),
+            value_objects=entity.value_objects,
+            package_prefix=entity_pkg,
+        )
+
+        # Generate entity class, exporter, reconstitutor
+        fields = entity.fields
+        used_vos = _collect_used_vos(fields, vo_map)
+        collection_fields = [f for f in fields if f.is_collection]
+        reconstitutor_params = _build_reconstitutor_params(fields)
+
+        self._render_template(
+            'domain/entity.py.j2',
+            os.path.join(entity_dir, '%s.py' % entity.snake_name),
+            entity=entity,
+            fields=fields,
+            used_vos=used_vos,
+            package_prefix=entity_pkg,
+            needs_datetime=_needs_datetime(fields),
+        )
+        self._render_template(
+            'domain/entity_exporter.py.j2',
+            os.path.join(
+                entity_dir, '%s_exporter.py' % entity.snake_name,
+            ),
+            entity=entity,
+            fields=fields,
+            collection_fields=collection_fields,
+            used_vos=used_vos,
+            package_prefix=entity_pkg,
+        )
+        self._render_template(
+            'domain/entity_reconstitutor.py.j2',
+            os.path.join(
+                entity_dir, '%s_reconstitutor.py' % entity.snake_name,
+            ),
+            entity=entity,
+            fields=fields,
+            reconstitutor_params=reconstitutor_params,
+            used_vos=used_vos,
+            package_prefix=entity_pkg,
+            needs_datetime=_needs_datetime(fields),
+        )
+        self._render_template(
+            'domain/__init__.py.j2',
+            os.path.join(entity_dir, '__init__.py'),
+        )
+
+        # Recurse into nested entities
+        for nested in entity.entities:
+            self._visit_entity(nested, entity_dir)
+
     # --- helpers ---
+
+    def _dir_to_pkg(self, dir_path):
+        """Derive Python import package from filesystem directory path."""
+        rel = os.path.relpath(dir_path, self._output_dir)
+        pkg = rel.replace(os.sep, '.')
+        if self._package_name:
+            return '%s.%s' % (self._package_name, pkg)
+        return pkg
 
     def _make_aggregate_context(self, agg):
         agg_dir = os.path.join(self._output_dir, 'domain', agg.snake_name)
@@ -258,12 +351,7 @@ class RenderWalker:
         for d in (agg_dir, values_dir, events_dir):
             os.makedirs(d, exist_ok=True)
 
-        if self._package_name:
-            pkg = '%s.domain.%s' % (self._package_name, agg.snake_name)
-        else:
-            pkg = 'domain.%s' % agg.snake_name
-
-        vo_map = {vo.class_name: vo for vo in agg.value_objects}
+        pkg = self._dir_to_pkg(agg_dir)
         fields = agg.fields
 
         return _AggregateContext(
@@ -272,8 +360,7 @@ class RenderWalker:
             agg_dir=agg_dir,
             values_dir=values_dir,
             events_dir=events_dir,
-            vo_map=vo_map,
-            used_vos=_collect_used_vos(fields, vo_map),
+            used_vos=_collect_used_vos(fields),
             fields=fields,
             collection_fields=[f for f in fields if f.is_collection],
             needs_datetime=_needs_datetime(fields),
@@ -300,17 +387,24 @@ def render_bounded_context(model, output_dir, package_name=None,
 # --- Shared helpers ---
 
 
-def _collect_used_vos(fields, vo_map):
-    """Return deduplicated, sorted list of VOs referenced by fields."""
+def _collect_used_vos(fields, vo_map=None):
+    """Return deduplicated, sorted list of VOs referenced by fields.
+
+    When vo_map is provided (entity context with parent VOs), it is
+    used to prefer resolved copies with correct import_path.
+    """
     seen = set()
     result = []
     for f in fields:
-        effective = f.inner_type if f.is_collection else f.type_name
-        if not is_primitive_type(effective) and effective not in seen:
-            seen.add(effective)
-            vo = vo_map.get(effective)
-            if vo:
-                result.append(vo)
+        type_ref = f.type_ref
+        if isinstance(type_ref, CollectionType):
+            type_ref = type_ref.element
+        if isinstance(type_ref, VoRef) and type_ref.vo.class_name not in seen:
+            name = type_ref.vo.class_name
+            seen.add(name)
+            # Prefer vo_map version (has resolved import_path in entity context)
+            vo = vo_map.get(name, type_ref.vo) if vo_map else type_ref.vo
+            result.append(vo)
     return sorted(result, key=lambda vo: vo.class_name)
 
 
@@ -321,36 +415,13 @@ def _needs_datetime(fields):
     return False
 
 
-def _build_reconstitutor_params(fields, value_objects):
+def _build_reconstitutor_params(fields):
     """Build parameter list for reconstitutor __init__ with primitive types."""
-    vo_map = {vo.class_name: vo for vo in value_objects}
     params = []
     for f in fields:
-        prim_type = _field_to_primitive(f, vo_map)
         params.append(FieldDef(
             name=f.param_name,
             param_name=f.param_name,
-            type_name=prim_type,
-            is_primitive=True,
+            type_ref=PrimitiveType(f.type_ref.primitive_type),
         ))
     return params
-
-
-def _field_to_primitive(field_def, vo_map):
-    """Map field type to primitive for reconstitutor constructor."""
-    if field_def.is_primitive:
-        return field_def.type_name
-
-    # Entity fields map to list/dict
-    if field_def.dispatch_kind == DispatchKind.COLLECTION_ENTITY:
-        return 'list'
-    if field_def.dispatch_kind == DispatchKind.ENTITY:
-        return 'dict'
-
-    effective = field_def.inner_type if field_def.is_collection else field_def.type_name
-    vo = vo_map.get(effective)
-    prim = vo_primitive_type(vo) if vo else 'str'
-
-    if field_def.is_collection:
-        return '%s[%s]' % (field_def.collection_kind.value, prim)
-    return prim

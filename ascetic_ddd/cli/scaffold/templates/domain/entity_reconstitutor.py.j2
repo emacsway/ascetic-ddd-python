@@ -1,0 +1,26 @@
+{% if needs_datetime %}
+from datetime import datetime
+{% endif %}
+
+{% from "_macros.j2" import vo_imports %}
+{% from "_field_macros.j2" import reconstitutor_method %}
+{{ vo_imports(used_vos, package_prefix) }}
+from {{ package_prefix }}.{{ entity.snake_name }} import I{{ entity.class_name }}Reconstitutor
+
+
+class {{ entity.class_name }}Reconstitutor(I{{ entity.class_name }}Reconstitutor):
+    def __init__(
+        self,
+{% for f in reconstitutor_params %}
+        {{ f.param_name }},
+{% endfor %}
+    ) -> None:
+        self._data = {
+{% for f in reconstitutor_params %}
+            '{{ f.param_name }}': {{ f.param_name }},
+{% endfor %}
+        }
+{% for f in fields %}
+
+{{ reconstitutor_method(f) }}
+{% endfor %}

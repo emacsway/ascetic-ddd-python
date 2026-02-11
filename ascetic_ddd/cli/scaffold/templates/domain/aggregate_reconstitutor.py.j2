@@ -4,7 +4,11 @@ from datetime import datetime
 
 from ascetic_ddd.seedwork.domain.aggregate import VersionedAggregateReconstitutor
 {% from "_macros.j2" import vo_imports %}
+{% from "_field_macros.j2" import reconstitutor_method %}
 {{ vo_imports(used_vos, package_prefix) }}
+{% for ent in entities %}
+from {{ package_prefix }}.{{ ent.snake_name }}.{{ ent.snake_name }}_reconstitutor import {{ ent.class_name }}Reconstitutor
+{% endfor %}
 from {{ package_prefix }}.{{ agg.snake_name }} import I{{ agg.class_name }}Reconstitutor
 
 
@@ -25,21 +29,5 @@ class {{ agg.class_name }}Reconstitutor(VersionedAggregateReconstitutor, I{{ agg
         })
 {% for f in fields %}
 
-{% if f.dispatch_kind == 'primitive' %}
-    def {{ f.param_name }}(self):
-        return self._data['{{ f.param_name }}']
-{% elif f.dispatch_kind == 'simple_vo' %}
-    def {{ f.param_name }}(self):
-        return {{ f.type_name }}(self._data['{{ f.param_name }}'])
-{% elif f.dispatch_kind == 'composite_vo' %}
-    def {{ f.param_name }}(self):
-        data = self._data['{{ f.param_name }}']
-        return {{ f.type_name }}(**data)  # TODO: adjust composite reconstruction
-{% elif f.dispatch_kind == 'collection_simple_vo' %}
-    def {{ f.param_name }}(self):
-        return [{{ f.inner_type }}(i) for i in self._data['{{ f.param_name }}']]
-{% elif f.dispatch_kind == 'collection_composite_vo' %}
-    def {{ f.param_name }}(self):
-        return [{{ f.inner_type }}(**i) for i in self._data['{{ f.param_name }}']]  # TODO: adjust
-{% endif %}
+{{ reconstitutor_method(f) }}
 {% endfor %}

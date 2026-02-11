@@ -1,0 +1,79 @@
+{# Shared macros for field dispatch in exporters and reconstitutors. #}
+
+{% macro exporter_method(f) %}
+{% if f.is_collection %}
+    def add_{{ f.param_name | singularize }}(self, value) -> None:
+{% else %}
+    def set_{{ f.param_name }}(self, value) -> None:
+{% endif %}
+{% if f.is_entity or f.is_composite_vo %}
+        exporter = {{ f.inner_type if f.is_collection else f.type_name }}Exporter()
+        value.export(exporter)
+{% if f.is_collection %}
+        self.data['{{ f.param_name }}'].append(exporter.data)
+{% else %}
+        self.data['{{ f.param_name }}'] = exporter.data
+{% endif %}
+{% elif f.is_primitive %}
+{% if f.is_collection %}
+        self.data['{{ f.param_name }}'].append(value)
+{% else %}
+        self.data['{{ f.param_name }}'] = value
+{% endif %}
+{% else %}
+{% if f.is_collection %}
+        value.export(lambda val: self.data['{{ f.param_name }}'].append(val))
+{% else %}
+        value.export(lambda val: self.data.update({'{{ f.param_name }}': val}))
+{% endif %}
+{% endif %}
+{% endmacro %}
+
+{% macro reconstitutor_method(f) %}
+{% if f.is_entity %}
+{% if f.is_collection %}
+    def {{ f.param_name }}(self):
+        return [{{ f.inner_type }}Reconstitutor(**d) for d in self._data['{{ f.param_name }}']]
+{% else %}
+    def {{ f.param_name }}(self):
+        return {{ f.type_name }}Reconstitutor(**self._data['{{ f.param_name }}'])
+{% endif %}
+{% elif f.is_composite_vo %}
+{% if f.is_collection %}
+    def {{ f.param_name }}(self):
+        return [{{ f.inner_type }}(**i) for i in self._data['{{ f.param_name }}']]  # TODO: adjust
+{% else %}
+    def {{ f.param_name }}(self):
+        data = self._data['{{ f.param_name }}']
+        return {{ f.type_name }}(**data)  # TODO: adjust composite reconstruction
+{% endif %}
+{% elif f.is_primitive %}
+    def {{ f.param_name }}(self):
+        return self._data['{{ f.param_name }}']
+{% else %}
+{% if f.is_collection %}
+    def {{ f.param_name }}(self):
+        return [{{ f.inner_type }}(i) for i in self._data['{{ f.param_name }}']]
+{% else %}
+    def {{ f.param_name }}(self):
+        return {{ f.type_name }}(self._data['{{ f.param_name }}'])
+{% endif %}
+{% endif %}
+{% endmacro %}
+
+{% macro export_field(f) %}
+{% if f.is_collection %}
+        for item in self.{{ f.name }}:
+            exporter.add_{{ f.param_name | singularize }}(item)
+{% else %}
+        exporter.set_{{ f.param_name }}(self.{{ f.name }})
+{% endif %}
+{% endmacro %}
+
+{% macro import_field(f) %}
+{% if f.is_collection %}
+        self.{{ f.name }} = {{ f.collection_kind }}(provider.{{ f.param_name }}())
+{% else %}
+        self.{{ f.name }} = provider.{{ f.param_name }}()
+{% endif %}
+{% endmacro %}

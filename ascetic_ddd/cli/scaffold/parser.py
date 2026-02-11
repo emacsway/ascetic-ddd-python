@@ -1,3 +1,5 @@
+from dataclasses import replace as dataclass_replace
+
 import yaml
 
 from ascetic_ddd.cli.scaffold.naming import (
@@ -11,32 +13,18 @@ from ascetic_ddd.cli.scaffold.naming import (
 from ascetic_ddd.cli.scaffold.model import (
     AggregateDef,
     BoundedContextModel,
-    CollectionKind,
+    CollectionType,
     CommandDef,
     ConstraintsDef,
-    DispatchKind,
     DomainEventDef,
     EntityDef,
+    EntityRef,
     FieldDef,
+    PrimitiveType,
     ValueObjectDef,
     VoKind,
+    VoRef,
 )
-
-
-def vo_primitive_type(vo):
-    """Return the primitive type string for a VO.
-
-    Pure utility — used by both ModelParser and RenderWalker.
-    """
-    if vo.kind == VoKind.IDENTITY:
-        return vo.base_type
-    if vo.kind == VoKind.ENUM:
-        return 'str'
-    if vo.kind == VoKind.COMPOSITE:
-        return 'dict'
-    if vo.base_type and is_primitive_type(vo.base_type):
-        return vo.base_type
-    return 'str'
 
 
 class ModelParser:
@@ -249,7 +237,9 @@ class ModelParser:
             self._vo_map[vo_name] = vo
 
         # Entity fields: may contain import path references
-        fields = self._parse_entity_fields(ent_data.get('fields', {}))
+        fields, referenced_vos = self._parse_entity_fields(
+            ent_data.get('fields', {}),
+        )
 
         # Nested entities (recursive)
         nested_entities = []
@@ -268,11 +258,17 @@ class ModelParser:
             fields=fields,
             value_objects=entity_vos,
             entities=nested_entities,
+            referenced_vos=referenced_vos,
         )
 
     def _parse_entity_fields(self, fields_data):
-        """Parse entity fields. Handles import path references in types."""
+        """Parse entity fields. Handles import path references in types.
+
+        Returns (fields, referenced_vos) where referenced_vos are
+        parent VO copies with import_path set.
+        """
         result = []
+        referenced_vos = []
         for field_name, field_type in fields_data.items():
             field_type_str = str(field_type)
             param = strip_underscore_prefix(field_name)
@@ -282,71 +278,41 @@ class ModelParser:
                 class_name = field_type_str.rsplit('.', 1)[1]
                 pkg_path = field_type_str.rsplit('.', 1)[0]
                 import_path = '%s.%s' % (pkg_path, camel_to_snake(class_name))
-                # Register as synthetic imported VO if not already known
                 if class_name not in self._vo_map:
-                    self._vo_map[class_name] = ValueObjectDef(
+                    # Unknown VO — register as synthetic imported VO
+                    vo = ValueObjectDef(
                         class_name=class_name,
                         snake_name=camel_to_snake(class_name),
                         kind=VoKind.SIMPLE,
                         import_path=import_path,
                     )
+                    self._vo_map[class_name] = vo
+                else:
+                    # Known parent VO — create copy with import_path
+                    existing = self._vo_map[class_name]
+                    referenced_vos.append(dataclass_replace(
+                        existing, import_path=import_path,
+                    ))
                 field_type_str = class_name
 
-            is_coll = is_collection_type(field_type_str)
-
-            inner = ''
-            coll_kind = CollectionKind.NONE
-            if is_coll:
-                inner = extract_inner_type(field_type_str)
-                coll_kind = collection_kind(field_type_str)
-
-            effective_type = inner if is_coll else field_type_str
-            is_prim = is_primitive_type(effective_type)
-
-            dispatch = self._compute_dispatch_kind(
-                effective_type, is_coll, is_prim,
-            )
-
+            type_ref = self._resolve_type(field_type_str)
             result.append(FieldDef(
                 name=field_name,
                 param_name=param,
-                type_name=field_type_str,
-                collection_kind=coll_kind,
-                inner_type=inner,
-                is_primitive=is_prim,
-                dispatch_kind=dispatch,
+                type_ref=type_ref,
             ))
-        return result
+        return result, referenced_vos
 
     def _parse_fields(self, fields_data):
         result = []
         for field_name, field_type in fields_data.items():
             field_type_str = str(field_type)
             param = strip_underscore_prefix(field_name)
-            is_coll = is_collection_type(field_type_str)
-
-            inner = ''
-            coll_kind = CollectionKind.NONE
-            if is_coll:
-                inner = extract_inner_type(field_type_str)
-                coll_kind = collection_kind(field_type_str)
-
-            # Determine the effective type for dispatch
-            effective_type = inner if is_coll else field_type_str
-            is_prim = is_primitive_type(effective_type)
-
-            dispatch = self._compute_dispatch_kind(
-                effective_type, is_coll, is_prim,
-            )
-
+            type_ref = self._resolve_type(field_type_str)
             result.append(FieldDef(
                 name=field_name,
                 param_name=param,
-                type_name=field_type_str,
-                collection_kind=coll_kind,
-                inner_type=inner,
-                is_primitive=is_prim,
-                dispatch_kind=dispatch,
+                type_ref=type_ref,
             ))
         return result
 
@@ -364,6 +330,30 @@ class ModelParser:
             return ()
         return tuple(data)
 
+    # --- type resolution ---
+
+    def _resolve_type(self, type_str):
+        """Resolve a type string to a TypeRef."""
+        if is_collection_type(type_str):
+            inner_str = extract_inner_type(type_str)
+            kind = collection_kind(type_str)
+            element = self._resolve_element_type(inner_str)
+            return CollectionType(kind=kind, element=element)
+        return self._resolve_element_type(type_str)
+
+    def _resolve_element_type(self, type_str):
+        """Resolve a non-collection type string to a TypeRef."""
+        if is_primitive_type(type_str):
+            return PrimitiveType(name=type_str)
+        entity = self._entity_map.get(type_str)
+        if entity:
+            return EntityRef(entity=entity)
+        vo = self._vo_map.get(type_str)
+        if vo:
+            return VoRef(vo=vo)
+        # Unknown type — treat as primitive
+        return PrimitiveType(name=type_str)
+
     # --- semantic analysis ---
 
     def _classify_vo(self, vo_data):
@@ -376,28 +366,6 @@ class ModelParser:
             return VoKind.COMPOSITE
         # Default: string-like VO
         return VoKind.SIMPLE
-
-    def _compute_dispatch_kind(self, effective_type, is_collection, is_primitive):
-        if is_primitive:
-            return DispatchKind.PRIMITIVE
-
-        # Check entities first
-        if effective_type in self._entity_map:
-            if is_collection:
-                return DispatchKind.COLLECTION_ENTITY
-            return DispatchKind.ENTITY
-
-        vo = self._vo_map.get(effective_type)
-        is_composite = vo and vo.kind == VoKind.COMPOSITE
-
-        if is_collection:
-            if is_composite:
-                return DispatchKind.COLLECTION_COMPOSITE_VO
-            return DispatchKind.COLLECTION_SIMPLE_VO
-
-        if is_composite:
-            return DispatchKind.COMPOSITE_VO
-        return DispatchKind.SIMPLE_VO
 
     def _derive_commands(self, events):
         commands = []
@@ -413,15 +381,11 @@ class ModelParser:
 
             cmd_fields = []
             for ef in event.fields:
-                prim_type = self._field_to_primitive(ef)
+                cmd_type = PrimitiveType(name=ef.type_ref.primitive_type)
                 cmd_fields.append(FieldDef(
                     name=ef.param_name,
                     param_name=ef.param_name,
-                    type_name=prim_type,
-                    collection_kind=ef.collection_kind,
-                    inner_type=self._primitive_inner_type(ef) if ef.is_collection else '',
-                    is_primitive=True,
-                    dispatch_kind=DispatchKind.PRIMITIVE,
+                    type_ref=cmd_type,
                 ))
 
             commands.append(CommandDef(
@@ -431,31 +395,6 @@ class ModelParser:
                 command_version=event.event_version,
             ))
         return commands
-
-    def _field_to_primitive(self, field_def):
-        """Map a VO field type to its primitive equivalent for commands."""
-        if field_def.is_primitive:
-            return field_def.type_name
-
-        # Entity fields map to list/dict
-        if field_def.dispatch_kind == DispatchKind.COLLECTION_ENTITY:
-            return 'list'
-        if field_def.dispatch_kind == DispatchKind.ENTITY:
-            return 'dict'
-
-        effective = field_def.inner_type if field_def.is_collection else field_def.type_name
-        vo = self._vo_map.get(effective)
-        prim = vo_primitive_type(vo) if vo else 'str'
-
-        if field_def.is_collection:
-            return '%s[%s]' % (field_def.collection_kind.value, prim)
-        return prim
-
-    def _primitive_inner_type(self, field_def):
-        vo = self._vo_map.get(field_def.inner_type)
-        if vo:
-            return vo_primitive_type(vo)
-        return 'str'
 
 
 # --- Public facade ---

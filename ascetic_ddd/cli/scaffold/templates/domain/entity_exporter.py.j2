@@ -1,0 +1,16 @@
+{% from "_macros.j2" import vo_imports %}
+{% from "_field_macros.j2" import exporter_method %}
+{{ vo_imports(used_vos, package_prefix, with_exporters=true) }}
+from {{ package_prefix }}.{{ entity.snake_name }} import I{{ entity.class_name }}Exporter
+
+
+class {{ entity.class_name }}Exporter(I{{ entity.class_name }}Exporter):
+    def __init__(self) -> None:
+        self.data = {}
+{% for f in fields if f.is_collection %}
+        self.data['{{ f.param_name }}'] = []
+{% endfor %}
+{% for f in fields %}
+
+{{ exporter_method(f) }}
+{% endfor %}
