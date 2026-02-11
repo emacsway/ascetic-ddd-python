@@ -24,6 +24,15 @@ dependencies = [
     "faker (>=40.1.2,<41.0.0)"
 ]
 
+[project.optional-dependencies]
+cli = [
+    "jinja2 (>=3.1.0,<4.0.0)",
+    "pyyaml (>=6.0.0,<7.0.0)",
+]
+
+[project.scripts]
+ascetic-ddd = "ascetic_ddd.cli.__main__:main"
+
 [dependency-groups]
 dev = [
     "sqlalchemy (>=2.0.45,<3.0.0)"

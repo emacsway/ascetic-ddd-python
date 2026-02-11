@@ -1,0 +1,15 @@
+from dataclasses import dataclass
+{% if needs_datetime %}
+from datetime import datetime
+{% endif %}
+{% if needs_decimal %}
+from decimal import Decimal
+{% endif %}
+
+
+@dataclass(frozen=True, kw_only=True)
+class {{ cmd.class_name }}Command:
+{% for f in cmd.fields %}
+    {{ f.param_name }}: {{ f.type_name }}
+{% endfor %}
+    command_version: int = {{ cmd.command_version }}

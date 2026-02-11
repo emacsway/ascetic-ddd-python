@@ -1,0 +1,8 @@
+import typing
+
+from {{ commands_package }}.{{ cmd.snake_name }}_command import {{ cmd.class_name }}Command
+
+
+class {{ cmd.class_name }}CommandHandler:
+    async def __call__(self, command: {{ cmd.class_name }}Command) -> typing.Any:
+        raise NotImplementedError  # TODO: implement

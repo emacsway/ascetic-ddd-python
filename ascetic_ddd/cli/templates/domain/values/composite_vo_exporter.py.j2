@@ -1,0 +1,23 @@
+{% for imp in imports %}
+{{ imp }}
+{% endfor %}
+
+
+class {{ vo.class_name }}Exporter(I{{ vo.class_name }}Exporter):
+    def __init__(self):
+        self.data = {}
+{% for f in vo.fields %}
+
+{% if f.dispatch_kind == 'primitive' %}
+    def set_{{ f.param_name }}(self, value) -> None:
+        self.data['{{ f.param_name }}'] = value
+{% elif f.dispatch_kind == 'composite_vo' %}
+    def set_{{ f.param_name }}(self, value) -> None:
+        exporter = {{ f.type_name }}Exporter()
+        value.export(exporter)
+        self.data['{{ f.param_name }}'] = exporter.data
+{% else %}
+    def set_{{ f.param_name }}(self, value) -> None:
+        value.export(lambda val: self.data.update({'{{ f.param_name }}': val}))
+{% endif %}
+{% endfor %}

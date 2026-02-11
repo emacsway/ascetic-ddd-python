@@ -1,0 +1,24 @@
+{% for imp in imports %}
+{{ imp }}
+{% endfor %}
+from abc import ABCMeta, abstractmethod
+
+
+class I{{ vo.class_name }}Exporter(metaclass=ABCMeta):
+{% for f in vo.fields %}
+    @abstractmethod
+    def set_{{ f.param_name }}(self, value) -> None:
+        raise NotImplementedError
+{% endfor %}
+
+
+class {{ vo.class_name }}:
+    def __init__(self{% for f in vo.fields %}, {{ f.param_name }}{% endfor %}) -> None:
+{% for f in vo.fields %}
+        self.{{ f.name }} = {{ f.param_name }}
+{% endfor %}
+
+    def export(self, exporter: "I{{ vo.class_name }}Exporter") -> None:
+{% for f in vo.fields %}
+        exporter.set_{{ f.param_name }}(self.{{ f.name }})
+{% endfor %}

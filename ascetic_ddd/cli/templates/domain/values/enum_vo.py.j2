@@ -1,0 +1,11 @@
+import typing
+from enum import Enum
+
+
+class {{ vo.class_name }}(str, Enum):
+{% for member_name, member_value in vo.enum_values.items() %}
+    {{ member_name }} = "{{ member_value }}"
+{% endfor %}
+
+    def export(self, setter: typing.Callable[[str], None]) -> None:
+        setter(self.value)

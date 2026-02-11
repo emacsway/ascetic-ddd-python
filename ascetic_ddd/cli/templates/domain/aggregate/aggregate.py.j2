@@ -1,0 +1,91 @@
+import dataclasses
+import typing
+{% if needs_datetime %}
+from datetime import datetime
+{% endif %}
+from abc import ABCMeta, abstractmethod
+
+from ascetic_ddd.seedwork.domain.aggregate import (
+    EventiveEntity,
+    PersistentDomainEvent,
+    VersionedAggregate,
+    IVersionedAggregateExporter,
+    IVersionedAggregateReconstitutor,
+)
+{% for imp in imports %}
+{{ imp }}
+{% endfor %}
+
+
+class I{{ agg.class_name }}Exporter(IVersionedAggregateExporter, metaclass=ABCMeta):
+{% for f in fields %}
+{% if f.is_collection %}
+    @abstractmethod
+    def add_{{ f.param_name | singularize }}(self, value) -> None:
+        raise NotImplementedError
+{% else %}
+    @abstractmethod
+    def set_{{ f.param_name }}(self, value) -> None:
+        raise NotImplementedError
+{% endif %}
+{% endfor %}
+
+
+class I{{ agg.class_name }}Reconstitutor(IVersionedAggregateReconstitutor, metaclass=ABCMeta):
+{% for f in fields %}
+    @abstractmethod
+    def {{ f.param_name }}(self):
+        raise NotImplementedError
+{% endfor %}
+
+
+class {{ agg.class_name }}(EventiveEntity[PersistentDomainEvent], VersionedAggregate):
+{% for f in fields %}
+    {{ f.name }}: {{ f.type_name }}
+{% endfor %}
+
+    def __init__(
+        self,
+{% for f in fields %}
+        {{ f.param_name }},
+{% endfor %}
+        **kwargs,
+    ) -> None:
+{% for f in fields %}
+{% if f.param_name == 'id' %}
+        assert isinstance({{ f.param_name }}, {{ f.type_name if not f.is_collection else f.inner_type }})
+{% endif %}
+{% endfor %}
+        super().__init__(**kwargs)
+{% for f in fields %}
+        self.{{ f.name }} = {{ f.param_name }}
+{% endfor %}
+
+    def _add_domain_event(self, event: PersistentDomainEvent) -> None:
+        event = dataclasses.replace(event, aggregate_version=self.next_version())
+        super()._add_domain_event(event)
+
+    def export(self, exporter: "I{{ agg.class_name }}Exporter") -> None:
+        super().export(exporter)
+{% for f in fields %}
+{% if f.is_collection %}
+        for item in self.{{ f.name }}:
+            exporter.add_{{ f.param_name | singularize }}(item)
+{% else %}
+        exporter.set_{{ f.param_name }}(self.{{ f.name }})
+{% endif %}
+{% endfor %}
+
+    def _import(self, provider: "I{{ agg.class_name }}Reconstitutor") -> None:
+        super()._import(provider)
+{% for f in fields %}
+{% if f.is_collection %}
+        self.{{ f.name }} = {{ f.collection_kind }}(provider.{{ f.param_name }}())
+{% else %}
+        self.{{ f.name }} = provider.{{ f.param_name }}()
+{% endif %}
+{% endfor %}
+
+    @classmethod
+    def reconstitute(cls, reconstitutor: "I{{ agg.class_name }}Reconstitutor") -> typing.Self:
+        return super().reconstitute(reconstitutor)

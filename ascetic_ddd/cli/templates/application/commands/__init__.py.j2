@@ -1,0 +1,4 @@
+{% for cmd in commands %}
+from {{ commands_package }}.{{ cmd.snake_name }}_command import {{ cmd.class_name }}Command
+from {{ commands_package }}.{{ cmd.snake_name }}_command_handler import {{ cmd.class_name }}CommandHandler
+{% endfor %}

@@ -1,0 +1,12 @@
+from ascetic_ddd.seedwork.domain.identity import {{ vo.identity_base_class }}
+
+
+class {{ vo.class_name }}({{ vo.identity_base_class }}):
+{% if vo.constraints.required %}
+    def __init__(self, value):
+        if value is None:
+            raise ValueError("Type of {{ vo.identity_base_class }} value should not be empty")
+        super().__init__(value)
+{% else %}
+    pass
+{% endif %}
