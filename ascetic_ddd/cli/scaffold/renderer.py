@@ -124,7 +124,7 @@ class RenderWalker:
 
         # aggregate.py
         self._render_template(
-            'domain/aggregate/aggregate.py.j2',
+            'domain/aggregate.py.j2',
             os.path.join(ctx.agg_dir, '%s.py' % agg.snake_name),
             agg=agg,
             fields=ctx.fields,
@@ -136,7 +136,7 @@ class RenderWalker:
 
         # aggregate_exporter.py
         self._render_template(
-            'domain/aggregate/aggregate_exporter.py.j2',
+            'domain/aggregate_exporter.py.j2',
             os.path.join(ctx.agg_dir, '%s_exporter.py' % agg.snake_name),
             agg=agg,
             fields=ctx.fields,
@@ -150,7 +150,7 @@ class RenderWalker:
             ctx.fields, agg.value_objects,
         )
         self._render_template(
-            'domain/aggregate/aggregate_reconstitutor.py.j2',
+            'domain/aggregate_reconstitutor.py.j2',
             os.path.join(ctx.agg_dir, '%s_reconstitutor.py' % agg.snake_name),
             agg=agg,
             fields=ctx.fields,
@@ -162,7 +162,7 @@ class RenderWalker:
 
         # __init__.py
         self._render_template(
-            'domain/aggregate/__init__.py.j2',
+            'domain/__init__.py.j2',
             os.path.join(ctx.agg_dir, '__init__.py'),
         )
 

@@ -712,22 +712,22 @@ Walk order:
 
 ```
 BoundedContextModel
-└── AggregateDef              _visit_aggregate()
-    ├── ValueObjectDef        _visit_value_object()
-    │   └── [composite]       _visit_composite_vo_exporter()
+└── AggregateDef                _visit_aggregate()
+    ├── ValueObjectDef          _visit_value_object()
+    │   └── [composite]         _visit_composite_vo_exporter()
     ├── values/__init__
-    ├── aggregate module      _visit_aggregate_module()
-    │   ├── aggregate.py
-    │   ├── exporter.py
-    │   ├── reconstitutor.py
+    ├── _visit_aggregate_module()
+    │   ├── {agg}.py
+    │   ├── {agg}_exporter.py
+    │   ├── {agg}_reconstitutor.py
     │   └── __init__.py
-    ├── DomainEventDef        _visit_domain_event()
-    │   ├── event.py
-    │   └── event_exporter.py
+    ├── DomainEventDef          _visit_domain_event()
+    │   ├── {event}.py
+    │   └── {event}_exporter.py
     ├── events/__init__
-    └── CommandDef            _visit_command()
-        ├── command.py
-        └── command_handler.py
+    └── CommandDef              _visit_command()
+        ├── {cmd}_command.py
+        └── {cmd}_command_handler.py
 ```
 
 All rendering goes through `_render_template(tpl_name, path, **kwargs)` —
@@ -764,16 +764,16 @@ Pure functions for name transformations:
 
 | Path | Generates |
 |------|-----------|
+| `domain/aggregate.py.j2` | Aggregate root + interfaces |
+| `domain/aggregate_exporter.py.j2` | Aggregate exporter |
+| `domain/aggregate_reconstitutor.py.j2` | Aggregate reconstitutor |
+| `domain/__init__.py.j2` | Aggregate package |
 | `domain/values/identity_vo.py.j2` | Identity VO (extends `*Identity` base) |
 | `domain/values/string_vo.py.j2` | String VO with validation |
 | `domain/values/enum_vo.py.j2` | Enum VO (extends `str, Enum`) |
 | `domain/values/composite_vo.py.j2` | Composite VO with exporter interface |
 | `domain/values/composite_vo_exporter.py.j2` | Composite VO exporter |
 | `domain/values/__init__.py.j2` | Values package re-exports |
-| `domain/aggregate/aggregate.py.j2` | Aggregate root + interfaces |
-| `domain/aggregate/aggregate_exporter.py.j2` | Aggregate exporter |
-| `domain/aggregate/aggregate_reconstitutor.py.j2` | Aggregate reconstitutor |
-| `domain/aggregate/__init__.py.j2` | Aggregate package |
 | `domain/events/domain_event.py.j2` | Domain event + exporter interface |
 | `domain/events/domain_event_exporter.py.j2` | Event exporter |
 | `domain/events/__init__.py.j2` | Events package |
