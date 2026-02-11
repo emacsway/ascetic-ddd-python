@@ -164,11 +164,17 @@ class ModelParser:
     def _parse_value_object(self, vo_name, vo_data):
         self._validate_vo(vo_name, vo_data)
         kind = self._classify_vo(vo_data)
+        raw_import = vo_data.get('import', '')
+        if raw_import:
+            pkg, cls = raw_import.rsplit('.', 1)
+            import_path = '%s.%s' % (pkg, camel_to_snake(cls))
+        else:
+            import_path = ''
         common = dict(
             class_name=vo_name,
             snake_name=camel_to_snake(vo_name),
             reference=vo_data.get('reference', ''),
-            import_path=vo_data.get('import', ''),
+            import_path=import_path,
         )
 
         if kind == 'identity':
@@ -251,10 +257,7 @@ class ModelParser:
             entity_vos.append(vo)
             self._vo_map[vo_name] = vo
 
-        # Entity fields: may contain import path references
-        fields = self._parse_entity_fields(
-            ent_data.get('fields', {}),
-        )
+        fields = self._parse_fields(ent_data.get('fields', {}))
 
         # Nested entities (recursive)
         nested_entities = []
@@ -274,41 +277,6 @@ class ModelParser:
             value_objects=entity_vos,
             entities=nested_entities,
         )
-
-    def _parse_entity_fields(self, fields_data):
-        """Parse entity fields. Handles import path references in types."""
-        result = []
-        for field_name, field_type in fields_data.items():
-            field_type_str = str(field_type)
-            param = strip_underscore_prefix(field_name)
-
-            # Check for import path reference: .resume.values.ResumeId
-            if '.' in field_type_str:
-                class_name = field_type_str.rsplit('.', 1)[1]
-                pkg_path = field_type_str.rsplit('.', 1)[0]
-                import_path = '%s.%s' % (pkg_path, camel_to_snake(class_name))
-                if class_name not in self._vo_map:
-                    # Unknown VO — register as synthetic imported VO
-                    vo = SimpleVoDef(
-                        class_name=class_name,
-                        snake_name=camel_to_snake(class_name),
-                        import_path=import_path,
-                    )
-                else:
-                    # Known parent VO — copy with import_path
-                    vo = dataclass_replace(
-                        self._vo_map[class_name], import_path=import_path,
-                    )
-                self._vo_map[class_name] = vo
-                field_type_str = class_name
-
-            type_ref = self._resolve_type(field_type_str)
-            result.append(FieldDef(
-                name=field_name,
-                param_name=param,
-                type_ref=type_ref,
-            ))
-        return result
 
     def _parse_fields(self, fields_data):
         result = []
@@ -352,6 +320,8 @@ class ModelParser:
         """Resolve a non-collection type string to a TypeRef."""
         if is_primitive_type(type_str):
             return PrimitiveType(name=type_str)
+        if '.' in type_str:
+            type_str = self._resolve_import_ref(type_str)
         entity = self._entity_map.get(type_str)
         if entity:
             return EntityRef(entity=entity)
@@ -360,6 +330,28 @@ class ModelParser:
             return VoRef(vo=vo)
         # Unknown type — treat as primitive
         return PrimitiveType(name=type_str)
+
+    def _resolve_import_ref(self, type_str):
+        """Resolve dotted import reference, register VO in _vo_map.
+
+        Converts 'package.ClassName' to import_path 'package.class_name',
+        registers synthetic or updated VO, returns class_name.
+        """
+        class_name = type_str.rsplit('.', 1)[1]
+        pkg_path = type_str.rsplit('.', 1)[0]
+        import_path = '%s.%s' % (pkg_path, camel_to_snake(class_name))
+        if class_name not in self._vo_map:
+            vo = SimpleVoDef(
+                class_name=class_name,
+                snake_name=camel_to_snake(class_name),
+                import_path=import_path,
+            )
+        else:
+            vo = dataclass_replace(
+                self._vo_map[class_name], import_path=import_path,
+            )
+        self._vo_map[class_name] = vo
+        return class_name
 
     # --- semantic analysis ---
 

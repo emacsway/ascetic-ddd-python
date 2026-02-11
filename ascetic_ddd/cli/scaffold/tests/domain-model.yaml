@@ -6,7 +6,7 @@ aggregates:
       _user_id: UserId
       _title: Title
       _description: Description
-      _specialization_ids: list[SpecializationId]
+      _specialization_ids: list[.specialization.values.SpecializationId]
       _rate: Rate
       _employment_types: list[EmploymentType]
       _work_formats: list[WorkFormat]
@@ -31,7 +31,7 @@ aggregates:
             map:
               - strip
           TimeRange:
-            import: ascetic_ddd.seedwork.domain.values.time_range
+            import: ascetic_ddd.seedwork.domain.values.TimeRange
 
     value_objects:
       ResumeId:
@@ -43,9 +43,6 @@ aggregates:
         reference: external
         constraints:
           required: true
-
-      SpecializationId:
-        import: .specialization.values.specialization_id
 
       Title:
         type: str
@@ -65,12 +62,9 @@ aggregates:
       Rate:
         fields:
           _rate_period: PaymentPeriod
-          _rate: Money
+          _rate: ascetic_ddd.seedwork.domain.values.Money
         constraints:
           required: true
-
-      Money:
-        import: ascetic_ddd.seedwork.domain.values.money
 
       EmploymentType:
         type: Enum[str]
@@ -103,7 +97,7 @@ aggregates:
           user_id: UserId
           title: Title
           description: Description
-          specialization_ids: tuple[SpecializationId, ...]
+          specialization_ids: tuple[.specialization.values.SpecializationId, ...]
           rate: Rate
           employment_types: tuple[EmploymentType, ...]
           work_formats: tuple[WorkFormat, ...]

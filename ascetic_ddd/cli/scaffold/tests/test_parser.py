@@ -34,10 +34,12 @@ class TestParseYaml(unittest.TestCase):
         self.assertIn('Title', vo_names)
         self.assertIn('Description', vo_names)
         self.assertIn('Rate', vo_names)
-        self.assertIn('Money', vo_names)
         self.assertIn('EmploymentType', vo_names)
         self.assertIn('WorkFormat', vo_names)
         self.assertIn('PaymentPeriod', vo_names)
+        # Money and SpecializationId are inline dotted paths, not declared VOs
+        self.assertNotIn('Money', vo_names)
+        self.assertNotIn('SpecializationId', vo_names)
 
     def test_identity_vo(self):
         resume = self.model.aggregates[0]
@@ -110,25 +112,28 @@ class TestParseYaml(unittest.TestCase):
         for f in cmd.fields:
             self.assertTrue(f.is_primitive, '%s should be primitive' % f.param_name)
 
-    def test_imported_vo(self):
+    def test_inline_absolute_import_in_composite_vo(self):
+        """Dotted path in composite VO field resolves to VoRef with import_path."""
         resume = self.model.aggregates[0]
-        money = next(
-            vo for vo in resume.value_objects if vo.class_name == 'Money'
+        rate = next(
+            vo for vo in resume.value_objects if vo.class_name == 'Rate'
         )
-        self.assertIsInstance(money, SimpleVoDef)
+        rate_money = next(f for f in rate.fields if f.param_name == 'rate')
+        self.assertIsInstance(rate_money.type_ref, VoRef)
         self.assertEqual(
-            money.import_path,
+            rate_money.type_ref.vo.import_path,
             'ascetic_ddd.seedwork.domain.values.money',
         )
 
-    def test_relative_imported_vo(self):
+    def test_inline_relative_import_in_collection(self):
+        """Dotted path inside list[] resolves to VoRef with import_path."""
         resume = self.model.aggregates[0]
-        spec_id = next(
-            vo for vo in resume.value_objects
-            if vo.class_name == 'SpecializationId'
+        spec_ids = next(
+            f for f in resume.fields if f.param_name == 'specialization_ids'
         )
+        self.assertIsInstance(spec_ids.type_ref.element, VoRef)
         self.assertEqual(
-            spec_id.import_path,
+            spec_ids.type_ref.element.vo.import_path,
             '.specialization.values.specialization_id',
         )
 

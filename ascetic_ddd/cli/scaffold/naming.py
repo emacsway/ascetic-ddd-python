@@ -35,7 +35,7 @@ def is_collection_type(type_str):
 def extract_inner_type(type_str):
     # "list[SpecializationId]" -> "SpecializationId"
     # "tuple[EmploymentType, ...]" -> "EmploymentType"
-    match = re.match(r'(?:list|tuple)\[([A-Za-z_]\w*)', type_str)
+    match = re.match(r'(?:list|tuple)\[(\.?[A-Za-z_][\w.]*)', type_str)
     if match:
         return match.group(1)
     return type_str

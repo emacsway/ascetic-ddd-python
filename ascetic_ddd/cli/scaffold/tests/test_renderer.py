@@ -133,41 +133,13 @@ class TestRenderer(unittest.TestCase):
         self.assertNotIn('Title', content)
         self.assertNotIn('ResumeId', content)
 
-    def test_imported_vo_not_generated(self):
-        path = os.path.join(
-            self.output_dir, 'domain', 'resume', 'values', 'money.py',
-        )
-        self.assertFalse(os.path.exists(path))
-
-    def test_imported_vo_in_init(self):
-        path = os.path.join(
-            self.output_dir, 'domain', 'resume', 'values', '__init__.py',
-        )
-        with open(path) as f:
-            content = f.read()
-        self.assertIn(
-            'from ascetic_ddd.seedwork.domain.values.money import Money',
-            content,
-        )
-
-    def test_relative_imported_vo_not_generated(self):
-        path = os.path.join(
-            self.output_dir, 'domain', 'resume', 'values',
-            'specialization_id.py',
-        )
-        self.assertFalse(os.path.exists(path))
-
-    def test_relative_imported_vo_in_init(self):
-        path = os.path.join(
-            self.output_dir, 'domain', 'resume', 'values', '__init__.py',
-        )
-        with open(path) as f:
-            content = f.read()
-        self.assertIn(
-            'from app.jobs.domain.specialization.values.specialization_id'
-            ' import SpecializationId',
-            content,
-        )
+    def test_inline_imported_vo_not_generated(self):
+        """Inline dotted path VOs (Money, SpecializationId) must not generate files."""
+        for name in ('money.py', 'specialization_id.py'):
+            path = os.path.join(
+                self.output_dir, 'domain', 'resume', 'values', name,
+            )
+            self.assertFalse(os.path.exists(path), name)
 
     # --- Collection entity (Resume.Experience) ---
 
