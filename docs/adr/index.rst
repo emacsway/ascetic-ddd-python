@@ -17,3 +17,4 @@ decision, and its consequences.
    0004-diamond-problem-in-provider-topology
    0005-dag-change-manager-for-provider-populate-topology
    0006-mongodb-like-query-dsl-for-faker-providers
+   0007-scaffold
