@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from jinja2 import ChoiceLoader, Environment, FileSystemLoader
 
-from ascetic_ddd.cli.scaffold.model import FieldDef, VoKind
+from ascetic_ddd.cli.scaffold.model import DispatchKind, FieldDef, VoKind
 from ascetic_ddd.cli.scaffold.naming import camel_to_snake, is_primitive_type
 from ascetic_ddd.cli.scaffold.parser import vo_primitive_type
 
@@ -342,6 +342,12 @@ def _field_to_primitive(field_def, vo_map):
     """Map field type to primitive for reconstitutor constructor."""
     if field_def.is_primitive:
         return field_def.type_name
+
+    # Entity fields map to list/dict
+    if field_def.dispatch_kind == DispatchKind.COLLECTION_ENTITY:
+        return 'list'
+    if field_def.dispatch_kind == DispatchKind.ENTITY:
+        return 'dict'
 
     effective = field_def.inner_type if field_def.is_collection else field_def.type_name
     vo = vo_map.get(effective)

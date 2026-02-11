@@ -16,6 +16,7 @@ from ascetic_ddd.cli.scaffold.model import (
     ConstraintsDef,
     DispatchKind,
     DomainEventDef,
+    EntityDef,
     FieldDef,
     ValueObjectDef,
     VoKind,
@@ -48,7 +49,10 @@ class ModelParser:
     }
 
     _VALID_TOP_LEVEL_KEYS = frozenset({'aggregates', 'external_references'})
-    _VALID_AGGREGATE_KEYS = frozenset({'fields', 'value_objects', 'domain_events'})
+    _VALID_AGGREGATE_KEYS = frozenset({
+        'fields', 'value_objects', 'domain_events', 'entities',
+    })
+    _VALID_ENTITY_KEYS = frozenset({'fields', 'value_objects', 'entities'})
     _VALID_VO_KEYS = frozenset({
         'type', 'identity', 'fields', 'values', 'constraints', 'map', 'reference',
         'import',
@@ -56,6 +60,7 @@ class ModelParser:
 
     def __init__(self):
         self._vo_map = {}
+        self._entity_map = {}
 
     def parse(self, file_path):
         """Parse YAML file and return BoundedContextModel."""
@@ -126,11 +131,18 @@ class ModelParser:
 
     def _parse_aggregate(self, agg_name, agg_data):
         self._vo_map = {}
+        self._entity_map = {}
         vos = []
         for vo_name, vo_data in agg_data.get('value_objects', {}).items():
             vo = self._parse_value_object(vo_name, vo_data)
             vos.append(vo)
             self._vo_map[vo_name] = vo
+
+        entities = []
+        for ent_name, ent_data in agg_data.get('entities', {}).items():
+            entity = self._parse_entity(ent_name, ent_data)
+            entities.append(entity)
+            self._entity_map[ent_name] = entity
 
         fields = self._parse_fields(agg_data.get('fields', {}))
 
@@ -147,6 +159,7 @@ class ModelParser:
             value_objects=vos,
             domain_events=events,
             commands=commands,
+            entities=entities,
         )
 
     def _parse_value_object(self, vo_name, vo_data):
@@ -210,6 +223,101 @@ class ModelParser:
             event_version=event_version,
         )
 
+    def _validate_entity(self, ent_name, ent_data):
+        if not isinstance(ent_data, dict):
+            raise ValueError('Entity %s must be a mapping' % ent_name)
+        unknown = set(ent_data.keys()) - self._VALID_ENTITY_KEYS
+        if unknown:
+            raise ValueError(
+                'Unknown keys in entity %s: %s'
+                % (ent_name, ', '.join(sorted(unknown)))
+            )
+
+    def _parse_entity(self, ent_name, ent_data):
+        self._validate_entity(ent_name, ent_data)
+
+        # Save parent vo_map and entity_map; entity inherits parent VOs
+        saved_vo_map = self._vo_map
+        saved_entity_map = self._entity_map
+        self._entity_map = {}
+
+        # Entity VOs: parsed in context of parent vo_map
+        entity_vos = []
+        for vo_name, vo_data in ent_data.get('value_objects', {}).items():
+            vo = self._parse_value_object(vo_name, vo_data)
+            entity_vos.append(vo)
+            self._vo_map[vo_name] = vo
+
+        # Entity fields: may contain import path references
+        fields = self._parse_entity_fields(ent_data.get('fields', {}))
+
+        # Nested entities (recursive)
+        nested_entities = []
+        for nested_name, nested_data in ent_data.get('entities', {}).items():
+            nested = self._parse_entity(nested_name, nested_data)
+            nested_entities.append(nested)
+            self._entity_map[nested_name] = nested
+
+        # Restore parent maps
+        self._vo_map = saved_vo_map
+        self._entity_map = saved_entity_map
+
+        return EntityDef(
+            class_name=ent_name,
+            snake_name=camel_to_snake(ent_name),
+            fields=fields,
+            value_objects=entity_vos,
+            entities=nested_entities,
+        )
+
+    def _parse_entity_fields(self, fields_data):
+        """Parse entity fields. Handles import path references in types."""
+        result = []
+        for field_name, field_type in fields_data.items():
+            field_type_str = str(field_type)
+            param = strip_underscore_prefix(field_name)
+
+            # Check for import path reference: .resume.values.ResumeId
+            if '.' in field_type_str:
+                class_name = field_type_str.rsplit('.', 1)[1]
+                pkg_path = field_type_str.rsplit('.', 1)[0]
+                import_path = '%s.%s' % (pkg_path, camel_to_snake(class_name))
+                # Register as synthetic imported VO if not already known
+                if class_name not in self._vo_map:
+                    self._vo_map[class_name] = ValueObjectDef(
+                        class_name=class_name,
+                        snake_name=camel_to_snake(class_name),
+                        kind=VoKind.STRING,
+                        import_path=import_path,
+                    )
+                field_type_str = class_name
+
+            is_coll = is_collection_type(field_type_str)
+
+            inner = ''
+            coll_kind = CollectionKind.NONE
+            if is_coll:
+                inner = extract_inner_type(field_type_str)
+                coll_kind = collection_kind(field_type_str)
+
+            effective_type = inner if is_coll else field_type_str
+            is_prim = is_primitive_type(effective_type)
+
+            dispatch = self._compute_dispatch_kind(
+                effective_type, is_coll, is_prim,
+            )
+
+            result.append(FieldDef(
+                name=field_name,
+                param_name=param,
+                type_name=field_type_str,
+                collection_kind=coll_kind,
+                inner_type=inner,
+                is_primitive=is_prim,
+                dispatch_kind=dispatch,
+            ))
+        return result
+
     def _parse_fields(self, fields_data):
         result = []
         for field_name, field_type in fields_data.items():
@@ -235,7 +343,6 @@ class ModelParser:
                 name=field_name,
                 param_name=param,
                 type_name=field_type_str,
-                is_collection=is_coll,
                 collection_kind=coll_kind,
                 inner_type=inner,
                 is_primitive=is_prim,
@@ -274,6 +381,12 @@ class ModelParser:
         if is_primitive:
             return DispatchKind.PRIMITIVE
 
+        # Check entities first
+        if effective_type in self._entity_map:
+            if is_collection:
+                return DispatchKind.COLLECTION_ENTITY
+            return DispatchKind.ENTITY
+
         vo = self._vo_map.get(effective_type)
         is_composite = vo and vo.kind == VoKind.COMPOSITE
 
@@ -305,7 +418,6 @@ class ModelParser:
                     name=ef.param_name,
                     param_name=ef.param_name,
                     type_name=prim_type,
-                    is_collection=ef.is_collection,
                     collection_kind=ef.collection_kind,
                     inner_type=self._primitive_inner_type(ef) if ef.is_collection else '',
                     is_primitive=True,
@@ -324,6 +436,12 @@ class ModelParser:
         """Map a VO field type to its primitive equivalent for commands."""
         if field_def.is_primitive:
             return field_def.type_name
+
+        # Entity fields map to list/dict
+        if field_def.dispatch_kind == DispatchKind.COLLECTION_ENTITY:
+            return 'list'
+        if field_def.dispatch_kind == DispatchKind.ENTITY:
+            return 'dict'
 
         effective = field_def.inner_type if field_def.is_collection else field_def.type_name
         vo = self._vo_map.get(effective)

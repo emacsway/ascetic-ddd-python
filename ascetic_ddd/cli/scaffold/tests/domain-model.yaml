@@ -14,6 +14,24 @@ aggregates:
       _created_at: datetime
       _updated_at: datetime
       _is_active: bool
+      _experience: list[Experience]
+
+    entities:
+      Experience:
+        fields:
+          resume_id: .resume.values.ResumeId
+          company_name: CompanyName
+          date_range: TimeRange
+        value_objects:
+          CompanyName:
+            type: str
+            constraints:
+              blank: false
+              max_length: 255
+            map:
+              - strip
+          TimeRange:
+            import: ascetic_ddd.seedwork.domain.values.time_range
 
     value_objects:
       ResumeId:
@@ -98,6 +116,13 @@ aggregates:
   Specialization:
     fields:
       _id: SpecializationId
+      _profile: SpecializationProfile
+
+    entities:
+      SpecializationProfile:
+        fields:
+          bio: str
+          level: str
 
     value_objects:
       SpecializationId:

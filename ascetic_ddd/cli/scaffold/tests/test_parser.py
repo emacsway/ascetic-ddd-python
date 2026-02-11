@@ -22,7 +22,7 @@ class TestParseYaml(unittest.TestCase):
 
     def test_resume_fields_count(self):
         resume = self.model.aggregates[0]
-        self.assertEqual(len(resume.fields), 12)
+        self.assertEqual(len(resume.fields), 13)
 
     def test_resume_value_objects(self):
         resume = self.model.aggregates[0]
@@ -124,7 +124,24 @@ class TestParseYaml(unittest.TestCase):
     def test_specialization_aggregate(self):
         spec = self.model.aggregates[1]
         self.assertEqual(spec.class_name, 'Specialization')
-        self.assertEqual(len(spec.fields), 1)
+        self.assertEqual(len(spec.fields), 2)
+
+    def test_single_entity_dispatch_kind(self):
+        spec = self.model.aggregates[1]
+        profile_field = next(
+            f for f in spec.fields if f.param_name == 'profile'
+        )
+        self.assertEqual(
+            profile_field.dispatch_kind, DispatchKind.ENTITY,
+        )
+        self.assertFalse(profile_field.is_collection)
+
+    def test_single_entity_parsed(self):
+        spec = self.model.aggregates[1]
+        self.assertEqual(len(spec.entities), 1)
+        ent = spec.entities[0]
+        self.assertEqual(ent.class_name, 'SpecializationProfile')
+        self.assertEqual(len(ent.fields), 2)
 
     def test_collection_field_dispatch(self):
         resume = self.model.aggregates[0]
@@ -135,6 +152,51 @@ class TestParseYaml(unittest.TestCase):
         self.assertEqual(spec_ids.collection_kind, CollectionKind.LIST)
         self.assertEqual(spec_ids.inner_type, 'SpecializationId')
         self.assertEqual(spec_ids.dispatch_kind, DispatchKind.COLLECTION_SIMPLE_VO)
+
+    def test_entity_parsed(self):
+        resume = self.model.aggregates[0]
+        self.assertEqual(len(resume.entities), 1)
+        ent = resume.entities[0]
+        self.assertEqual(ent.class_name, 'Experience')
+        self.assertEqual(ent.snake_name, 'experience')
+        self.assertEqual(len(ent.fields), 3)
+
+    def test_entity_value_objects(self):
+        resume = self.model.aggregates[0]
+        ent = resume.entities[0]
+        vo_names = [vo.class_name for vo in ent.value_objects]
+        self.assertIn('CompanyName', vo_names)
+        self.assertIn('TimeRange', vo_names)
+
+    def test_entity_field_import_path_ref(self):
+        resume = self.model.aggregates[0]
+        ent = resume.entities[0]
+        resume_id_field = next(
+            f for f in ent.fields if f.param_name == 'resume_id'
+        )
+        self.assertEqual(resume_id_field.type_name, 'ResumeId')
+
+    def test_entity_field_dispatch_kind(self):
+        resume = self.model.aggregates[0]
+        experience_field = next(
+            f for f in resume.fields if f.param_name == 'experience'
+        )
+        self.assertEqual(
+            experience_field.dispatch_kind,
+            DispatchKind.COLLECTION_ENTITY,
+        )
+        self.assertTrue(experience_field.is_collection)
+
+    def test_entity_imported_vo(self):
+        resume = self.model.aggregates[0]
+        ent = resume.entities[0]
+        time_range = next(
+            vo for vo in ent.value_objects if vo.class_name == 'TimeRange'
+        )
+        self.assertEqual(
+            time_range.import_path,
+            'ascetic_ddd.seedwork.domain.values.time_range',
+        )
 
     def test_no_event_version_mutation(self):
         """Parsing the same YAML twice must produce identical results."""

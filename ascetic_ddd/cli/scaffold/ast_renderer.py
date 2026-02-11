@@ -4,6 +4,8 @@ import re
 
 from ascetic_ddd.cli.scaffold import ast_builders as builders
 from ascetic_ddd.cli.scaffold.ast_merge import merge_modules
+from dataclasses import replace as dataclass_replace
+
 from ascetic_ddd.cli.scaffold.model import VoKind
 from ascetic_ddd.cli.scaffold.renderer import (
     _AggregateContext,
@@ -40,6 +42,7 @@ class AstRenderWalker:
     def _visit_aggregate(self, agg, model):
         ctx = self._make_aggregate_context(agg)
         self._visit_value_objects(ctx)
+        self._visit_entities(ctx)
         self._visit_aggregate_module(ctx)
         self._visit_domain_events(ctx)
         self._visit_commands(ctx, model)
@@ -47,14 +50,14 @@ class AstRenderWalker:
     def _visit_value_objects(self, ctx):
         for vo in ctx.agg.value_objects:
             if not vo.import_path:
-                self._visit_value_object(vo, ctx)
+                self._visit_value_object(vo, ctx.values_dir, ctx.pkg)
 
         self._write_module(
             builders.build_values_init(ctx.agg.value_objects, ctx.pkg),
             os.path.join(ctx.values_dir, '__init__.py'),
         )
 
-    def _visit_value_object(self, vo, ctx):
+    def _visit_value_object(self, vo, values_dir, pkg):
         vo_builder_map = {
             VoKind.IDENTITY: builders.build_identity_vo,
             VoKind.STRING: builders.build_string_vo,
@@ -64,14 +67,14 @@ class AstRenderWalker:
         builder = vo_builder_map[vo.kind]
         self._write_module(
             builder(vo),
-            os.path.join(ctx.values_dir, '%s.py' % vo.snake_name),
+            os.path.join(values_dir, '%s.py' % vo.snake_name),
         )
 
         if vo.kind == VoKind.COMPOSITE:
             self._write_module(
-                builders.build_composite_vo_exporter(vo, ctx.pkg),
+                builders.build_composite_vo_exporter(vo, pkg),
                 os.path.join(
-                    ctx.values_dir, '%s_exporter.py' % vo.snake_name,
+                    values_dir, '%s_exporter.py' % vo.snake_name,
                 ),
             )
 
@@ -82,6 +85,7 @@ class AstRenderWalker:
             builders.build_aggregate(
                 agg, ctx.fields, ctx.collection_fields,
                 ctx.used_vos, ctx.pkg, ctx.needs_datetime,
+                entities=agg.entities,
             ),
             os.path.join(ctx.agg_dir, '%s.py' % agg.snake_name),
         )
@@ -90,6 +94,7 @@ class AstRenderWalker:
             builders.build_aggregate_exporter(
                 agg, ctx.fields, ctx.collection_fields,
                 ctx.used_vos, ctx.pkg,
+                entities=agg.entities,
             ),
             os.path.join(ctx.agg_dir, '%s_exporter.py' % agg.snake_name),
         )
@@ -101,6 +106,7 @@ class AstRenderWalker:
             builders.build_aggregate_reconstitutor(
                 agg, ctx.fields, reconstitutor_params,
                 ctx.used_vos, ctx.pkg, ctx.needs_datetime,
+                entities=agg.entities,
             ),
             os.path.join(
                 ctx.agg_dir, '%s_reconstitutor.py' % agg.snake_name,
@@ -193,6 +199,82 @@ class AstRenderWalker:
                 cmds_dir, '%s_command_handler.py' % cmd.snake_name,
             ),
         )
+
+    def _visit_entities(self, ctx):
+        for entity in ctx.agg.entities:
+            self._visit_entity(entity, ctx.agg_dir, ctx.pkg, ctx.vo_map)
+
+    def _visit_entity(self, entity, parent_dir, parent_pkg, parent_vo_map):
+        entity_dir = os.path.join(parent_dir, entity.snake_name)
+        entity_values_dir = os.path.join(entity_dir, 'values')
+        os.makedirs(entity_values_dir, exist_ok=True)
+
+        entity_pkg = '%s.%s' % (parent_pkg, entity.snake_name)
+
+        # Merge parent VO map + entity VOs.
+        # Parent VOs without import_path need explicit paths so
+        # entity imports resolve to the parent's values package.
+        vo_map = {}
+        for name, vo in parent_vo_map.items():
+            if vo.import_path:
+                vo_map[name] = vo
+            else:
+                vo_map[name] = dataclass_replace(
+                    vo,
+                    import_path='%s.values.%s' % (parent_pkg, vo.snake_name),
+                )
+        vo_map.update({vo.class_name: vo for vo in entity.value_objects})
+
+        # Generate entity VOs
+        for vo in entity.value_objects:
+            if not vo.import_path:
+                self._visit_value_object(vo, entity_values_dir, entity_pkg)
+        self._write_module(
+            builders.build_values_init(entity.value_objects, entity_pkg),
+            os.path.join(entity_values_dir, '__init__.py'),
+        )
+
+        # Generate entity class
+        fields = entity.fields
+        used_vos = _collect_used_vos(fields, vo_map)
+        collection_fields = [f for f in fields if f.is_collection]
+        reconstitutor_params = _build_reconstitutor_params(
+            fields, list(vo_map.values()),
+        )
+
+        self._write_module(
+            builders.build_entity(
+                entity, fields, collection_fields,
+                used_vos, entity_pkg, entity.entities,
+            ),
+            os.path.join(entity_dir, '%s.py' % entity.snake_name),
+        )
+        self._write_module(
+            builders.build_entity_exporter(
+                entity, fields, collection_fields,
+                used_vos, entity_pkg,
+            ),
+            os.path.join(
+                entity_dir, '%s_exporter.py' % entity.snake_name,
+            ),
+        )
+        self._write_module(
+            builders.build_entity_reconstitutor(
+                entity, fields, reconstitutor_params,
+                used_vos, entity_pkg, _needs_datetime(fields),
+            ),
+            os.path.join(
+                entity_dir, '%s_reconstitutor.py' % entity.snake_name,
+            ),
+        )
+        self._write_module(
+            builders.build_empty_init(),
+            os.path.join(entity_dir, '__init__.py'),
+        )
+
+        # Recurse into nested entities
+        for nested in entity.entities:
+            self._visit_entity(nested, entity_dir, entity_pkg, vo_map)
 
     # --- helpers ---
 

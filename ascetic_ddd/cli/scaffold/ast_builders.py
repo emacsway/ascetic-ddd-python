@@ -792,9 +792,22 @@ def build_values_init(value_objects, package_prefix):
 # --- Aggregate ---
 
 
+def _is_entity_field(field):
+    """Check if a field is an entity field."""
+    return field.dispatch_kind in (
+        DispatchKind.ENTITY, DispatchKind.COLLECTION_ENTITY,
+    )
+
+
 def build_aggregate(agg, fields, collection_fields, used_vos,
-                    package_prefix, needs_datetime):
+                    package_prefix, needs_datetime, entities=None):
     """Build ast.Module for aggregate root (3 classes)."""
+    entities = entities or []
+
+    # Separate entity fields from regular fields
+    regular_fields = [f for f in fields if not _is_entity_field(f)]
+    entity_fields = [f for f in fields if _is_entity_field(f)]
+
     imports = [
         _import('dataclasses'),
         _import('typing'),
@@ -814,9 +827,18 @@ def build_aggregate(agg, fields, collection_fields, used_vos,
     ))
     imports.extend(_build_vo_import_nodes(used_vos, package_prefix))
 
-    # IXExporter interface
+    # IXExporter interface — includes entity methods
     exporter_body = []
-    for f in fields:
+    for f in regular_fields:
+        if f.is_collection:
+            exporter_body.append(_abstract_method(
+                'add_%s' % _singularize(f.param_name), ['value'],
+            ))
+        else:
+            exporter_body.append(_abstract_method(
+                'set_%s' % f.param_name, ['value'],
+            ))
+    for f in entity_fields:
         if f.is_collection:
             exporter_body.append(_abstract_method(
                 'add_%s' % _singularize(f.param_name), ['value'],
@@ -833,9 +855,13 @@ def build_aggregate(agg, fields, collection_fields, used_vos,
         keywords=[ast.keyword(arg='metaclass', value=_name('ABCMeta'))],
     )
 
-    # IXReconstitutor interface
+    # IXReconstitutor interface — includes entity methods
     reconstitutor_body = []
-    for f in fields:
+    for f in regular_fields:
+        reconstitutor_body.append(_abstract_method(
+            f.param_name, [],
+        ))
+    for f in entity_fields:
         reconstitutor_body.append(_abstract_method(
             f.param_name, [],
         ))
@@ -850,14 +876,16 @@ def build_aggregate(agg, fields, collection_fields, used_vos,
     # Aggregate class
     agg_body = []
 
-    # Field annotations
-    for f in fields:
+    # Field annotations — regular + entity
+    for f in regular_fields:
+        agg_body.append(_ann_assign(_name(f.name), _parse_type(f.type_name)))
+    for f in entity_fields:
         agg_body.append(_ann_assign(_name(f.name), _parse_type(f.type_name)))
 
-    # __init__
-    param_names = [f.param_name for f in fields]
+    # __init__ — entity fields NOT params, initialized as empty lists
+    param_names = [f.param_name for f in regular_fields]
     init_body = []
-    for f in fields:
+    for f in regular_fields:
         if f.param_name == 'id':
             type_name = f.inner_type if f.is_collection else f.type_name
             init_body.append(ast.Assert(
@@ -870,8 +898,15 @@ def build_aggregate(agg, fields, collection_fields, used_vos,
         '__init__',
         keywords=[ast.keyword(arg=None, value=_name('kwargs'))],
     )))
-    for f in fields:
+    for f in regular_fields:
         init_body.append(_assign(_self_attr(f.name), _name(f.param_name)))
+    for f in entity_fields:
+        if f.is_collection:
+            init_body.append(_assign(_self_attr(f.name), ast.List(elts=[])))
+        else:
+            init_body.append(_assign(
+                _self_attr(f.name), _const(None),
+            ))
 
     agg_body.append(_func(
         '__init__',
@@ -914,11 +949,30 @@ def build_aggregate(agg, fields, collection_fields, used_vos,
         returns=_const(None),
     ))
 
-    # export
+    # export — regular fields + entity fields
     export_body = [ast.Expr(value=_super_call(
         'export', [_name('exporter')],
     ))]
-    for f in fields:
+    for f in regular_fields:
+        if f.is_collection:
+            export_body.append(ast.For(
+                target=_name('item'),
+                iter=_self_attr(f.name),
+                body=[ast.Expr(value=_call(
+                    _attr(
+                        _name('exporter'),
+                        'add_%s' % _singularize(f.param_name),
+                    ),
+                    [_name('item')],
+                ))],
+                orelse=[],
+            ))
+        else:
+            export_body.append(ast.Expr(value=_call(
+                _attr(_name('exporter'), 'set_%s' % f.param_name),
+                [_self_attr(f.name)],
+            )))
+    for f in entity_fields:
         if f.is_collection:
             export_body.append(ast.For(
                 target=_name('item'),
@@ -959,16 +1013,30 @@ def build_aggregate(agg, fields, collection_fields, used_vos,
         returns=_const(None),
     ))
 
-    # _import
+    # _import — regular fields + entity fields
     import_body = [ast.Expr(value=_super_call(
         '_import', [_name('provider')],
     ))]
-    for f in fields:
+    for f in regular_fields:
         if f.is_collection:
             import_body.append(_assign(
                 _self_attr(f.name),
                 _call(
                     _name(f.collection_kind.value),
+                    [_call(_attr(_name('provider'), f.param_name))],
+                ),
+            ))
+        else:
+            import_body.append(_assign(
+                _self_attr(f.name),
+                _call(_attr(_name('provider'), f.param_name)),
+            ))
+    for f in entity_fields:
+        if f.is_collection:
+            import_body.append(_assign(
+                _self_attr(f.name),
+                _call(
+                    _name('list'),
                     [_call(_attr(_name('provider'), f.param_name))],
                 ),
             ))
@@ -998,6 +1066,34 @@ def build_aggregate(agg, fields, collection_fields, used_vos,
         import_body,
         returns=_const(None),
     ))
+
+    # _make_empty — override if entity fields exist
+    if entity_fields:
+        make_empty_body = [
+            _assign(
+                _name('agg'),
+                _super_call('_make_empty'),
+            ),
+        ]
+        for f in entity_fields:
+            if f.is_collection:
+                make_empty_body.append(_assign(
+                    _attr(_name('agg'), f.name),
+                    ast.List(elts=[]),
+                ))
+            else:
+                make_empty_body.append(_assign(
+                    _attr(_name('agg'), f.name),
+                    _const(None),
+                ))
+        make_empty_body.append(ast.Return(value=_name('agg')))
+
+        agg_body.append(_func(
+            '_make_empty',
+            _simple_args(['cls']),
+            make_empty_body,
+            decorators=[_name('classmethod')],
+        ))
 
     # reconstitute classmethod
     agg_body.append(_func(
@@ -1040,8 +1136,14 @@ def build_aggregate(agg, fields, collection_fields, used_vos,
 
 
 def build_aggregate_exporter(agg, fields, collection_fields, used_vos,
-                             package_prefix):
+                             package_prefix, entities=None):
     """Build ast.Module for aggregate exporter."""
+    entities = entities or []
+
+    regular_fields = [f for f in fields if not _is_entity_field(f)]
+    entity_fields = [f for f in fields if _is_entity_field(f)]
+    regular_coll_fields = [f for f in collection_fields if not _is_entity_field(f)]
+
     imports = [
         _import_from(
             'ascetic_ddd.seedwork.domain.aggregate',
@@ -1056,13 +1158,28 @@ def build_aggregate_exporter(agg, fields, collection_fields, used_vos,
         ['I%sExporter' % agg.class_name],
     ))
 
+    # Import entity exporters
+    for ent in entities:
+        imports.append(_import_from(
+            '%s.%s.%s_exporter' % (
+                package_prefix, ent.snake_name, ent.snake_name,
+            ),
+            ['%sExporter' % ent.class_name],
+        ))
+
     # __init__
     init_body = [ast.Expr(value=_super_call('__init__'))]
-    for f in collection_fields:
+    for f in regular_coll_fields:
         init_body.append(_assign(
             _self_data_subscript(f.param_name),
             ast.List(elts=[]),
         ))
+    for f in entity_fields:
+        if f.is_collection:
+            init_body.append(_assign(
+                _self_data_subscript(f.param_name),
+                ast.List(elts=[]),
+            ))
 
     methods = [_func(
         '__init__',
@@ -1071,8 +1188,46 @@ def build_aggregate_exporter(agg, fields, collection_fields, used_vos,
         returns=_const(None),
     )]
 
-    for f in fields:
+    for f in regular_fields:
         methods.append(_build_exporter_method(f))
+
+    # Entity exporter methods
+    for ent, f in zip(entities, entity_fields):
+        exporter_name = '%sExporter' % ent.class_name
+        if f.is_collection:
+            # add_X(value): exporter = XExporter(); value.export(exporter);
+            #               self.data['x'].append(exporter.data)
+            method_name = 'add_%s' % _singularize(f.param_name)
+            body = [
+                _assign(_name('exporter'), _call(_name(exporter_name))),
+                ast.Expr(value=_call(
+                    _attr(_name('value'), 'export'),
+                    [_name('exporter')],
+                )),
+                ast.Expr(value=_call(
+                    _attr(_self_data_subscript(f.param_name), 'append'),
+                    [_attr(_name('exporter'), 'data')],
+                )),
+            ]
+        else:
+            # set_X(value): exporter = XExporter(); value.export(exporter);
+            #               self.data['x'] = exporter.data
+            method_name = 'set_%s' % f.param_name
+            body = [
+                _assign(_name('exporter'), _call(_name(exporter_name))),
+                ast.Expr(value=_call(
+                    _attr(_name('value'), 'export'),
+                    [_name('exporter')],
+                )),
+                _assign(
+                    _self_data_subscript(f.param_name),
+                    _attr(_name('exporter'), 'data'),
+                ),
+            ]
+        methods.append(_func(
+            method_name, _simple_args(['self', 'value']), body,
+            returns=_const(None),
+        ))
 
     cls = _class(
         '%sExporter' % agg.class_name,
@@ -1086,8 +1241,14 @@ def build_aggregate_exporter(agg, fields, collection_fields, used_vos,
 
 
 def build_aggregate_reconstitutor(agg, fields, reconstitutor_params,
-                                  used_vos, package_prefix, needs_datetime):
+                                  used_vos, package_prefix, needs_datetime,
+                                  entities=None):
     """Build ast.Module for aggregate reconstitutor."""
+    entities = entities or []
+
+    regular_fields = [f for f in fields if not _is_entity_field(f)]
+    entity_fields = [f for f in fields if _is_entity_field(f)]
+
     imports = []
     if needs_datetime:
         imports.append(_import_from('datetime', ['datetime']))
@@ -1100,6 +1261,15 @@ def build_aggregate_reconstitutor(agg, fields, reconstitutor_params,
         '%s.%s' % (package_prefix, agg.snake_name),
         ['I%sReconstitutor' % agg.class_name],
     ))
+
+    # Import entity reconstitutors
+    for ent in entities:
+        imports.append(_import_from(
+            '%s.%s.%s_reconstitutor' % (
+                package_prefix, ent.snake_name, ent.snake_name,
+            ),
+            ['%sReconstitutor' % ent.class_name],
+        ))
 
     # __init__(self, param1, param2, ..., *args, **kwargs)
     param_names = [f.param_name for f in reconstitutor_params]
@@ -1132,8 +1302,37 @@ def build_aggregate_reconstitutor(agg, fields, reconstitutor_params,
         returns=_const(None),
     )]
 
-    for f in fields:
+    for f in regular_fields:
         methods.append(_build_reconstitutor_method(f))
+
+    # Entity accessor methods:
+    # def experience(self):
+    #     return [ExperienceReconstitutor(**d) for d in self._data['experience']]
+    for ent, f in zip(entities, entity_fields):
+        recon_name = '%sReconstitutor' % ent.class_name
+        if f.dispatch_kind == DispatchKind.COLLECTION_ENTITY:
+            body = [ast.Return(value=ast.ListComp(
+                elt=_call(
+                    _name(recon_name),
+                    keywords=[ast.keyword(arg=None, value=_name('d'))],
+                ),
+                generators=[ast.comprehension(
+                    target=_name('d'),
+                    iter=_self_data_key_subscript(f.param_name),
+                    ifs=[],
+                    is_async=0,
+                )],
+            ))]
+        else:
+            # Single entity: return EntityReconstitutor(**self._data['x'])
+            body = [ast.Return(value=_call(
+                _name(recon_name),
+                keywords=[ast.keyword(
+                    arg=None,
+                    value=_self_data_key_subscript(f.param_name),
+                )],
+            ))]
+        methods.append(_func(f.param_name, _simple_args(['self']), body))
 
     cls = _class(
         '%sReconstitutor' % agg.class_name,
@@ -1394,3 +1593,284 @@ def build_commands_init(commands, commands_package):
             ['%sCommandHandler' % cmd.class_name],
         ))
     return _module(body)
+
+
+# --- Entities ---
+
+
+def build_entity(entity, fields, collection_fields, used_vos,
+                 package_prefix, entities=None):
+    """Build ast.Module for entity (IExporter + IReconstitutor + class)."""
+    entities = entities or []
+    imports = [
+        _import_from('abc', ['ABCMeta', 'abstractmethod']),
+    ]
+    imports.extend(_build_vo_import_nodes(used_vos, package_prefix))
+
+    # IXExporter interface
+    exporter_body = []
+    for f in fields:
+        if f.is_collection:
+            exporter_body.append(_abstract_method(
+                'add_%s' % _singularize(f.param_name), ['value'],
+            ))
+        else:
+            exporter_body.append(_abstract_method(
+                'set_%s' % f.param_name, ['value'],
+            ))
+
+    exporter_cls = _class(
+        'I%sExporter' % entity.class_name,
+        [],
+        exporter_body,
+        keywords=[ast.keyword(arg='metaclass', value=_name('ABCMeta'))],
+    )
+
+    # IXReconstitutor interface
+    reconstitutor_body = []
+    for f in fields:
+        reconstitutor_body.append(_abstract_method(
+            f.param_name, [],
+        ))
+
+    reconstitutor_cls = _class(
+        'I%sReconstitutor' % entity.class_name,
+        [],
+        reconstitutor_body,
+        keywords=[ast.keyword(arg='metaclass', value=_name('ABCMeta'))],
+    )
+
+    # Entity class
+    ent_body = []
+
+    # Field annotations
+    for f in fields:
+        ent_body.append(_ann_assign(_name(f.name), _parse_type(f.type_name)))
+
+    # __init__
+    param_names = [f.param_name for f in fields]
+    init_body = []
+    for f in fields:
+        init_body.append(_assign(_self_attr(f.name), _name(f.param_name)))
+
+    ent_body.append(_func(
+        '__init__',
+        _simple_args(['self'] + param_names),
+        init_body,
+        returns=_const(None),
+    ))
+
+    # export
+    export_body = []
+    for f in fields:
+        if f.is_collection:
+            export_body.append(ast.For(
+                target=_name('item'),
+                iter=_self_attr(f.name),
+                body=[ast.Expr(value=_call(
+                    _attr(
+                        _name('exporter'),
+                        'add_%s' % _singularize(f.param_name),
+                    ),
+                    [_name('item')],
+                ))],
+                orelse=[],
+            ))
+        else:
+            export_body.append(ast.Expr(value=_call(
+                _attr(_name('exporter'), 'set_%s' % f.param_name),
+                [_self_attr(f.name)],
+            )))
+
+    ent_body.append(_func(
+        'export',
+        ast.arguments(
+            posonlyargs=[],
+            args=[
+                ast.arg(arg='self'),
+                _annotated_arg(
+                    'exporter',
+                    _const('I%sExporter' % entity.class_name),
+                ),
+            ],
+            vararg=None,
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=None,
+            defaults=[],
+        ),
+        export_body,
+        returns=_const(None),
+    ))
+
+    # _import
+    import_body = []
+    for f in fields:
+        if f.is_collection:
+            import_body.append(_assign(
+                _self_attr(f.name),
+                _call(
+                    _name(f.collection_kind.value),
+                    [_call(_attr(_name('provider'), f.param_name))],
+                ),
+            ))
+        else:
+            import_body.append(_assign(
+                _self_attr(f.name),
+                _call(_attr(_name('provider'), f.param_name)),
+            ))
+
+    ent_body.append(_func(
+        '_import',
+        ast.arguments(
+            posonlyargs=[],
+            args=[
+                ast.arg(arg='self'),
+                _annotated_arg(
+                    'provider',
+                    _const('I%sReconstitutor' % entity.class_name),
+                ),
+            ],
+            vararg=None,
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=None,
+            defaults=[],
+        ),
+        import_body,
+        returns=_const(None),
+    ))
+
+    # _make_empty classmethod
+    make_empty_body = [
+        _assign(
+            _name('entity'),
+            _call(_attr(_name('cls'), '__new__'), [_name('cls')]),
+        ),
+        ast.Return(value=_name('entity')),
+    ]
+
+    ent_body.append(_func(
+        '_make_empty',
+        _simple_args(['cls']),
+        make_empty_body,
+        decorators=[_name('classmethod')],
+    ))
+
+    # reconstitute classmethod
+    ent_body.append(_func(
+        'reconstitute',
+        ast.arguments(
+            posonlyargs=[],
+            args=[
+                ast.arg(arg='cls'),
+                _annotated_arg(
+                    'reconstitutor',
+                    _const('I%sReconstitutor' % entity.class_name),
+                ),
+            ],
+            vararg=None,
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=None,
+            defaults=[],
+        ),
+        [
+            _assign(
+                _name('entity'),
+                _call(_attr(_name('cls'), '_make_empty')),
+            ),
+            ast.Expr(value=_call(
+                _attr(_name('entity'), '_import'),
+                [_name('reconstitutor')],
+            )),
+            ast.Return(value=_name('entity')),
+        ],
+        decorators=[_name('classmethod')],
+        returns=_const(entity.class_name),
+    ))
+
+    ent_cls = _class(entity.class_name, [], ent_body)
+    return _module(imports + [exporter_cls, reconstitutor_cls, ent_cls])
+
+
+def build_entity_exporter(entity, fields, collection_fields, used_vos,
+                           package_prefix):
+    """Build ast.Module for entity exporter."""
+    imports = []
+    imports.extend(_build_vo_import_nodes(
+        used_vos, package_prefix, with_exporters=True,
+    ))
+    imports.append(_import_from(
+        '%s.%s' % (package_prefix, entity.snake_name),
+        ['I%sExporter' % entity.class_name],
+    ))
+
+    # __init__
+    init_body = [
+        _assign(_self_attr('data'), ast.Dict(keys=[], values=[])),
+    ]
+    for f in collection_fields:
+        init_body.append(_assign(
+            _self_data_subscript(f.param_name),
+            ast.List(elts=[]),
+        ))
+
+    methods = [_func(
+        '__init__',
+        _simple_args(['self']),
+        init_body,
+        returns=_const(None),
+    )]
+
+    for f in fields:
+        methods.append(_build_exporter_method(f))
+
+    cls = _class(
+        '%sExporter' % entity.class_name,
+        [_name('I%sExporter' % entity.class_name)],
+        methods,
+    )
+    return _module(imports + [cls])
+
+
+def build_entity_reconstitutor(entity, fields, reconstitutor_params,
+                                used_vos, package_prefix, needs_datetime):
+    """Build ast.Module for entity reconstitutor."""
+    imports = []
+    if needs_datetime:
+        imports.append(_import_from('datetime', ['datetime']))
+    imports.extend(_build_vo_import_nodes(used_vos, package_prefix))
+    imports.append(_import_from(
+        '%s.%s' % (package_prefix, entity.snake_name),
+        ['I%sReconstitutor' % entity.class_name],
+    ))
+
+    # __init__(self, param1, param2, ...)
+    param_names = [f.param_name for f in reconstitutor_params]
+    init_body = [
+        _assign(
+            _self_attr('_data'),
+            ast.Dict(
+                keys=[_const(f.param_name) for f in reconstitutor_params],
+                values=[_name(f.param_name) for f in reconstitutor_params],
+            ),
+        ),
+    ]
+
+    methods = [_func(
+        '__init__',
+        _simple_args(['self'] + param_names),
+        init_body,
+        returns=_const(None),
+    )]
+
+    for f in fields:
+        methods.append(_build_reconstitutor_method(f))
+
+    cls = _class(
+        '%sReconstitutor' % entity.class_name,
+        [_name('I%sReconstitutor' % entity.class_name)],
+        methods,
+    )
+    return _module(imports + [cls])

@@ -21,6 +21,8 @@ class DispatchKind(str, Enum):
     COMPOSITE_VO = 'composite_vo'
     COLLECTION_SIMPLE_VO = 'collection_simple_vo'
     COLLECTION_COMPOSITE_VO = 'collection_composite_vo'
+    ENTITY = 'entity'
+    COLLECTION_ENTITY = 'collection_entity'
 
 
 class CollectionKind(str, Enum):
@@ -41,11 +43,14 @@ class FieldDef:
     name: str                   # e.g. "_id", "_title"
     param_name: str             # e.g. "id", "title" (without _ prefix)
     type_name: str              # e.g. "ResumeId", "Title", "bool", "datetime"
-    is_collection: bool = False
     collection_kind: CollectionKind = CollectionKind.NONE
     inner_type: str = ''        # for collections, the element type
     is_primitive: bool = False
     dispatch_kind: DispatchKind = DispatchKind.PRIMITIVE
+
+    @property
+    def is_collection(self):
+        return self.collection_kind != CollectionKind.NONE
 
 
 @dataclass
@@ -82,6 +87,15 @@ class CommandDef:
 
 
 @dataclass
+class EntityDef:
+    class_name: str
+    snake_name: str
+    fields: list[FieldDef] = field(default_factory=list)
+    value_objects: list[ValueObjectDef] = field(default_factory=list)
+    entities: list[EntityDef] = field(default_factory=list)
+
+
+@dataclass
 class AggregateDef:
     class_name: str
     snake_name: str
@@ -89,6 +103,7 @@ class AggregateDef:
     value_objects: list[ValueObjectDef] = field(default_factory=list)
     domain_events: list[DomainEventDef] = field(default_factory=list)
     commands: list[CommandDef] = field(default_factory=list)
+    entities: list[EntityDef] = field(default_factory=list)
 
 
 @dataclass

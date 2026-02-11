@@ -2,19 +2,27 @@ import ast
 import unittest
 
 from ascetic_ddd.cli.scaffold.ast_builders import (
+    build_aggregate,
+    build_aggregate_exporter,
+    build_aggregate_reconstitutor,
     build_command,
     build_command_handler,
     build_composite_vo,
     build_composite_vo_exporter,
     build_empty_init,
+    build_entity,
+    build_entity_exporter,
+    build_entity_reconstitutor,
     build_enum_vo,
     build_identity_vo,
     build_string_vo,
     build_values_init,
 )
 from ascetic_ddd.cli.scaffold.model import (
+    AggregateDef,
     ConstraintsDef,
     DispatchKind,
+    EntityDef,
     FieldDef,
     ValueObjectDef,
     VoKind,
@@ -224,6 +232,236 @@ class TestBuildCommand(unittest.TestCase):
         self.assertIn('class CreateResumeCommandHandler:', source)
         self.assertIn('async def __call__', source)
         self.assertIn('CreateResumeCommand', source)
+
+
+class TestBuildEntity(unittest.TestCase):
+    def _make_entity(self):
+        fields = [
+            FieldDef(
+                name='resume_id', param_name='resume_id',
+                type_name='ResumeId',
+                dispatch_kind=DispatchKind.SIMPLE_VO,
+            ),
+            FieldDef(
+                name='company_name', param_name='company_name',
+                type_name='CompanyName',
+                dispatch_kind=DispatchKind.SIMPLE_VO,
+            ),
+        ]
+        return EntityDef(
+            class_name='Experience', snake_name='experience',
+            fields=fields,
+        )
+
+    def test_entity_class(self):
+        entity = self._make_entity()
+        source = _unparse(build_entity(
+            entity, entity.fields, [], [], 'app.domain.resume.experience',
+        ))
+        self.assertIn('class Experience:', source)
+        self.assertIn('class IExperienceExporter', source)
+        self.assertIn('class IExperienceReconstitutor', source)
+
+    def test_entity_export(self):
+        entity = self._make_entity()
+        source = _unparse(build_entity(
+            entity, entity.fields, [], [], 'app.domain.resume.experience',
+        ))
+        self.assertIn('def export(self, exporter', source)
+        self.assertIn('exporter.set_resume_id', source)
+        self.assertIn('exporter.set_company_name', source)
+
+    def test_entity_import(self):
+        entity = self._make_entity()
+        source = _unparse(build_entity(
+            entity, entity.fields, [], [], 'app.domain.resume.experience',
+        ))
+        self.assertIn('def _import(self, provider', source)
+        self.assertIn('provider.resume_id()', source)
+
+    def test_entity_reconstitute(self):
+        entity = self._make_entity()
+        source = _unparse(build_entity(
+            entity, entity.fields, [], [], 'app.domain.resume.experience',
+        ))
+        self.assertIn('def reconstitute(cls', source)
+        self.assertIn('cls._make_empty()', source)
+        self.assertIn("-> 'Experience'", source)
+
+    def test_entity_make_empty(self):
+        entity = self._make_entity()
+        source = _unparse(build_entity(
+            entity, entity.fields, [], [], 'app.domain.resume.experience',
+        ))
+        self.assertIn('def _make_empty(cls)', source)
+        self.assertIn('cls.__new__(cls)', source)
+
+
+class TestBuildEntityExporter(unittest.TestCase):
+    def test_exporter(self):
+        fields = [
+            FieldDef(
+                name='resume_id', param_name='resume_id',
+                type_name='ResumeId',
+                dispatch_kind=DispatchKind.SIMPLE_VO,
+            ),
+        ]
+        entity = EntityDef(
+            class_name='Experience', snake_name='experience',
+            fields=fields,
+        )
+        source = _unparse(build_entity_exporter(
+            entity, fields, [], [], 'app.domain.resume.experience',
+        ))
+        self.assertIn('class ExperienceExporter(IExperienceExporter)', source)
+        self.assertIn('self.data = {}', source)
+        self.assertIn('def set_resume_id(self, value)', source)
+
+
+class TestBuildEntityReconstitutor(unittest.TestCase):
+    def test_reconstitutor(self):
+        fields = [
+            FieldDef(
+                name='resume_id', param_name='resume_id',
+                type_name='ResumeId',
+                dispatch_kind=DispatchKind.SIMPLE_VO,
+            ),
+        ]
+        recon_params = [
+            FieldDef(
+                name='resume_id', param_name='resume_id',
+                type_name='str', is_primitive=True,
+            ),
+        ]
+        entity = EntityDef(
+            class_name='Experience', snake_name='experience',
+            fields=fields,
+        )
+        source = _unparse(build_entity_reconstitutor(
+            entity, fields, recon_params, [], 'app.domain.resume.experience',
+            needs_datetime=False,
+        ))
+        self.assertIn(
+            'class ExperienceReconstitutor(IExperienceReconstitutor)',
+            source,
+        )
+        self.assertIn('self._data =', source)
+        self.assertIn('def resume_id(self)', source)
+        self.assertIn('return ResumeId(', source)
+
+
+class TestBuildAggregateSingleEntity(unittest.TestCase):
+    """Aggregate with a single (non-collection) entity field."""
+
+    def _make_agg(self):
+        entity = EntityDef(
+            class_name='Profile', snake_name='profile',
+            fields=[
+                FieldDef(
+                    name='bio', param_name='bio',
+                    type_name='str', is_primitive=True,
+                    dispatch_kind=DispatchKind.PRIMITIVE,
+                ),
+            ],
+        )
+        agg_fields = [
+            FieldDef(
+                name='_id', param_name='id',
+                type_name='FooId',
+                dispatch_kind=DispatchKind.SIMPLE_VO,
+            ),
+            FieldDef(
+                name='_profile', param_name='profile',
+                type_name='Profile',
+                dispatch_kind=DispatchKind.ENTITY,
+            ),
+        ]
+        agg = AggregateDef(
+            class_name='Foo', snake_name='foo',
+            fields=agg_fields, entities=[entity],
+        )
+        return agg, entity, agg_fields
+
+    def test_exporter_interface_set(self):
+        agg, entity, fields = self._make_agg()
+        source = _unparse(build_aggregate(
+            agg, fields, [], [], 'app.domain.foo',
+            needs_datetime=False, entities=[entity],
+        ))
+        # Single entity → set_profile, not add_profile
+        self.assertIn('def set_profile(self, value)', source)
+        self.assertNotIn('add_profile', source)
+
+    def test_init_none(self):
+        agg, entity, fields = self._make_agg()
+        source = _unparse(build_aggregate(
+            agg, fields, [], [], 'app.domain.foo',
+            needs_datetime=False, entities=[entity],
+        ))
+        self.assertIn('self._profile = None', source)
+
+    def test_export_set(self):
+        agg, entity, fields = self._make_agg()
+        source = _unparse(build_aggregate(
+            agg, fields, [], [], 'app.domain.foo',
+            needs_datetime=False, entities=[entity],
+        ))
+        self.assertIn('exporter.set_profile(self._profile)', source)
+        # Must NOT have a for loop over _profile
+        self.assertNotIn('for item in self._profile', source)
+
+    def test_import_direct(self):
+        agg, entity, fields = self._make_agg()
+        source = _unparse(build_aggregate(
+            agg, fields, [], [], 'app.domain.foo',
+            needs_datetime=False, entities=[entity],
+        ))
+        self.assertIn('self._profile = provider.profile()', source)
+        # Must NOT wrap in list()
+        self.assertNotIn('list(provider.profile())', source)
+
+    def test_make_empty_none(self):
+        agg, entity, fields = self._make_agg()
+        source = _unparse(build_aggregate(
+            agg, fields, [], [], 'app.domain.foo',
+            needs_datetime=False, entities=[entity],
+        ))
+        self.assertIn('agg._profile = None', source)
+
+    def test_exporter_set_method(self):
+        agg, entity, fields = self._make_agg()
+        source = _unparse(build_aggregate_exporter(
+            agg, fields, [], [], 'app.domain.foo',
+            entities=[entity],
+        ))
+        # set_profile, not add_profile
+        self.assertIn('def set_profile(self, value)', source)
+        self.assertNotIn('add_profile', source)
+        # No list init for single entity
+        self.assertNotIn("self.data['profile'] = []", source)
+        # Direct assignment, not append
+        self.assertIn("self.data['profile'] = exporter.data", source)
+
+    def test_reconstitutor_single(self):
+        recon_params = [
+            FieldDef(
+                name='id', param_name='id',
+                type_name='str', is_primitive=True,
+            ),
+            FieldDef(
+                name='profile', param_name='profile',
+                type_name='dict', is_primitive=True,
+            ),
+        ]
+        agg, entity, fields = self._make_agg()
+        source = _unparse(build_aggregate_reconstitutor(
+            agg, fields, recon_params, [], 'app.domain.foo',
+            needs_datetime=False, entities=[entity],
+        ))
+        # Single entity → ProfileReconstitutor(**self._data['profile'])
+        self.assertIn('ProfileReconstitutor(**self._data', source)
+        # Must NOT have list comprehension
+        self.assertNotIn('for d in', source)
 
 
 class TestMergeModules(unittest.TestCase):
