@@ -293,7 +293,7 @@ class RenderWalker:
         reconstitutor_params = _build_reconstitutor_params(fields)
 
         self._render_template(
-            'domain/entity.py.j2',
+            'domain/entity/entity.py.j2',
             os.path.join(entity_dir, '%s.py' % entity.snake_name),
             entity=entity,
             fields=fields,
@@ -302,7 +302,7 @@ class RenderWalker:
             needs_datetime=_needs_datetime(fields),
         )
         self._render_template(
-            'domain/entity_exporter.py.j2',
+            'domain/entity/entity_exporter.py.j2',
             os.path.join(
                 entity_dir, '%s_exporter.py' % entity.snake_name,
             ),
@@ -313,7 +313,7 @@ class RenderWalker:
             package_prefix=entity_pkg,
         )
         self._render_template(
-            'domain/entity_reconstitutor.py.j2',
+            'domain/entity/entity_reconstitutor.py.j2',
             os.path.join(
                 entity_dir, '%s_reconstitutor.py' % entity.snake_name,
             ),
