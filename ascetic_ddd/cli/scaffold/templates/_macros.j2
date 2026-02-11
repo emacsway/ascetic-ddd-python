@@ -7,12 +7,12 @@
 {% if vo.import_path %}
 {% set resolved = resolve_import(vo.import_path, package_prefix) %}
 from {{ resolved }} import {{ vo.class_name }}
-{% if with_exporters and vo.kind == 'composite' %}
+{% if with_exporters and vo is composite_vo %}
 from {{ resolved }}_exporter import {{ vo.class_name }}Exporter
 {% endif %}
 {% else %}
 from {{ package_prefix }}.values import {{ vo.class_name }}
-{% if with_exporters and vo.kind == 'composite' %}
+{% if with_exporters and vo is composite_vo %}
 from {{ package_prefix }}.values import {{ vo.class_name }}Exporter
 {% endif %}
 {% endif %}

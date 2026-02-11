@@ -2,17 +2,15 @@
 {% for vo in value_objects %}
 {% if vo.import_path %}
 {% set resolved = resolve_import(vo.import_path, package_prefix) %}
-{% if vo.kind == 'composite' %}
+{% if vo is composite_vo %}
 from {{ resolved }} import {{ vo.class_name }}, I{{ vo.class_name }}Exporter
 from {{ resolved }}_exporter import {{ vo.class_name }}Exporter
 {% else %}
 from {{ resolved }} import {{ vo.class_name }}
 {% endif %}
-{% elif vo.kind == 'composite' %}
+{% elif vo is composite_vo %}
 from {{ package_prefix }}.values.{{ vo.snake_name }} import {{ vo.class_name }}, I{{ vo.class_name }}Exporter
 from {{ package_prefix }}.values.{{ vo.snake_name }}_exporter import {{ vo.class_name }}Exporter
-{% elif vo.kind == 'enum' %}
-from {{ package_prefix }}.values.{{ vo.snake_name }} import {{ vo.class_name }}
 {% else %}
 from {{ package_prefix }}.values.{{ vo.snake_name }} import {{ vo.class_name }}
 {% endif %}
@@ -21,7 +19,7 @@ from {{ package_prefix }}.values.{{ vo.snake_name }} import {{ vo.class_name }}
 __all__ = [
 {% for vo in value_objects|sort(attribute='class_name') %}
     '{{ vo.class_name }}',
-{% if vo.kind == 'composite' %}
+{% if vo is composite_vo %}
     'I{{ vo.class_name }}Exporter',
     '{{ vo.class_name }}Exporter',
 {% endif %}

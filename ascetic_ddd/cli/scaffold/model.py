@@ -1,20 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 
 from ascetic_ddd.cli.scaffold.naming import CollectionKind, PRIMITIVE_TYPES
-
-
-# str mixin so Jinja2 template comparisons like
-# ``vo.kind == 'identity'`` keep working.
-
-
-class VoKind(str, Enum):
-    IDENTITY = 'identity'
-    SIMPLE = 'simple'
-    COMPOSITE = 'composite'
-    ENUM = 'enum'
 
 
 # --- Type system ---
@@ -58,31 +46,59 @@ class ConstraintsDef:
 
 @dataclass
 class ValueObjectDef:
+    """Base for all value object definitions."""
     class_name: str
     snake_name: str
-    kind: VoKind
-    base_type: str = ''
-    identity_mode: str = ''
-    identity_base_class: str = ''
-    constraints: ConstraintsDef = field(default_factory=ConstraintsDef)
-    maps: tuple = ()
-    fields: list[FieldDef] = field(default_factory=list)
-    enum_values: dict[str, str] = field(default_factory=dict)
-    is_external_ref: bool = False
-    reference: str = ''
     import_path: str = ''
+    reference: str = ''
+    is_external_ref: bool = False
 
     @property
     def primitive_type(self):
-        if self.kind == VoKind.IDENTITY:
-            return self.base_type
-        if self.kind == VoKind.ENUM:
-            return 'str'
-        if self.kind == VoKind.COMPOSITE:
-            return 'dict'
+        raise NotImplementedError
+
+
+@dataclass
+class SimpleVoDef(ValueObjectDef):
+    base_type: str = ''
+    constraints: ConstraintsDef = field(default_factory=ConstraintsDef)
+    maps: tuple = ()
+
+    @property
+    def primitive_type(self):
         if self.base_type and self.base_type in PRIMITIVE_TYPES:
             return self.base_type
         return 'str'
+
+
+@dataclass
+class IdentityVoDef(ValueObjectDef):
+    base_type: str = ''
+    constraints: ConstraintsDef = field(default_factory=ConstraintsDef)
+    identity_mode: str = ''
+    identity_base_class: str = ''
+
+    @property
+    def primitive_type(self):
+        return self.base_type
+
+
+@dataclass
+class EnumVoDef(ValueObjectDef):
+    enum_values: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def primitive_type(self):
+        return 'str'
+
+
+@dataclass
+class CompositeVoDef(ValueObjectDef):
+    fields: list[FieldDef] = field(default_factory=list)
+
+    @property
+    def primitive_type(self):
+        return 'dict'
 
 
 @dataclass
@@ -143,7 +159,7 @@ class FieldDef:
         effective = self.type_ref
         if isinstance(effective, CollectionType):
             effective = effective.element
-        return isinstance(effective, VoRef) and effective.vo.kind == VoKind.COMPOSITE
+        return isinstance(effective, VoRef) and isinstance(effective.vo, CompositeVoDef)
 
 
 @dataclass

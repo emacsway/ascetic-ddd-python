@@ -5,7 +5,8 @@ import inflection
 from jinja2 import ChoiceLoader, Environment, FileSystemLoader
 
 from ascetic_ddd.cli.scaffold.model import (
-    CollectionType, EntityRef, FieldDef, PrimitiveType, VoKind, VoRef,
+    CollectionType, CompositeVoDef, EntityRef, EnumVoDef, FieldDef,
+    IdentityVoDef, PrimitiveType, SimpleVoDef, VoRef,
 )
 from ascetic_ddd.cli.scaffold.naming import camel_to_snake
 
@@ -13,10 +14,10 @@ from ascetic_ddd.cli.scaffold.naming import camel_to_snake
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates')
 
 VO_TEMPLATE_MAP = {
-    VoKind.IDENTITY: 'domain/values/identity_vo.py.j2',
-    VoKind.SIMPLE: 'domain/values/simple_vo.py.j2',
-    VoKind.ENUM: 'domain/values/enum_vo.py.j2',
-    VoKind.COMPOSITE: 'domain/values/composite_vo.py.j2',
+    IdentityVoDef: 'domain/values/identity_vo.py.j2',
+    SimpleVoDef: 'domain/values/simple_vo.py.j2',
+    EnumVoDef: 'domain/values/enum_vo.py.j2',
+    CompositeVoDef: 'domain/values/composite_vo.py.j2',
 }
 
 
@@ -45,6 +46,8 @@ def _make_env(templates_dir=None):
     env.filters['singularize'] = _singularize
     env.filters['pluralize'] = _pluralize
     env.filters['snake'] = camel_to_snake
+    env.tests['composite_vo'] = lambda vo: isinstance(vo, CompositeVoDef)
+    env.tests['enum_vo'] = lambda vo: isinstance(vo, EnumVoDef)
     return env
 
 
@@ -101,13 +104,13 @@ class RenderWalker:
 
     def _visit_value_object(self, vo, values_dir, pkg):
         self._render_template(
-            VO_TEMPLATE_MAP[vo.kind],
+            VO_TEMPLATE_MAP[type(vo)],
             os.path.join(values_dir, '%s.py' % vo.snake_name),
             vo=vo,
             primitive_type=vo.primitive_type,
         )
 
-        if vo.kind == VoKind.COMPOSITE:
+        if isinstance(vo, CompositeVoDef):
             self._render_template(
                 'domain/values/composite_vo_exporter.py.j2',
                 os.path.join(

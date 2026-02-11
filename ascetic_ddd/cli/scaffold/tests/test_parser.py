@@ -2,7 +2,8 @@ import os
 import unittest
 
 from ascetic_ddd.cli.scaffold.model import (
-    CollectionKind, CollectionType, EntityRef, VoKind, VoRef,
+    CollectionKind, CollectionType, CompositeVoDef, EntityRef, EnumVoDef,
+    IdentityVoDef, SimpleVoDef, VoRef,
 )
 from ascetic_ddd.cli.scaffold.parser import parse_yaml
 
@@ -43,7 +44,7 @@ class TestParseYaml(unittest.TestCase):
         resume_id = next(
             vo for vo in resume.value_objects if vo.class_name == 'ResumeId'
         )
-        self.assertEqual(resume_id.kind, VoKind.IDENTITY)
+        self.assertIsInstance(resume_id, IdentityVoDef)
         self.assertEqual(resume_id.identity_mode, 'transient')
         self.assertEqual(resume_id.identity_base_class, 'IntIdentity')
 
@@ -52,7 +53,7 @@ class TestParseYaml(unittest.TestCase):
         title = next(
             vo for vo in resume.value_objects if vo.class_name == 'Title'
         )
-        self.assertEqual(title.kind, VoKind.SIMPLE)
+        self.assertIsInstance(title, SimpleVoDef)
         self.assertFalse(title.constraints.blank)
         self.assertEqual(title.constraints.max_length, 255)
         self.assertIn('strip', title.maps)
@@ -63,7 +64,7 @@ class TestParseYaml(unittest.TestCase):
             vo for vo in resume.value_objects
             if vo.class_name == 'EmploymentType'
         )
-        self.assertEqual(et.kind, VoKind.ENUM)
+        self.assertIsInstance(et, EnumVoDef)
         self.assertIn('FULL_TIME', et.enum_values)
         self.assertEqual(et.enum_values['FULL_TIME'], 'full_time')
 
@@ -72,7 +73,7 @@ class TestParseYaml(unittest.TestCase):
         rate = next(
             vo for vo in resume.value_objects if vo.class_name == 'Rate'
         )
-        self.assertEqual(rate.kind, VoKind.COMPOSITE)
+        self.assertIsInstance(rate, CompositeVoDef)
         self.assertEqual(len(rate.fields), 2)
 
     def test_domain_events(self):
@@ -100,7 +101,7 @@ class TestParseYaml(unittest.TestCase):
         money = next(
             vo for vo in resume.value_objects if vo.class_name == 'Money'
         )
-        self.assertEqual(money.kind, VoKind.SIMPLE)
+        self.assertIsInstance(money, SimpleVoDef)
         self.assertEqual(
             money.import_path,
             'ascetic_ddd.seedwork.domain.values.money',

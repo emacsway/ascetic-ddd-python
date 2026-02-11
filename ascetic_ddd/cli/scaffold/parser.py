@@ -15,14 +15,16 @@ from ascetic_ddd.cli.scaffold.model import (
     BoundedContextModel,
     CollectionType,
     CommandDef,
+    CompositeVoDef,
     ConstraintsDef,
     DomainEventDef,
     EntityDef,
     EntityRef,
+    EnumVoDef,
     FieldDef,
+    IdentityVoDef,
     PrimitiveType,
-    ValueObjectDef,
-    VoKind,
+    SimpleVoDef,
     VoRef,
 )
 
@@ -153,47 +155,51 @@ class ModelParser:
     def _parse_value_object(self, vo_name, vo_data):
         self._validate_vo(vo_name, vo_data)
         kind = self._classify_vo(vo_data)
-        base_type = vo_data.get('type', '')
+        common = dict(
+            class_name=vo_name,
+            snake_name=camel_to_snake(vo_name),
+            reference=vo_data.get('reference', ''),
+            import_path=vo_data.get('import', ''),
+        )
 
-        identity_mode = ''
-        identity_base_class = ''
-        if kind == VoKind.IDENTITY:
-            identity_mode = vo_data.get('identity', 'transient')
-            identity_base_class = self._IDENTITY_BASE_CLASS_MAP.get(
-                base_type, 'IntIdentity',
+        if kind == 'identity':
+            base_type = vo_data.get('type', '')
+            return IdentityVoDef(
+                base_type=base_type,
+                constraints=self._parse_constraints(
+                    vo_data.get('constraints', {}),
+                ),
+                identity_mode=vo_data.get('identity', 'transient'),
+                identity_base_class=self._IDENTITY_BASE_CLASS_MAP.get(
+                    base_type, 'IntIdentity',
+                ),
+                **common,
             )
 
-        constraints = self._parse_constraints(vo_data.get('constraints', {}))
-        maps = self._parse_maps(vo_data.get('map', ()))
+        if kind == 'enum':
+            return EnumVoDef(
+                enum_values=vo_data.get('values', {}),
+                **common,
+            )
 
-        vo_fields = []
-        if kind == VoKind.COMPOSITE:
+        if kind == 'composite':
             # Composite VO fields don't reference aggregate VOs
             saved = self._vo_map
             self._vo_map = {}
             vo_fields = self._parse_fields(vo_data.get('fields', {}))
             self._vo_map = saved
+            return CompositeVoDef(
+                fields=vo_fields,
+                **common,
+            )
 
-        enum_values = {}
-        if kind == VoKind.ENUM:
-            enum_values = vo_data.get('values', {})
-
-        reference = vo_data.get('reference', '')
-        import_path = vo_data.get('import', '')
-
-        return ValueObjectDef(
-            class_name=vo_name,
-            snake_name=camel_to_snake(vo_name),
-            kind=kind,
-            base_type=base_type,
-            identity_mode=identity_mode,
-            identity_base_class=identity_base_class,
-            constraints=constraints,
-            maps=maps,
-            fields=vo_fields,
-            enum_values=enum_values,
-            reference=reference,
-            import_path=import_path,
+        return SimpleVoDef(
+            base_type=vo_data.get('type', ''),
+            constraints=self._parse_constraints(
+                vo_data.get('constraints', {}),
+            ),
+            maps=self._parse_maps(vo_data.get('map', ())),
+            **common,
         )
 
     def _parse_domain_event(self, ev_name, ev_data):
@@ -275,10 +281,9 @@ class ModelParser:
                 import_path = '%s.%s' % (pkg_path, camel_to_snake(class_name))
                 if class_name not in self._vo_map:
                     # Unknown VO — register as synthetic imported VO
-                    vo = ValueObjectDef(
+                    vo = SimpleVoDef(
                         class_name=class_name,
                         snake_name=camel_to_snake(class_name),
-                        kind=VoKind.SIMPLE,
                         import_path=import_path,
                     )
                 else:
@@ -352,14 +357,14 @@ class ModelParser:
 
     def _classify_vo(self, vo_data):
         if 'identity' in vo_data:
-            return VoKind.IDENTITY
+            return 'identity'
         type_str = vo_data.get('type', '')
         if type_str.startswith('Enum['):
-            return VoKind.ENUM
+            return 'enum'
         if 'fields' in vo_data:
-            return VoKind.COMPOSITE
+            return 'composite'
         # Default: string-like VO
-        return VoKind.SIMPLE
+        return 'simple'
 
     def _derive_commands(self, events):
         commands = []
