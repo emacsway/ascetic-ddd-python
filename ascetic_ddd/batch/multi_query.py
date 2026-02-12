@@ -4,12 +4,12 @@ from abc import ABCMeta
 
 from ascetic_ddd.deferred.deferred import Deferred
 from ascetic_ddd.session.interfaces import (
-    IPgSession, Query, Params, Row,
+    ISession, Query, Params, Row,
 )
 
 from ascetic_ddd.batch.interfaces import IMultiQuerier
 from ascetic_ddd.batch.utils import RE_INSERT_VALUES, convert_named_to_positional
-
+from ascetic_ddd.session.pg_session import extract_connection
 
 __all__ = (
     "MultiQueryBase",
@@ -36,6 +36,7 @@ class MultiQueryBase(metaclass=ABCMeta):
             INSERT INTO t (a, b) VALUES (%s, %s), (%s, %s)
             -- params: (1, 'x', 2, 'y')
     """
+    _extract_connection = staticmethod(extract_connection)
 
     def __init__(self):
         self._sql_template: str = ""
@@ -69,6 +70,8 @@ class MultiQueryBase(metaclass=ABCMeta):
         Args:
             query: SQL INSERT query with positional (%s) or named (%(name)s) placeholders
             params: Sequence or Mapping of parameter values
+            prepare: is not used
+            binary: is not used
 
         Returns:
             Deferred[Row] that will be resolved when batch is evaluated
@@ -106,7 +109,7 @@ class MultiQuery(MultiQueryBase, IMultiQuerier):
     since no values are returned from bulk INSERT without RETURNING.
     """
 
-    async def evaluate(self, session: IPgSession) -> None:
+    async def evaluate(self, session: ISession) -> None:
         """
         Execute the batched INSERT query.
 
@@ -121,7 +124,7 @@ class MultiQuery(MultiQueryBase, IMultiQuerier):
 
         sql = self._build_sql()
         params = self._merge_params()
-        await session.connection.execute(sql, params)
+        await self._extract_connection(session).execute(sql, params)
 
         # Resolve all deferred results with None (no RETURNING)
         # and collect any errors from callbacks
@@ -142,7 +145,7 @@ class AutoincrementMultiInsertQuery(MultiQueryBase, IMultiQuerier):
     Each deferred result is resolved with its corresponding row.
     """
 
-    async def evaluate(self, session: IPgSession) -> None:
+    async def evaluate(self, session: ISession) -> None:
         """
         Execute the batched INSERT query with RETURNING.
 
@@ -157,7 +160,7 @@ class AutoincrementMultiInsertQuery(MultiQueryBase, IMultiQuerier):
 
         sql = self._build_sql()
         params = self._merge_params()
-        async with await session.connection.execute(sql, params) as cursor:
+        async with await self._extract_connection(session).execute(sql, params) as cursor:
             rows = await cursor.fetchall()
 
         # Resolve each deferred result with its row

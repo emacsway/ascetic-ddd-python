@@ -5,7 +5,7 @@ from types import TracebackType
 
 from ascetic_ddd.deferred.deferred import Deferred
 from ascetic_ddd.session.interfaces import (
-    IPgSession, Query, Params, Row,
+    ISession, Query, Params, Row,
 )
 
 
@@ -22,7 +22,7 @@ class IQueryEvaluator(metaclass=ABCMeta):
     """Interface for query evaluation."""
 
     @abstractmethod
-    async def evaluate(self, session: IPgSession) -> None:
+    async def evaluate(self, session: ISession) -> None:
         """Evaluate collected queries against the database session."""
         raise NotImplementedError
 
@@ -45,6 +45,8 @@ class IMultiQuerier(IQueryEvaluator, metaclass=ABCMeta):
         Args:
             query: SQL query string with positional placeholders %s
             params: Sequence of parameter values
+            prepare: is not used
+            binary: is not used
 
         Returns:
             Deferred[Row] that will be resolved when batch is evaluated
@@ -142,9 +144,10 @@ class IDeferredPgSession(typing.Protocol):
     """
 
     @property
+    @abstractmethod
     def connection(self) -> IDeferredConnection:
         ...
 
-    async def evaluate(self, session: IPgSession) -> None:
+    async def evaluate(self, session: ISession) -> None:
         """Execute all collected queries against the real session."""
         ...

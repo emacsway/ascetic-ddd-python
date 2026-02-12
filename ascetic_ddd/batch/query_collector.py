@@ -4,7 +4,7 @@ from types import TracebackType
 
 from ascetic_ddd.deferred.deferred import Deferred
 from ascetic_ddd.session.interfaces import (
-    IPgSession, IAsyncTransaction, Query, Params, Row,
+    ISession, IAsyncTransaction, Query, Params, Row,
 )
 
 from ascetic_ddd.batch.interfaces import IMultiQuerier
@@ -222,7 +222,7 @@ class QueryCollector:
         result.resolve(None)
         return result
 
-    async def evaluate(self, session: IPgSession) -> None:
+    async def evaluate(self, session: ISession) -> None:
         """
         Execute all collected queries in batches against real session.
 
