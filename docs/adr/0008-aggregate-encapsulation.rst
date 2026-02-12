@@ -1,5 +1,7 @@
-Accessing Aggregate State Without Breaking Encapsulation
-=========================================================
+ADR-0008: Accessing Aggregate State Without Breaking Encapsulation
+===================================================================
+
+.. index:: ADR; encapsulation, Aggregate, Exporter, Mediator, Value Object
 
 Status
 ------
@@ -527,5 +529,34 @@ Decision
 The decision is to use a uniform state export method for Aggregates,
 Value Objects and Domain Events via the Accepting interface (Mediator).
 
-The increase in code volume is not critical due to ":doc:`/adr/0007-scaffold`"
+The increase in code volume is not critical due to ":doc:`/adr/0007-scaffold`".
+
+Consequences
+------------
+
+- **Preserved encapsulation**: Aggregate internals are never directly exposed;
+  all state access goes through explicit export/import interfaces.
+
+- **Uniform export mechanism**: Aggregates, Value Objects and Domain Events all
+  use the same Accepting interface (Mediator) pattern, reducing cognitive load.
+
+- **Portability**: the approach works equally well in Golang (where package-level
+  visibility helps) and in Python (where it enforces discipline beyond naming
+  conventions). See :doc:`0003-go-portability`.
+
+- **Scaffold-friendly**: the verbose boilerplate (exporter interfaces, setters)
+  is generated automatically by the scaffold module. See :doc:`0007-scaffold`.
+
+- **Testability**: exporter interfaces enable black-box verification of persisted
+  state without accessing protected attributes.
+
+- **Trade-off -- verbosity**: each Aggregate requires an exporter interface and
+  corresponding setter methods, which adds code volume compared to direct
+  attribute access or returning plain structures.
+
+Related
+-------
+
+- :doc:`0003-go-portability` -- cross-language portability constraints
+- :doc:`0007-scaffold` -- code generation to offset exporter boilerplate
 

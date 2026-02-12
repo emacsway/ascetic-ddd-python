@@ -18,3 +18,4 @@ decision, and its consequences.
    0005-dag-change-manager-for-provider-populate-topology
    0006-mongodb-like-query-dsl-for-faker-providers
    0007-scaffold
+   0008-aggregate-encapsulation
