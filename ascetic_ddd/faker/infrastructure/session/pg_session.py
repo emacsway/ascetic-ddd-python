@@ -1,7 +1,10 @@
+import typing
+
 from ascetic_ddd.faker.infrastructure.session import IInternalPgSession, IExternalPgSession
-from ascetic_ddd.session.interfaces import IAsyncConnection
+from ascetic_ddd.session.interfaces import IAsyncConnection, ISession
 from ascetic_ddd.session.identity_map import IdentityMap
-from ascetic_ddd.session.pg_session import PgSession, PgSessionPool, PgSavepointSession
+from ascetic_ddd.session.pg_session import PgSession, PgSessionPool, PgSavepointSession, extract_connection
+from ascetic_ddd.session.pg_session import PgTransactionSession
 
 __all__ = (
     'extract_internal_connection',
@@ -16,21 +19,19 @@ __all__ = (
     'ExternalPgSavepointSession',
 )
 
-from ascetic_ddd.session.pg_session import PgTransactionSession
 
-
-def extract_internal_connection(session: IInternalPgSession) -> IAsyncConnection:
+def extract_internal_connection(session: ISession) -> IAsyncConnection:
     try:
-        return session.internal_connection
+        return typing.cast(IInternalPgSession, session).internal_connection
     except AttributeError:
-        return session.connection
+        return extract_connection(session)
 
 
-def extract_external_connection(session: IExternalPgSession) -> IAsyncConnection:
+def extract_external_connection(session: ISession) -> IAsyncConnection:
     try:
-        return session.external_connection
+        return typing.cast(IExternalPgSession, session).external_connection
     except AttributeError:
-        return session.connection
+        return extract_connection(session)
 
 
 class InternalPgSessionPool(PgSessionPool):

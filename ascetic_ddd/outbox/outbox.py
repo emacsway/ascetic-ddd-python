@@ -9,8 +9,7 @@ from psycopg.types.json import Jsonb
 
 from ascetic_ddd.outbox.interfaces import IOutbox, ISubscriber
 from ascetic_ddd.outbox.message import OutboxMessage
-from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool
-from ascetic_ddd.session.interfaces import ISession
+from ascetic_ddd.session.interfaces import ISession, ISessionPool
 from ascetic_ddd.session.pg_session import extract_connection
 from ascetic_ddd.utils.json import JSONEncoder
 
