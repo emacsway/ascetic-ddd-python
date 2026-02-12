@@ -10,7 +10,7 @@ from ascetic_ddd.seedwork.domain.aggregate import (
     EventMeta,
     PersistentDomainEvent,
 )
-from ascetic_ddd.seedwork.domain.session import ISession
+from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 from ascetic_ddd.session.pg_session import extract_connection
 

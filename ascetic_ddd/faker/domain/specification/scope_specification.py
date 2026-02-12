@@ -1,7 +1,7 @@
 import typing
 from typing import Hashable
 
-from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.seedwork.domain.utils.data import hashable
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification, ISpecificationVisitor
 

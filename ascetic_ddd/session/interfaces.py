@@ -22,6 +22,9 @@ __all__ = (
 )
 
 
+# Domain layer interfaces:
+
+
 class ISession(IObservable, typing.Protocol, metaclass=ABCMeta):
     response_time: float
 
@@ -36,6 +39,9 @@ class ISessionPool(IObservable, typing.Protocol, metaclass=ABCMeta):
     @abstractmethod
     def session(self) -> typing.AsyncContextManager[ISession]:
         raise NotImplementedError
+
+
+# Infrastructure layer interfaces:
 
 
 class IHashable(typing.Protocol, metaclass=ABCMeta):

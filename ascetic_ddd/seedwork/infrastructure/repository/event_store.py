@@ -12,7 +12,7 @@ from ascetic_ddd.seedwork.domain.aggregate import (
     IDomainEventAccessor,
     PersistentDomainEvent,
 )
-from ascetic_ddd.seedwork.domain.session import ISession
+from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.seedwork.infrastructure.repository.event_insert_query import IEventInsertQuery
 
 ___all__ = ("EventStore",)

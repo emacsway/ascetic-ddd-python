@@ -13,7 +13,7 @@ from ascetic_ddd.faker.domain.query.visitors import query_to_dict, query_to_plai
 from ascetic_ddd.faker.domain.specification.interfaces import (
     IResolvableSpecification, ISpecificationVisitor
 )
-from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.seedwork.domain.utils.data import hashable
 
 __all__ = ('QueryResolvableSpecification',)

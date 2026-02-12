@@ -3,7 +3,7 @@ import typing
 from ascetic_ddd.faker.domain.providers.interfaces import (
     IAggregateProvider, IReferenceProvider, ICompositeValueProvider,
 )
-from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+from ascetic_ddd.session.interfaces import ISession
 
 
 __all__ = ('ProviderChangeManager',)

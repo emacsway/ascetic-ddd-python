@@ -11,7 +11,7 @@ from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.query.parser import QueryParser
 from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
 from ascetic_ddd.faker.domain.values.empty import Empty, empty
-from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+from ascetic_ddd.session.interfaces import ISession
 
 # logging.basicConfig(level="DEBUG")
 

@@ -7,7 +7,7 @@ from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, EqOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecificationVisitor, ISpecification
-from ascetic_ddd.seedwork.domain.session import ISession
+from ascetic_ddd.session.interfaces import ISession
 
 __all__ = ('QueryLookupSpecification',)
 

@@ -3,7 +3,7 @@ from abc import abstractmethod
 
 from aiohttp import ClientSession
 
-from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.session.interfaces import IAsyncConnection
 
 
@@ -41,4 +41,10 @@ class IRestSession(ISession, typing.Protocol):
     @abstractmethod
     def request(self) -> ClientSession:
         """For ReadModels (Queries)."""
+        ...
+
+
+class IAuthenticator(typing.Protocol):
+
+    async def authenticate(self, session: ISession):
         ...

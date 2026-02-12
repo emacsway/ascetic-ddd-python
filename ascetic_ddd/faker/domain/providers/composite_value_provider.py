@@ -8,7 +8,7 @@ from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpec
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.faker.domain.values.empty import empty
-from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+from ascetic_ddd.session.interfaces import ISession
 
 __all__ = (
     'CompositeValueProvider',

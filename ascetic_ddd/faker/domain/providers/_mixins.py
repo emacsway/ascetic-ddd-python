@@ -16,7 +16,7 @@ from ascetic_ddd.faker.domain.query.operators import (
 from ascetic_ddd.faker.domain.query.parser import parse_query
 from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
-from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty, Empty
 from ascetic_ddd.observable.interfaces import IObservable
 from ascetic_ddd.observable.observable import Observable

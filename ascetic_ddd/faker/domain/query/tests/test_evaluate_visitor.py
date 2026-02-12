@@ -600,7 +600,7 @@ class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
         from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
         from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
         from ascetic_ddd.faker.infrastructure.query.object_resolver import ProviderObjectResolver
-        from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+        from ascetic_ddd.session.interfaces import ISession
 
         class StubDistributor(IM2ODistributor):
             def __init__(self, values=None, raise_cursor=False):
@@ -1239,7 +1239,7 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
         from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
         from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
         from ascetic_ddd.faker.infrastructure.query.object_resolver import ProviderObjectResolver
-        from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+        from ascetic_ddd.session.interfaces import ISession
 
         class StubDistributor(IM2ODistributor):
             def __init__(self, values=None, raise_cursor=False):

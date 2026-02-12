@@ -3,7 +3,7 @@ from typing import Callable
 
 from hypothesis import strategies
 from ascetic_ddd.faker.domain.query.operators import IQueryOperator
-from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+from ascetic_ddd.session.interfaces import ISession
 
 __all__ = (
     'IInputGenerator',

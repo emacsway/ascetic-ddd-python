@@ -15,7 +15,7 @@ from ascetic_ddd.faker.domain.query.parser import QueryParser
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
 from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
-from ascetic_ddd.seedwork.domain.session.interfaces import ISession
+from ascetic_ddd.session.interfaces import ISession
 
 
 # =============================================================================

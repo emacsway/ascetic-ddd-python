@@ -11,7 +11,7 @@ from ascetic_ddd.seedwork.domain.aggregate import (
     IPersistentDomainEventExporter,
     PersistentDomainEvent,
 )
-from ascetic_ddd.seedwork.domain.session import ISession
+from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.session.pg_session import extract_connection
 from ascetic_ddd.utils.json import JSONEncoder
 
