@@ -12,6 +12,7 @@ from ascetic_ddd.seedwork.domain.aggregate import (
 )
 from ascetic_ddd.seedwork.domain.session import ISession
 from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
+from ascetic_ddd.session.pg_session import extract_connection
 
 __all__ = (
     "EventGetQuery",
@@ -27,6 +28,8 @@ class IEventGetQuery(metaclass=ABCMeta):
 
 
 class EventGetQuery(IEventGetQuery, metaclass=ABCMeta):
+    _extract_connection = staticmethod(extract_connection)
+
     class Reconstitutors(dict):
         def register(self, event_type: type[PersistentDomainEvent], event_version: int):
             def do_register(
@@ -58,7 +61,7 @@ class EventGetQuery(IEventGetQuery, metaclass=ABCMeta):
         self._since_position = since_position
 
     async def evaluate(self, session: ISession) -> typing.Iterable[PersistentDomainEvent]:
-        async with session.connection.cursor() as acursor:
+        async with self._extract_connection(session).cursor() as acursor:
             params = [self._stream_id.tenant_id, self._stream_id.stream_type,
                       self._stream_id.stream_id, self._since_position]
             await acursor.execute(self._sql, params)
@@ -93,6 +96,7 @@ class EventGetQuery(IEventGetQuery, metaclass=ABCMeta):
 
     def _reconstitute_causal_dependency(self, data: dict) -> CausalDependency:
         return CausalDependency(
+            tenant_id=data.get("tenant_id"),
             stream_id=data.get("aggregate_id"),
             stream_type=data.get("aggregate_type"),
             stream_position=data.get("aggregate_version"),

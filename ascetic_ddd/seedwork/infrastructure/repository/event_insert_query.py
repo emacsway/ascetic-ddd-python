@@ -12,6 +12,7 @@ from ascetic_ddd.seedwork.domain.aggregate import (
     PersistentDomainEvent,
 )
 from ascetic_ddd.seedwork.domain.session import ISession
+from ascetic_ddd.session.pg_session import extract_connection
 from ascetic_ddd.utils.json import JSONEncoder
 
 __all__ = ("EventInsertQuery", "IEventInsertQuery")
@@ -35,6 +36,7 @@ class IEventInsertQuery(IPersistentDomainEventExporter, metaclass=ABCMeta):
 
 
 class EventInsertQuery(IEventInsertQuery, metaclass=ABCMeta):
+    _extract_connection = staticmethod(extract_connection)
     # TODO: add occurred_at column to table for partitioning reason? created_at with default = NOW()
     _sql = """
         INSERT INTO event_log
@@ -85,7 +87,7 @@ class EventInsertQuery(IEventInsertQuery, metaclass=ABCMeta):
 
     async def evaluate(self, session: ISession) -> None:
         self._params[6] = self._encode(self.data)
-        async with session.connection.cursor() as acursor:
+        async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(self._sql, self._params)
         pass
 
