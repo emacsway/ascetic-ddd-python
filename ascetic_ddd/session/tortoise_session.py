@@ -17,13 +17,8 @@ from tortoise import BaseDBAsyncClient
 __all__ = (
     "TortoiseSession",
     "TortoiseSessionPool",
-    "extract_connection",
     "extract_client",
 )
-
-
-def extract_connection(session: IPgSession) -> IAsyncConnection[typing.Any]:
-    return session.connection
 
 
 def extract_client(session: IPgSession) -> BaseDBAsyncClient:

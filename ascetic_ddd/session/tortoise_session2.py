@@ -17,8 +17,6 @@ from tortoise import BaseDBAsyncClient
 __all__ = (
     "TortoiseSession",
     "TortoiseSessionPool",
-    "extract_connection",
-    "extract_client",
 )
 
 
