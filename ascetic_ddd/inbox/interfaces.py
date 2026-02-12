@@ -3,7 +3,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import AsyncIterator, TypeAlias, Callable, Awaitable
 from ascetic_ddd.inbox.message import InboxMessage
-from ascetic_ddd.session.interfaces import IPgSession
+from ascetic_ddd.session.interfaces import ISession
 
 
 __all__ = (
@@ -11,7 +11,7 @@ __all__ = (
     'ISubscriber',
 )
 
-ISubscriber: TypeAlias = Callable[[IPgSession, InboxMessage], Awaitable]
+ISubscriber: TypeAlias = Callable[[ISession, InboxMessage], Awaitable]
 
 
 class IInbox(metaclass=ABCMeta):
@@ -74,7 +74,7 @@ class IInbox(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def __aiter__(self) -> AsyncIterator[tuple['IPgSession', 'InboxMessage']]:
+    def __aiter__(self) -> AsyncIterator[tuple['ISession', 'InboxMessage']]:
         """Return async iterator for continuous message processing.
 
         Usage:

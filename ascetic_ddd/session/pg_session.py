@@ -31,8 +31,8 @@ __all__ = (
 )
 
 
-def extract_connection(session: IPgSession) -> IAsyncConnection:
-    return session.connection
+def extract_connection(session: ISession) -> IAsyncConnection:
+    return typing.cast(IPgSession, session).connection
 
 
 class PgSessionPool(Observable, ISessionPool):

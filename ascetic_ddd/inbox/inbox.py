@@ -14,14 +14,14 @@ from ascetic_ddd.inbox.partition_strategy import (
     UriPartitionKeyStrategy,
 )
 from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool
-from ascetic_ddd.session.interfaces import IPgSession
+from ascetic_ddd.session.interfaces import ISession
+from ascetic_ddd.session.pg_session import extract_connection
+from ascetic_ddd.utils.json import JSONEncoder
 
 
 __all__ = (
     'Inbox',
 )
-
-from ascetic_ddd.utils.json import JSONEncoder
 
 
 class Inbox(IInbox):
@@ -29,7 +29,7 @@ class Inbox(IInbox):
 
     Ensures idempotency and causal consistency for incoming integration messages.
     """
-
+    _extract_connection = staticmethod(extract_connection)
     _table: str = 'inbox'
     _sequence: str = 'inbox_received_position_seq'
 
@@ -82,7 +82,7 @@ class Inbox(IInbox):
                 await self._mark_processed(session, message)
                 return True
 
-    def __aiter__(self) -> AsyncIterator[tuple[IPgSession, InboxMessage]]:
+    def __aiter__(self) -> AsyncIterator[tuple[ISession, InboxMessage]]:
         """Return async iterator for continuous message processing.
 
         Usage:
@@ -98,7 +98,7 @@ class Inbox(IInbox):
 
     async def _iterate(
             self, poll_interval: float = 1.0
-    ) -> AsyncIterator[tuple[IPgSession, InboxMessage]]:
+    ) -> AsyncIterator[tuple[ISession, InboxMessage]]:
         """Async generator that yields (session, message) pairs.
 
         Args:
@@ -176,7 +176,7 @@ class Inbox(IInbox):
             tasks = [asyncio.create_task(worker_loop(i)) for i in range(concurrency)]
             await asyncio.gather(*tasks)
 
-    async def _insert_message(self, session: IPgSession, message: InboxMessage) -> None:
+    async def _insert_message(self, session: ISession, message: InboxMessage) -> None:
         """Insert message into inbox table."""
         sql = """
             INSERT INTO %s (
@@ -188,7 +188,7 @@ class Inbox(IInbox):
             ON CONFLICT (tenant_id, stream_type, stream_id, stream_position) DO NOTHING
         """ % self._table
 
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(
                 sql,
                 (
@@ -204,7 +204,7 @@ class Inbox(IInbox):
 
     async def _fetch_next_processable(
             self,
-            session: IPgSession,
+            session: ISession,
             start_offset: int = 0,
             worker_id: int = 0,
             num_workers: int = 1,
@@ -233,7 +233,7 @@ class Inbox(IInbox):
 
     async def _fetch_unprocessed_message(
             self,
-            session: IPgSession,
+            session: ISession,
             offset: int,
             worker_id: int = 0,
             num_workers: int = 1,
@@ -268,7 +268,7 @@ class Inbox(IInbox):
             FOR UPDATE SKIP LOCKED
         """ % (self._table, partition_filter)
 
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql, (offset,))
             row = await cursor.fetchone()
 
@@ -288,7 +288,7 @@ class Inbox(IInbox):
         )
 
     async def _are_dependencies_satisfied(
-            self, session: IPgSession, message: InboxMessage
+            self, session: ISession, message: InboxMessage
     ) -> bool:
         """Check if all causal dependencies are processed."""
         dependencies = message.causal_dependencies
@@ -302,7 +302,7 @@ class Inbox(IInbox):
         return True
 
     async def _is_dependency_processed(
-            self, session: IPgSession, dependency: dict[str, Any]
+            self, session: ISession, dependency: dict[str, Any]
     ) -> bool:
         """Check if a single dependency is processed."""
         sql = """
@@ -315,7 +315,7 @@ class Inbox(IInbox):
             LIMIT 1
         """ % self._table
 
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(
                 sql,
                 (
@@ -329,7 +329,7 @@ class Inbox(IInbox):
 
         return row is not None
 
-    async def _mark_processed(self, session: IPgSession, message: InboxMessage) -> None:
+    async def _mark_processed(self, session: ISession, message: InboxMessage) -> None:
         """Mark message as processed with next sequence value."""
         sql = """
             UPDATE %s
@@ -340,7 +340,7 @@ class Inbox(IInbox):
               AND stream_position = %%s
         """ % (self._table, self._sequence)
 
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(
                 sql,
                 (
@@ -364,13 +364,13 @@ class Inbox(IInbox):
                 await self._create_sequence(session)
                 await self._create_table(session)
 
-    async def _create_sequence(self, session: IPgSession) -> None:
+    async def _create_sequence(self, session: ISession) -> None:
         """Create sequence for received_position."""
         sql = "CREATE SEQUENCE IF NOT EXISTS %s" % self._sequence
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql)
 
-    async def _create_table(self, session: IPgSession) -> None:
+    async def _create_table(self, session: ISession) -> None:
         """Create inbox table."""
         sql = """
             CREATE TABLE IF NOT EXISTS %s (
@@ -386,7 +386,7 @@ class Inbox(IInbox):
                 CONSTRAINT %s_pk PRIMARY KEY (tenant_id, stream_type, stream_id, stream_position)
             )
         """ % (self._table, self._sequence, self._table)
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql)
 
     async def cleanup(self) -> None:
