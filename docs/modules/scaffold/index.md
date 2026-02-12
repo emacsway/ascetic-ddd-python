@@ -34,8 +34,9 @@ a starting point, not a framework: you own it and modify it freely.
 
 The YAML schema enforces DDD constraints at definition time:
 
-- Value objects are classified by kind (identity, string, enum, composite),
-  each with its own validation rules and generated structure.
+- Value objects use a class hierarchy (`IdentityVoDef`, `SimpleVoDef`,
+  `EnumVoDef`, `CompositeVoDef`), each with its own validation rules and
+  generated structure.
 - Commands use only primitive types — domain types do not leak into the
   application layer.
 - Collection fields generate `add_*` methods on exporters (not `set_*`),
@@ -77,7 +78,7 @@ aggregates:
       _user_id: UserId
       _title: Title
       _description: Description
-      _specialization_ids: list[SpecializationId]
+      _specialization_ids: list[.specialization.values.SpecializationId]
       _rate: Rate
       _employment_types: list[EmploymentType]
       _work_formats: list[WorkFormat]
@@ -85,6 +86,24 @@ aggregates:
       _created_at: datetime
       _updated_at: datetime
       _is_active: bool
+      _experience: list[Experience]      # collection entity
+
+    entities:
+      Experience:
+        fields:
+          resume_id: .resume.values.ResumeId
+          company_name: CompanyName
+          date_range: TimeRange
+        value_objects:
+          CompanyName:
+            type: str
+            constraints:
+              blank: false
+              max_length: 255
+            map:
+              - strip
+          TimeRange:
+            import: ascetic_ddd.seedwork.domain.values.TimeRange
 
     value_objects:
       ResumeId:                          # identity VO
@@ -96,9 +115,6 @@ aggregates:
         reference: external
         constraints:
           required: true
-
-      SpecializationId:                  # relative import from another aggregate
-        import: .specialization.values.specialization_id
 
       Title:                             # string VO with validation + strip
         type: str
@@ -118,12 +134,9 @@ aggregates:
       Rate:                              # composite VO
         fields:
           _rate_period: PaymentPeriod
-          _rate: Money
+          _rate: ascetic_ddd.seedwork.domain.values.Money
         constraints:
           required: true
-
-      Money:                             # imported VO (no file generated)
-        import: ascetic_ddd.seedwork.domain.values.money
 
       EmploymentType:                    # enum VO
         type: Enum[str]
@@ -156,7 +169,7 @@ aggregates:
           user_id: UserId
           title: Title
           description: Description
-          specialization_ids: tuple[SpecializationId, ...]
+          specialization_ids: tuple[.specialization.values.SpecializationId, ...]
           rate: Rate
           employment_types: tuple[EmploymentType, ...]
           work_formats: tuple[WorkFormat, ...]
@@ -165,9 +178,16 @@ aggregates:
           is_active: bool
           event_version: 1               # metadata, not a domain field
 
-  Specialization:                        # minimal aggregate — only identity
+  Specialization:
     fields:
       _id: SpecializationId
+      _profile: SpecializationProfile    # single entity
+
+    entities:
+      SpecializationProfile:
+        fields:
+          bio: str
+          level: str
 
     value_objects:
       SpecializationId:
@@ -183,9 +203,9 @@ external_references:                     # VOs from other bounded contexts
         required: true
 ```
 
-This model generates 29 files across two aggregates, including value objects
-of all four kinds (identity, string, enum, composite), a domain event with
-exporter, and a derived command with handler.
+This model generates files across two aggregates, including value objects
+of all four kinds (identity, string, enum, composite), entities (collection
+and single), a domain event with exporter, and a derived command with handler.
 
 
 ## YAML Schema
@@ -197,6 +217,7 @@ aggregates:               # required, at least one
   AggregateName:
     fields: { ... }
     value_objects: { ... }
+    entities: { ... }
     domain_events: { ... }
 
 external_references:      # optional
@@ -212,17 +233,19 @@ Unknown keys raise `ValueError`.
 
 ### Fields
 
-Fields describe the internal state of an aggregate, a composite VO, or a
-domain event. Declared as `name: type` pairs.
+Fields describe the internal state of an aggregate, an entity, a composite
+VO, or a domain event. Declared as `name: type` pairs.
 
 ```yaml
 fields:
-  _id: ResumeId                              # VO reference
-  _title: Title                              # VO reference
-  _specialization_ids: list[SpecializationId] # collection of VOs
+  _id: ResumeId                                               # VO reference
+  _title: Title                                               # VO reference
+  _specialization_ids: list[.specialization.values.SpecializationId]  # dotted path in collection
+  _rate: Rate                                                 # composite VO
   _employment_types: list[EmploymentType]
-  _show_reputation: bool                     # primitive
-  _created_at: datetime                      # primitive
+  _experience: list[Experience]                               # entity collection
+  _show_reputation: bool                                      # primitive
+  _created_at: datetime                                       # primitive
 ```
 
 Underscore prefix (`_id`) denotes private aggregate state.
@@ -234,6 +257,23 @@ Primitive types: `bool`, `int`, `str`, `float`, `datetime`, `Decimal`.
 Collection types: `list[T]`, `tuple[T, ...]`.
 Collections generate `add_*` (singular form) methods on exporter interfaces
 instead of `set_*`.
+
+**Inline dotted paths.** A field type can be a dotted path referencing a VO
+from another aggregate or an external package. The parser creates a synthetic
+VO definition from the path — no explicit VO declaration is needed:
+
+```yaml
+# Relative path (resolves within current bounded context's domain package)
+_specialization_ids: list[.specialization.values.SpecializationId]
+
+# Absolute path (external package)
+_rate: ascetic_ddd.seedwork.domain.values.Money
+```
+
+The class name is extracted from the last segment; the module path is derived
+by converting the class name to snake_case:
+`.specialization.values.SpecializationId` → import from
+`.specialization.values.specialization_id`.
 
 
 ### Value Objects
@@ -327,7 +367,7 @@ class EmploymentType(str, Enum):
 Rate:
   fields:
     _rate_period: PaymentPeriod
-    _rate: Money
+    _rate: ascetic_ddd.seedwork.domain.values.Money
   constraints:
     required: true
 ```
@@ -350,8 +390,10 @@ class Rate:
         self._rate.export(exporter.set_rate)
 ```
 
-Composite VO fields are isolated from the aggregate's VO scope — they can
-only reference primitives or types defined within the composite itself.
+Composite VO fields can reference aggregate-level VOs, primitives, and
+inline dotted paths (e.g. `ascetic_ddd.seedwork.domain.values.Money`).
+When multiple composite VOs depend on each other, the parser uses
+topological sorting (Kahn's algorithm) to determine parse order.
 
 
 #### Reference marker
@@ -375,57 +417,47 @@ The `reference` value is stored as metadata; the scaffold does not follow it.
 (imported-vo)=
 #### Imported VO
 
-```yaml
-Money:
-  import: ascetic_ddd.seedwork.domain.values.money
-```
+There are two ways to reference VOs from external packages or other
+aggregates:
 
-Discriminator: presence of the `import` key.
-
-When `import` is specified, the scaffold does not generate a file for this VO.
-Instead, it uses the given module path in import statements:
-
-```python
-from ascetic_ddd.seedwork.domain.values.money import Money
-```
-
-This is useful for value objects that already exist in a shared library
-(e.g. seedwork) and should not be re-generated.
-
-**Relative imports.** A `.` prefix resolves relative to the `domain` package
-(i.e. `{package_name}.domain`). This enables cross-aggregate VO sharing
-without hardcoding the full package path:
+**1. Inline dotted path in fields (preferred).** Use a dotted path directly
+as the field type — no VO declaration needed:
 
 ```yaml
-SpecializationId:
-  import: .specialization.values.specialization_id
+fields:
+  _rate: ascetic_ddd.seedwork.domain.values.Money      # absolute
+  _specialization_ids: list[.specialization.values.SpecializationId]  # relative
 ```
 
-With `--package app.jobs`, this generates:
+The class name is the last path segment. The import module is derived by
+converting the class name to snake_case. With `--package app.jobs`, the
+relative path generates:
 
 ```python
 from app.jobs.domain.specialization.values.specialization_id import SpecializationId
 ```
 
+**2. Explicit `import` key on VO declaration.** Use the `import` key with
+`package.ClassName` format:
+
+```yaml
+TimeRange:
+  import: ascetic_ddd.seedwork.domain.values.TimeRange
+```
+
+When `import` is specified, the scaffold does not generate a file for this VO.
+The module path is derived from the class name:
+`ascetic_ddd.seedwork.domain.values.TimeRange` →
+`from ascetic_ddd.seedwork.domain.values.time_range import TimeRange`.
+
+**Relative imports.** A `.` prefix resolves relative to the `domain` package
+(i.e. `{package_name}.domain`). This works both in inline dotted paths and
+in the `import` key.
+
 The `import` key can be combined with other keys. For instance, a composite
 imported VO (`import` + `fields`) will also import its exporter interface
 and exporter class from the external package, following the same naming
-convention as locally generated composite VOs:
-
-```yaml
-Money:
-  import: ascetic_ddd.seedwork.domain.values.money
-  fields:
-    _amount: Decimal
-    _currency: str
-```
-
-Generates:
-
-```python
-from ascetic_ddd.seedwork.domain.values.money import Money, IMoneyExporter
-from ascetic_ddd.seedwork.domain.values.money_exporter import MoneyExporter
-```
+convention as locally generated composite VOs.
 
 
 ### Constraints reference
@@ -443,6 +475,51 @@ The `map` key accepts a list of mapping names applied to the value on init:
 | Map | Applies to | Description |
 |-----|------------|-------------|
 | `strip` | string VO | Strip leading/trailing whitespace |
+
+
+### Entities
+
+Entities are child objects owned by an aggregate. They can hold their own
+value objects, fields, and even nested entities (recursive):
+
+```yaml
+entities:
+  Experience:
+    fields:
+      resume_id: .resume.values.ResumeId
+      company_name: CompanyName
+      date_range: TimeRange
+    value_objects:
+      CompanyName:
+        type: str
+        constraints:
+          blank: false
+          max_length: 255
+      TimeRange:
+        import: ascetic_ddd.seedwork.domain.values.TimeRange
+```
+
+**Collection entities** are referenced from aggregate fields via `list[EntityName]`.
+They generate `add_*` methods on the aggregate exporter, an `_experience = []`
+initialization in `_make_empty`, and list iteration in `export`:
+
+```yaml
+fields:
+  _experience: list[Experience]
+```
+
+**Single entities** are referenced directly by name. They generate `set_*`
+methods (not `add_*`), `None` initialization, and direct assignment:
+
+```yaml
+fields:
+  _profile: SpecializationProfile
+```
+
+Entity fields can reference VOs from the parent aggregate scope via inline
+dotted paths (e.g. `.resume.values.ResumeId`). Each entity generates its
+own directory with the entity class, exporter, reconstitutor, and a
+`values/` subdirectory.
 
 
 ### Domain Events
@@ -521,8 +598,28 @@ output/
         __init__.py
         resume_created.py                # frozen dataclass
         resume_created_exporter.py       # event exporter
+      experience/                        # collection entity
+        __init__.py
+        experience.py
+        experience_exporter.py
+        experience_reconstitutor.py
+        values/
+          __init__.py
+          company_name.py
     specialization/
-      ...                                # same structure
+      __init__.py
+      specialization.py
+      specialization_exporter.py
+      specialization_reconstitutor.py
+      values/
+        ...
+      specialization_profile/            # single entity
+        __init__.py
+        specialization_profile.py
+        specialization_profile_exporter.py
+        specialization_profile_reconstitutor.py
+        values/
+          __init__.py
   application/
     __init__.py
     commands/
@@ -632,25 +729,46 @@ YAML file
 ModelParser              parser.py      YAML → BoundedContextModel
     │
     ▼
-BoundedContextModel      model.py       dataclasses + enums
+BoundedContextModel      model.py       dataclasses (TypeRef hierarchy)
     │
     ▼
 RenderWalker             renderer.py    walks model, renders Jinja2 templates
     │
     ▼
-*.py files               templates/     17 Jinja2 templates
+*.py files               templates/     22 Jinja2 templates
 ```
 
 
 ### Model (`model.py`)
 
-Enums use `(str, Enum)` mixin so Jinja2 templates can compare them
-with plain strings:
+**TypeRef hierarchy** — every field type is represented by a `TypeRef`
+subclass, enabling polymorphic dispatch without enums:
 
-- `VoKind` — `identity`, `string`, `composite`, `enum`
-- `DispatchKind` — `primitive`, `simple_vo`, `composite_vo`,
-  `collection_simple_vo`, `collection_composite_vo`
-- `CollectionKind` — `list`, `tuple`
+```
+TypeRef (base)
+├── PrimitiveType(name)         # bool, int, str, datetime, ...
+├── VoRef(vo)                   # reference to ValueObjectDef
+├── EntityRef(entity)           # reference to EntityDef
+└── CollectionType(kind, element: TypeRef)  # list[T], tuple[T, ...]
+```
+
+**ValueObjectDef hierarchy** — VO kind is determined by class type,
+not by an enum:
+
+```
+ValueObjectDef (base)
+├── SimpleVoDef           # string-like VO with constraints
+├── IdentityVoDef         # identity VO (IntIdentity, StrIdentity, ...)
+├── EnumVoDef             # enum VO (str, Enum)
+└── CompositeVoDef        # composite VO with inner fields
+```
+
+Jinja2 templates dispatch on VO type via custom tests:
+`vo is composite_vo`, `vo is enum_vo`.
+
+The renderer dispatches template selection via `VO_TEMPLATE_MAP[type(vo)]`.
+
+**CollectionKind** — `list`, `tuple` (enum with `str` mixin).
 
 Core dataclasses form a tree:
 
@@ -659,38 +777,61 @@ BoundedContextModel
 ├── external_value_objects: list[ValueObjectDef]
 └── aggregates: list[AggregateDef]
     ├── fields: list[FieldDef]
-    ├── value_objects: list[ValueObjectDef]
-    │   ├── constraints: ConstraintsDef
-    │   ├── map_def: MapDef
-    │   ├── fields: list[FieldDef]       (composite only)
-    │   └── enum_values: dict[str, str]  (enum only)
+    │   └── type_ref: TypeRef
+    ├── value_objects: list[ValueObjectDef]  (subclass per kind)
+    ├── entities: list[EntityDef]
+    │   ├── fields: list[FieldDef]
+    │   ├── value_objects: list[ValueObjectDef]
+    │   └── entities: list[EntityDef]        (recursive)
     ├── domain_events: list[DomainEventDef]
     │   └── fields: list[FieldDef]
-    └── commands: list[CommandDef]        (derived from events)
+    └── commands: list[CommandDef]           (derived from events)
         └── fields: list[FieldDef]
 ```
 
 
 ### Parser (`parser.py`)
 
-`ModelParser` class with `_vo_map` as instance state — maps VO class names to
-their definitions within the current aggregate scope.
+`ModelParser` class with `_vo_map` and `_entity_map` as instance state —
+maps class names to their definitions within the current scope.
 
-The push/pop pattern isolates VO resolution scope:
+**Scope isolation** (push/pop pattern):
 
-- Composite VO fields — `_vo_map` is temporarily emptied so inner fields
-  cannot reference aggregate-level VOs.
+- Composite VO fields — `_vo_map` is shallow-copied so inner fields can
+  reference aggregate-level VOs but additions don't leak outward.
+- Entity parsing — `_vo_map` and `_entity_map` are shallow-copied; entity
+  VOs are added to the copy.
 - External references — parsed with a separate empty `_vo_map`.
 
-VO classification follows a priority chain:
+**Two-pass VO parsing with topological sort:**
 
-1. Has `identity` key → `VoKind.IDENTITY`
-2. `type` starts with `Enum[` → `VoKind.ENUM`
-3. Has `fields` key → `VoKind.COMPOSITE`
-4. Otherwise → `VoKind.STRING`
+1. Non-composite VOs are parsed first (identity, simple, enum).
+2. Composite VOs are topologically sorted by field dependencies (Kahn's
+   algorithm) and parsed in dependency order. Circular dependencies raise
+   `ValueError`.
 
-YAML validation checks allowed keys at three levels (top-level, aggregate,
-value object) and raises `ValueError` with the offending key names.
+This ensures composite VOs can reference other composite VOs regardless of
+declaration order in YAML.
+
+**Type resolution** (`_resolve_type` / `_resolve_element_type`):
+
+- Primitives → `PrimitiveType`
+- Dotted paths (contain `.`) → `_resolve_import_ref` creates or updates
+  a synthetic VO, returns `VoRef`
+- Entity names → `EntityRef`
+- Known VO names → `VoRef`
+- Collection wrappers (`list[T]`, `tuple[T, ...]`) → `CollectionType`
+  wrapping the resolved element type
+
+**VO classification** follows a priority chain:
+
+1. Has `identity` key → `IdentityVoDef`
+2. `type` starts with `Enum[` → `EnumVoDef`
+3. Has `fields` key → `CompositeVoDef`
+4. Otherwise → `SimpleVoDef`
+
+YAML validation checks allowed keys at four levels (top-level, aggregate,
+entity, value object) and raises `ValueError` with the offending key names.
 
 Public facade:
 
@@ -705,17 +846,30 @@ model = parse_yaml("domain-model.yaml")
 
 `RenderWalker` class with `_visit_X` methods, modeled after `EvaluateVisitor`
 from `ascetic_ddd.faker.domain.query`. Per-aggregate state is captured in an
-`_AggregateContext` dataclass (package path, directories, VO map, imports,
-field lists).
+`_AggregateContext` dataclass (package path, directories, used VOs, field
+lists).
+
+All VO import paths (relative `.` prefixes) are resolved to absolute paths
+by `_resolve_vo_imports` before template rendering — for aggregate `used_vos`,
+`value_objects`, and domain event `used_vos` alike. Templates receive
+pre-resolved absolute paths and use them directly.
 
 Walk order:
 
 ```
 BoundedContextModel
 └── AggregateDef                _visit_aggregate()
-    ├── ValueObjectDef          _visit_value_object()
-    │   └── [composite]         _visit_composite_vo_exporter()
+    ├── ValueObjectDef          _visit_value_objects()
+    │   └── [composite]         + exporter module
     ├── values/__init__
+    ├── EntityDef               _visit_entities() → _visit_entity()
+    │   ├── entity VOs          _visit_value_object()
+    │   ├── values/__init__
+    │   ├── {entity}.py
+    │   ├── {entity}_exporter.py
+    │   ├── {entity}_reconstitutor.py
+    │   ├── __init__.py
+    │   └── [nested entities]   (recursive)
     ├── _visit_aggregate_module()
     │   ├── {agg}.py
     │   ├── {agg}_exporter.py
@@ -743,89 +897,6 @@ files = render_bounded_context(model, "./output", "app.jobs")
 ```
 
 
-### AST Renderer (`ast_renderer.py`)
-
-`AstRenderWalker` generates the same file set as `RenderWalker`, but builds
-Python code programmatically via `ast.Module` + `ast.unparse()` instead of
-Jinja2 templates. This enables **additive merge** with existing files: when
-a file already exists, missing imports, classes, methods, fields, and
-`__init__` parameters are added without touching user-written code.
-
-Walk order is identical to `RenderWalker`. The key difference is
-`_write_module()`:
-
-- **File does not exist** — generate from scratch, write.
-- **File exists** — parse existing AST, merge with generated AST
-  (see [AST Merge](#ast-merge)), write if changed.
-
-Public facade:
-
-```python
-from ascetic_ddd.cli.scaffold.ast_renderer import ast_render_bounded_context
-
-files = ast_render_bounded_context(model, "./output", "app.jobs")
-```
-
-Convenience wrapper:
-
-```python
-from ascetic_ddd.cli.scaffold import ast_scaffold
-
-ast_scaffold("domain-model.yaml", "./output", "app.jobs")
-```
-
-
-### AST Builders (`ast_builders.py`)
-
-Pure functions that build `ast.Module` for each file type. No filesystem I/O.
-One builder per template equivalent:
-
-| Builder | Equivalent template |
-|---------|---------------------|
-| `build_identity_vo(vo)` | `identity_vo.py.j2` |
-| `build_string_vo(vo)` | `string_vo.py.j2` |
-| `build_enum_vo(vo)` | `enum_vo.py.j2` |
-| `build_composite_vo(vo)` | `composite_vo.py.j2` |
-| `build_composite_vo_exporter(vo, pkg)` | `composite_vo_exporter.py.j2` |
-| `build_values_init(vos, pkg)` | `values/__init__.py.j2` |
-| `build_aggregate(...)` | `aggregate.py.j2` |
-| `build_aggregate_exporter(...)` | `aggregate_exporter.py.j2` |
-| `build_aggregate_reconstitutor(...)` | `aggregate_reconstitutor.py.j2` |
-| `build_domain_event(...)` | `domain_event.py.j2` |
-| `build_domain_event_exporter(...)` | `domain_event_exporter.py.j2` |
-| `build_command(cmd, ...)` | `command.py.j2` |
-| `build_command_handler(cmd, pkg)` | `command_handler.py.j2` |
-| `build_commands_init(cmds, pkg)` | `commands/__init__.py.j2` |
-| `build_empty_init()` | `__init__.py.j2` |
-
-
-(ast-merge)=
-### AST Merge (`ast_merge.py`)
-
-`merge_modules(existing, generated)` performs additive merge — adds missing
-elements from the generated AST into the existing AST. Never removes or
-modifies existing code.
-
-What gets merged:
-
-| Element | Action |
-|---------|--------|
-| `from X import Y` | Add missing names to existing import, or add new import |
-| `import X` | Add if absent |
-| Class (by name) | Add if absent; merge members if present |
-| Field annotation (`x: int`) | Add if absent |
-| Method (`def foo`) | Add if absent; preserve existing body |
-| `__init__` params | Add missing params before `*args`/`**kwargs` |
-| `self._x = x` in `__init__` | Add missing assignments |
-| `__all__` list | Add missing names |
-
-What is **not** modified:
-
-- Existing method bodies (user business logic is preserved)
-- Existing class hierarchy / decorators
-- Existing import order
-
-
 ### Naming (`naming.py`)
 
 Pure functions for name transformations:
@@ -835,7 +906,7 @@ Pure functions for name transformations:
 | `camel_to_snake` | `ResumeCreated` -> `resume_created` |
 | `strip_underscore_prefix` | `_id` -> `id` |
 | `is_collection_type` | `list[X]` -> `True` |
-| `extract_inner_type` | `list[SpecializationId]` -> `SpecializationId` |
+| `extract_inner_type` | `list[SpecializationId]` -> `SpecializationId`, `list[.pkg.Cls]` -> `.pkg.Cls` |
 | `collection_kind` | `tuple[X, ...]` -> `CollectionKind.TUPLE` |
 | `is_primitive_type` | `datetime` -> `True`, `ResumeId` -> `False` |
 
@@ -843,20 +914,25 @@ Pure functions for name transformations:
 (templates)=
 ### Templates
 
-17 Jinja2 templates under `ascetic_ddd/cli/scaffold/templates/`:
+22 Jinja2 templates under `ascetic_ddd/cli/scaffold/templates/`:
 
 | Path | Generates |
 |------|-----------|
+| `_macros.j2` | Shared macro: `vo_imports` |
+| `_field_macros.j2` | Shared macros: `exporter_method`, `reconstitutor_method`, `export_field`, `import_field` |
 | `domain/aggregate.py.j2` | Aggregate root + interfaces |
 | `domain/aggregate_exporter.py.j2` | Aggregate exporter |
 | `domain/aggregate_reconstitutor.py.j2` | Aggregate reconstitutor |
-| `domain/__init__.py.j2` | Aggregate package |
+| `domain/__init__.py.j2` | Aggregate / entity package |
 | `domain/values/identity_vo.py.j2` | Identity VO (extends `*Identity` base) |
-| `domain/values/string_vo.py.j2` | String VO with validation |
+| `domain/values/simple_vo.py.j2` | String VO with validation |
 | `domain/values/enum_vo.py.j2` | Enum VO (extends `str, Enum`) |
 | `domain/values/composite_vo.py.j2` | Composite VO with exporter interface |
 | `domain/values/composite_vo_exporter.py.j2` | Composite VO exporter |
 | `domain/values/__init__.py.j2` | Values package re-exports |
+| `domain/entity/entity.py.j2` | Entity class + interfaces |
+| `domain/entity/entity_exporter.py.j2` | Entity exporter |
+| `domain/entity/entity_reconstitutor.py.j2` | Entity reconstitutor |
 | `domain/events/domain_event.py.j2` | Domain event + exporter interface |
 | `domain/events/domain_event_exporter.py.j2` | Event exporter |
 | `domain/events/__init__.py.j2` | Events package |
@@ -866,8 +942,9 @@ Pure functions for name transformations:
 | `application/__init__.py.j2` | Application package |
 
 Jinja2 environment settings: `trim_blocks`, `lstrip_blocks`,
-`keep_trailing_newline`. Custom filters: `singularize` (naive plural -> singular),
-`snake` (CamelCase -> snake_case).
+`keep_trailing_newline`. Custom filters: `singularize` (plural -> singular),
+`pluralize` (singular -> plural), `snake` (CamelCase -> snake_case).
+Custom tests: `composite_vo`, `enum_vo` (for VO type dispatch in templates).
 
 
 (custom-templates)=
@@ -911,18 +988,16 @@ scaffold("domain-model.yaml", "./output", "app.jobs",
 
 ## Limitations
 
-- **Cross-aggregate VO sharing via import.** Each aggregate defines its own
-  VOs. When two aggregates share a type (e.g. `SpecializationId`), use
-  `import` with a `.` prefix for relative resolution:
-  `import: .specialization.values.specialization_id`
+- **Cross-aggregate VO sharing.** Each aggregate defines its own VOs.
+  When two aggregates share a type (e.g. `SpecializationId`), use an inline
+  dotted path in the field type:
+  `_specialization_ids: list[.specialization.values.SpecializationId]`
+  or an explicit `import` key on the VO definition
   (see [Imported VO](#imported-vo)).
-  External VOs from shared libraries use an absolute path:
-  `import: ascetic_ddd.seedwork.domain.values.money`.
 
-- **No cyclic references.** The YAML schema is a tree. If cross-aggregate
-  VO references are needed in the future, topological sorting (e.g.
-  Tarjan's SCC from `ascetic_ddd.graph.scc`) would be required to detect
-  cycles and determine render order.
+- **No cyclic composite VO references.** Composite VOs are topologically
+  sorted within each aggregate. Circular dependencies among composite VOs
+  raise `ValueError`.
 
 - **Command derivation is suffix-based.** Only `Created`, `Updated`,
   `Deleted` event suffixes are recognized. Events with other suffixes
@@ -941,8 +1016,6 @@ python -m unittest discover -s ascetic_ddd/cli/scaffold/tests -p "test_*.py" -v
 | Module | What it covers |
 |---|---|
 | `test_naming.py` | CamelCase conversion, collection detection, primitive classification |
-| `test_parser.py` | YAML parsing, VO classification, command derivation, validation errors |
-| `test_renderer.py` | Generated file contents, directory structure, no f-strings in output |
-| `test_ast_builders.py` | AST builder functions, AST merge logic |
-| `test_ast_renderer.py` | AST renderer: file contents, merge with existing, skip-unchanged |
+| `test_parser.py` | YAML parsing, VO classification, type resolution, inline dotted paths, entity parsing, command derivation, validation errors |
+| `test_renderer.py` | Generated file contents, directory structure, entity rendering, custom templates, no f-strings in output |
 | `test_scaffold.py` | End-to-end: YAML -> compilable Python files |
