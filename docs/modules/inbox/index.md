@@ -245,7 +245,7 @@ class InboxMessage:
 ### ISubscriber
 
 ```python
-ISubscriber: TypeAlias = Callable[[IPgSession, InboxMessage], Awaitable]
+ISubscriber: TypeAlias = Callable[[ISession, InboxMessage], Awaitable]
 ```
 
 
