@@ -1,5 +1,5 @@
-Доступ к состоянию агрегата без разрушения инкапсуляции
-=======================================================
+Accessing Aggregate State Without Breaking Encapsulation
+=========================================================
 
 Status
 ------
@@ -8,41 +8,41 @@ Accepted
 Context
 -------
 
-Хотя в Python инкапсуляция условна и основана на соглашении об именовании,
-в проекте существует требование ":doc:`/adr/0003-go-portability`" о том,
-что код должен быть легко портируем на другие языки программирования,
-в частности на Golang.
-Поэтому мы будем исходить из того, что доступ к защищенным атрибутам агрегата
-извне отсутствует, и примеры будем рассматривать на Golang.
+Although in Python encapsulation is conventional and based on naming conventions,
+the project has a requirement ":doc:`/adr/0003-go-portability`" that
+code should be easily portable to other programming languages,
+specifically to Golang.
+Therefore, we will assume that external access to protected aggregate attributes
+is absent, and examples will be considered in Golang.
 
-Инкапсуляция играет критически важную роль в управлении сложность.
-Её назначение - гарантировать соблюдение инвариантов.
+Encapsulation plays a critically important role in managing complexity.
+Its purpose is to guarantee invariant enforcement.
 
-Как говорил Michael Feathers:
+As Michael Feathers said:
 
     💬️ "OO makes code understandable by encapsulating moving parts.
     FP makes code understandable by minimizing moving parts."
     -- `Michael Feathers <https://twitter.com/mfeathers/status/29581296216>`__
 
-Возникает вопрос о том, как сохранить инкапсуляцию Агрегатов,
-когда нам требуется его внутреннее состояние для формирования SQL-запроса,
-или, наоборот, требуется установить состояние Агрегата из результата
-выполнения SQL-запроса.
+The question arises of how to preserve Aggregate encapsulation
+when we need its internal state to construct an SQL query,
+or, conversely, need to set the Aggregate state from
+an SQL query result.
 
-Существует несколько вариантов. Рассмотрим их подробнее.
+There are several approaches. Let's examine them in detail.
 
 
 Memento pattern
 ^^^^^^^^^^^^^^^
 
-Memento оказался близко, но не по назначению. Суть Memento в том, что он не должен раскрывать свое состояние никому, кроме своего создателя:
+Memento turned out to be close, but not quite the right fit. The essence of Memento is that it must not reveal its state to anyone other than its originator:
 
     1. Preserving encapsulation boundaries. Memento avoids exposing information that only an originator should manage but that must be stored nevertheless outside the originator.
        The pattern shields other objects from potentially complex Originator internals, thereby preserving encapsulation boundaries.
 
     -- "Design Patterns: Elements of Reusable Object-Oriented Software" by Erich Gamma, Richard Helm, Ralph Johnson, John Vlissides
 
-Тем не менее, этот подход используется некоторыми авторитетными источниками, например,
+Nevertheless, this approach is used by some authoritative sources, for example,
 `here <https://github.com/microsoftarchive/cqrs-journey/blob/6ffd9a8c8e865a9f8209552c52fa793fbd496d1f/source/Conference/Registration/SeatsAvailability.cs#L237>`__
 and
 `here <https://github.com/microsoftarchive/cqrs-journey/blob/6ffd9a8c8e865a9f8209552c52fa793fbd496d1f/source/Infrastructure/Azure/Infrastructure.Azure/EventSourcing/AzureEventSourcedRepository.cs#L31>`__.
@@ -62,29 +62,29 @@ Valuer & Scanner
 - `Valuer <https://pkg.go.dev/database/sql/driver#Valuer>`__
 - `Scanner <https://pkg.go.dev/database/sql#Scanner>`__
 
-Интерфейс Scanner открывает дверь к изменяемости ValueObject, что противоречит основной его сути.
-А так же открывает брешь в инкапсуляции Агрегата.
-Справедливости ради, стоит отметить, что можно его реализовать таким образом,
-чтобы он был только однократно мутируемым, предварительно удостоверившись в том,
-что его значение не установлено.
-Такой подход применяю часто для Identity Value Object for auto increment primary key.
+The Scanner interface opens the door to Value Object mutability, which contradicts its fundamental nature.
+It also creates a breach in Aggregate encapsulation.
+To be fair, it can be implemented in such a way
+that it is only mutable once, by first verifying
+that its value has not been set.
+This approach is often used for Identity Value Object for auto-increment primary keys.
 
-Но есть еще один момент - метод ``Scan(src any) error`` вызывается у конкретного типа,
-что препятствует использованию паттерна, известного как
+However, there is another issue - the ``Scan(src any) error`` method is called on a concrete type,
+which prevents the use of the pattern known as
 `Special Case <https://martinfowler.com/eaaCatalog/specialCase.html>`__
-или
+or
 `Null Object <https://refactoring.com/catalog/introduceSpecialCase.html>`__.
 
-Кроме того, в некоторых случаях может потребоваться преобразовать
-неизменяемые исторические данные для новой версии модели.
-Вопрос затрагивался в разделе "4. Validating historical data" статьи
+Additionally, in some cases it may be necessary to transform
+immutable historical data for a new model version.
+This issue was addressed in section "4. Validating historical data" of the article
 "`Always-Valid Domain Model <https://enterprisecraftsmanship.com/posts/always-valid-domain-model/>`__" by Vladimir Khorikov
-и в разделе
+and in section
 "6. The use of ORMs within and outside of the always-valid boundary"
-статьи
+of the article
 "`Database and Always-Valid Domain Model <https://enterprisecraftsmanship.com/posts/database-always-valid-domain-model/>`__" by Vladimir Khorikov.
 
-С другой стороны, Valuer может возвращать только примитивные типы, а значит, он не пригоден для экспорта иерархической структуры состояния Агрегата:
+On the other hand, Valuer can only return primitive types, which means it is not suitable for exporting the hierarchical structure of Aggregate state:
 
 
     It is either nil, a type handled by a database driver's NamedValueChecker interface, or an instance of one of these types:
@@ -96,20 +96,20 @@ Valuer & Scanner
     - string
     - time.Time
 
-    -- `Источник <https://pkg.go.dev/database/sql/driver#Value>`__
+    -- `Source <https://pkg.go.dev/database/sql/driver#Value>`__
 
-В Python существуют аналогичные методы ``object.__getstate__()`` и ``object.__setstate__(state)``.
+Python has analogous methods ``object.__getstate__()`` and ``object.__setstate__(state)``.
 
 
 Reflection
 ^^^^^^^^^^
 
-В документации `отсутствуют <https://pkg.go.dev/reflect#Value.FieldByName>`__ какие-либо упоминания об ограничении доступа к защищенным атрибутам структуры данных посредством рефлекции.
+The documentation `does not mention <https://pkg.go.dev/reflect#Value.FieldByName>`__ any restrictions on accessing protected data structure attributes via reflection.
 
-Но использование рефлексии в production mode для таких целей не выглядит привлекательным, в т.ч. и по соображениям производительности.
-К тому же этот метод является, по сути, еще одним способом пробить брешь в инкапсуляции.
+However, using reflection in production for such purposes is not appealing, including for performance reasons.
+Moreover, this method is essentially yet another way to breach encapsulation.
 
-Похожий трюк используется
+A similar trick is used
 `here <https://stackoverflow.com/a/25405485>`__:
 
 .. code-block:: go
@@ -153,7 +153,7 @@ Exporter
 1. Accepting interface (Mediator)
 """""""""""""""""""""""""""""""""
 
-Такой вариант рассматривается в книге "`Implementing Domain-Driven Design <https://kalele.io/books/>`__" by Vaughn Vernon:
+This approach is discussed in the book "`Implementing Domain-Driven Design <https://kalele.io/books/>`__" by Vaughn Vernon:
 
     Use a Mediator to Publish Aggregate Internal State
 
@@ -201,12 +201,12 @@ Exporter
     it a completely natural extension of a well-designed domain model.
     As always, such trade-offs must be discussed by your technical team members.
 
-Ссылки по теме:
+Related links:
 
 - "`More on getters and setters <https://www.infoworld.com/article/2072302/more-on-getters-and-setters.html>`__" by Allen Holub
 - "`Save and load objects without breaking encapsulation <https://stackoverflow.com/questions/24921227/save-and-load-objects-without-breaking-encapsulation>`__" at Stackoverflow
 
-Идею также можно посмотреть на примере:
+The idea can also be seen in the following example:
 
 .. code-block:: java
    :caption: `Example by Allen Holub <https://www.infoworld.com/article/2072302/more-on-getters-and-setters.html>`__
@@ -251,12 +251,12 @@ Exporter
         //...
     }
 
-Пример реализации на Golang:
+Implementation example in Golang:
 
 .. literalinclude:: _media/0008-aggregate-encapsulation/exporter_1.go
    :language: go
 
-Или на более лаконичном примере:
+Or in a more concise example:
 
 .. code-block:: java
    :caption: `Example from Stackoverflow <https://stackoverflow.com/questions/24921227/save-and-load-objects-without-breaking-encapsulation>`__
@@ -291,32 +291,32 @@ Exporter
 
     }
 
-Замечательный вариант, но он использует интерфейсы,
-и это получается несколько многословно - требуется декларировать сам тип (структуру), интерфейс, сеттеры.
+An excellent approach, but it uses interfaces,
+and this turns out to be somewhat verbose - it requires declaring the type (struct) itself, the interface, and setters.
 
-В качестве альтернативы можно просто обязать Агрегат вернуть простую структуру,
-и такие варианты так же встречаются в демонстрационных приложениях, например,
+As an alternative, one can simply require the Aggregate to return a plain structure,
+and such approaches also appear in demo applications, for example,
 `here <https://github.com/kurrent-io/training-advanced-go/blob/52c0083aa717a7fac7c482c2b72e905b93c0a52a/domain/doctorday/day.go#L225>`__.
 
     💬️ "The goal of software architecture is to minimize the human resources required to build and maintain the required system."
 
-    -- "Clean Architecture: A Craftsman's Guide to Software Structure and Design" by Robert C. Martin, перевод ООО Издательство "Питер"
+    -- "Clean Architecture: A Craftsman's Guide to Software Structure and Design" by Robert C. Martin
 
-:ref:`Второй <code-exporter-example-2>` из приведенных примеров содержит пакетированный сеттер, что делает его несколько менее многословным.
+:ref:`The second <code-exporter-example-2>` of the examples above contains a batched setter, which makes it somewhat less verbose.
 
-Однако, в таком случае, не получится обойти одним экземпляром экспортера
-иерархию вложенных объектов агрегата из-за коллизии одноименного метода
-``setDetails``,
-например, при обходе агрегата и его композитного первичного ключа
-(впрочем, в первом варианте коллизия тоже не исключена полностью).
-Это могло бы быть удобным для составления списка параметров SQL-запроса.
-Можно бы пожертвовать консистентностью именования, но это лишило бы второй вариант превосходства перед первым вариантом.
-Также второй вариант обладает несколько большей хрупкостью при добавлении новых полей или их удалении.
+However, in this case, it is not possible to traverse the hierarchy of nested
+Aggregate objects with a single exporter instance due to method name collision
+with ``setDetails``,
+for example, when traversing an Aggregate and its composite primary key
+(though in the first approach, collisions are not entirely excluded either).
+This could have been convenient for composing SQL query parameter lists.
+One could sacrifice naming consistency, but that would strip the second approach of its advantage over the first.
+The second approach is also somewhat more fragile when adding or removing fields.
 
-Использование такого подхода в тестовых кейсах делает их несколько более многословными.
+Using this approach in test cases makes them somewhat more verbose.
 
-Можно было бы сказать, что тестировать нужно по принципам черного ящика, т.е. только внешнее поведение.
-Совершенно верно, но только нам требуется не только внешнее поведение, но и достоверность сохранения введенной в конструктор Агрегата информации в БД.
+One could argue that testing should follow black-box principles, i.e., only external behavior.
+Absolutely true, but we need not only external behavior, but also verification that the information passed to the Aggregate constructor is correctly persisted in the database.
 
     💬️ "It has long been known that testability is an attribute of good architectures.
     The Humble Object pattern is a good example, because the separation of
@@ -325,9 +325,9 @@ Exporter
     The Presenter/View boundary is one of these boundaries,
     but there are many others."
 
-    -- "Clean Architecture: A Craftsman's Guide to Software Structure and Design" by Robert C. Martin, перевод ООО Издательство "Питер"
+    -- "Clean Architecture: A Craftsman's Guide to Software Structure and Design" by Robert C. Martin
 
-Обратите внимание на то, что методы экспортера принимают ValueObject:
+Note that the exporter methods accept Value Objects:
 
 .. code-block::
 
@@ -335,7 +335,7 @@ Exporter
       val.Export(func(v string) { ex.Id = v })
   }
 
-Мы могли бы устранить эту избыточную осведомленность таким образом:
+We could eliminate this excessive awareness as follows:
 
 .. code-block::
 
@@ -350,16 +350,16 @@ Exporter
       val.Export(func(v string) { ex.Id = v })
   }
 
-Кажется, степень осведомленности сократилась.
-Но есть и обратная сторона.
-Предположим, ValueObject Id стал композитным.
-Нам потребуется изменить не только интерфейс экспортера ValueObject, но и интерфейс экспортера самого агрегата.
-У него появляется две причины для изменения.
-Так же две причины для изменения появляется и в логике экспорта самого агрегата. Это нарушает принцип SRP.
+It seems the degree of awareness has decreased.
+But there is a flip side.
+Suppose the Value Object Id becomes composite.
+We would need to change not only the Value Object exporter interface, but also the Aggregate exporter interface itself.
+It now has two reasons to change.
+Likewise, two reasons for change appear in the Aggregate's export logic itself. This violates the SRP.
 
 .. admonition:: [UPDATE]
 
-   На самом деле, не нужно, если метод будет возвращать экспортер для примитивных значений так же, как и для композитных значений:
+   Actually, this is not necessary if the method returns an exporter for primitive values the same way as for composite values:
 
    .. code-block::
 
@@ -374,15 +374,15 @@ Exporter
           return func(v string) { ex.Id = v }
       }
 
-Вторая проблема заключается в том, что для автоинкрементных PK нам нужен доступ к методу Id.Scan(any).
-И во втором варианте он не доступен, а значит, потребуется добавить публичный метод агрегата для доступа к нему.
+The second problem is that for auto-increment PKs we need access to the Id.Scan(any) method.
+And in the second approach it is not available, meaning we would need to add a public Aggregate method to access it.
 
-Третья проблема - иногда нужно иметь доступ именно к ValueObject, например, при реализации Specification Pattern.
+The third problem is that sometimes we need access to the Value Object itself, for example, when implementing the Specification Pattern.
 
-Четвертая проблема - сохранение консистентности между интерфейсами экспортера и импортера,
-ведь, когда мы создаем агрегат, мы передаем в его конструктор ValueObjects, а не примитивные значения.
-Этот вопрос имеет значение в языках, не имеющих пакетной области видимости, и агрегат должен предоставлять интерфейс импортера.
-Что должен предоставлять импортер, примитивные типы или ValueObjects?
+The fourth problem is maintaining consistency between the exporter and importer interfaces,
+since when we create an Aggregate, we pass Value Objects to its constructor, not primitive values.
+This matters in languages that lack package-level visibility, where the Aggregate must provide an importer interface.
+What should the importer provide, primitive types or Value Objects?
 
     A FACTORY used for **reconstitution is very similar to one used for creation, with two major differences**.
 
@@ -409,23 +409,23 @@ Exporter
     -- "Domain-Driven Design: Tackling Complexity in the Heart of Software" by Eric Evans, Chapter "Six. The Life Cycle of a Domain Object :: Factories"
 
 ..
-  Пятая проблема заключается в том, что становится многословней реализация экспортеров-запросов к БД для композитных ValueObject.
-  Ведь нам нужно еще обработать полученные значения и вставить их в параметры запроса.
-  Но метод уже вернул экспортер композитного ValueObject, а yield в Golang не поддерживается.
-  Получив аргументом ValueObject мы можем делать с ним все, что угодно. Использовать стандартный экспортер для раскрытия состояния и вставлять его значения в параметры SQL-запроса.
-  В другом варианте нам потребуется создавать структуру-бертку над экспортером, или возвращать анонимную структуру с функциями.
+  The fifth problem is that database query exporter implementation becomes more verbose for composite Value Objects.
+  We still need to process the received values and insert them into query parameters.
+  But the method has already returned an exporter for the composite Value Object, and yield is not supported in Golang.
+  When receiving a Value Object as an argument, we can do anything with it. Use the standard exporter to reveal state and insert its values into SQL query parameters.
+  In the other approach, we would need to create a wrapper struct over the exporter, or return an anonymous struct with functions.
 
 
 
 2. Returning structure
 """"""""""""""""""""""
 
-Возникает целесообразность облегчить метод экспортирования, придав ему сигнатуру
-``Endorser.Export() EndorserState`` вместо ``Endorser.ExportTo(ex EndorserExporter)``.
-В Python для этого есть даже задокументированные методы ``__getstate__()`` и ``__setstate__()``.
-Получится что-то типа DTO с тем лишь отличием, что он пересекает не сетевые границы, а границы инкапсуляции Агрегата.
+It becomes practical to simplify the export method, giving it the signature
+``Endorser.Export() EndorserState`` instead of ``Endorser.ExportTo(ex EndorserExporter)``.
+Python even has documented methods ``__getstate__()`` and ``__setstate__()`` for this purpose.
+The result is something like a DTO, with the only difference being that it crosses not network boundaries, but the Aggregate's encapsulation boundaries.
 
-О таком же принципе этом писал Robert C. Martin:
+Robert C. Martin wrote about the same principle:
 
     💬️ "Presenters are a form of the Humble Object pattern, which helps us identify and protect architectural boundaries."
 
@@ -448,68 +448,68 @@ Exporter
     Upon completion, the UseCaseInteractor gathers data from the Entities and constructs the OutputData as another **plain old Java object**.
     The OutputData is then passed through the OutputBoundary interface to the Presenter."
 
-    -- "Clean Architecture: A Craftsman's Guide to Software Structure and Design" by Robert C. Martin, перевод ООО Издательство "Питер"
+    -- "Clean Architecture: A Craftsman's Guide to Software Structure and Design" by Robert C. Martin
 
-Этот подход демонстрируется в
+This approach is demonstrated in the
 `Golang DDD ES/CQRS Reference Application <https://github.com/EventStore/training-advanced-go/blob/9cc2b5a4f3484dc643757c88480c4b6e371149fd/domain/doctorday/day.go#L225>`__
-от контрибьюторов EventStore.
+by EventStore contributors.
 
-И такой же подход демонстрирует Nick Tune в
+Nick Tune demonstrates the same approach in the
 `sample code <https://github.com/elbandit/PPPDDD/blob/4d9d864fa6d9dfc0bad323ae21e949be1808b460/21%20-%20Repositories/DDDPPP.Chap21.EFExample/DDDPPP.Chap21.EFExample.Application/Model/Auction/Auction.cs#L48>`__
-к своей книге.
-Причем, применяет он его даже
+for his book.
+Moreover, he applies it even
 `for Value Object <https://github.com/elbandit/PPPDDD/blob/4d9d864fa6d9dfc0bad323ae21e949be1808b460/21%20-%20Repositories/DDDPPP.Chap21.EFExample/DDDPPP.Chap21.EFExample.Application/Model/Auction/Money.cs#L58>`__.
 
 .. literalinclude:: _media/0008-aggregate-encapsulation/exporter_2.go
    :language: go
 
-Недостатком такого решения, который я успел обнаружить, является то,
-что клиент не имеет возможности контролировать структуру экспортируемого объекта,
-в отличии от варианта с интерфейсом.
-Это затрудняет создание обобщенных классов, например,
+A disadvantage of this solution that I have identified is that
+the client has no ability to control the structure of the exported object,
+unlike the interface-based approach.
+This makes it difficult to create generic classes, such as a
 `generic composite primary key <https://martinfowler.com/eaaCatalog/identityField.html>`__.
-В результате плодятся промежуточные структуры, которые затем нужно преобразовывать к нужному виду.
+As a result, intermediate structures proliferate that then need to be converted to the required form.
 
-Вместе с данными экспортируется и иерархия данных, т.е. внутренняя структура агрегата.
-А значит, за обход структуры будет отвечать уже не агрегат в единственном месте,
-а потребители экспортируемых данных во множественных местах, что удорожает изменение программы.
+Along with the data, the data hierarchy is also exported, i.e., the Aggregate's internal structure.
+This means that traversing the structure is no longer the Aggregate's responsibility in a single place,
+but rather the responsibility of exported data consumers in multiple places, increasing the cost of program changes.
 
-Затрудняется обратная совместимость, т.к. состояние единственно, а поведение множественно, что значит - версионируемо.
+Backward compatibility becomes more difficult, since the state is singular while behavior is multiple, meaning it is versionable.
 
-Знание о возвращаемом типе подталкивает к применению generics там, где это можно было бы избежать.
+Knowledge of the return type pushes toward using generics where it could be avoided.
 
-Возвращаемая структура и ее типизация является избыточным знанием, которое может препятствовать обобщению (абстрагированию) клиента этого метода, например, препятствовать выделению абстрактного класса паттерна Repository.
-Вместо структуры гораздо удобней был бы массив/срез объектов с типом `driver.Value <https://pkg.go.dev/database/sql/driver#Value>`__.
-Это еще один аргумент в пользу первого варианта с отдельными сеттерами для каждого атрибута Агрегата.
+The returned structure and its typing constitute excessive knowledge that can hinder generalization (abstraction) of this method's client, for example, preventing the extraction of an abstract Repository pattern class.
+Instead of a structure, an array/slice of `driver.Value <https://pkg.go.dev/database/sql/driver#Value>`__ typed objects would be much more convenient.
+This is yet another argument in favor of the first approach with separate setters for each Aggregate attribute.
 
 
-Импорт состояния
-^^^^^^^^^^^^^^^^
+State Import
+^^^^^^^^^^^^
 
-В Golang область видимости структуры доступна всему пакету, поэтому нет большой необходимости реализовывать Importer/Provider - достаточно положить Reconstitutor в тот же пакет.
+In Golang, struct visibility is accessible to the entire package, so there is no great need to implement Importer/Provider - it is sufficient to place the Reconstitutor in the same package.
 
-В других языках может потребоваться делать Importer/Provider, что образует брешь в инкапсуляции.
-Поэтому импорт состояния делают либо посредством конструктора, если поддерживается множественная диспетчеризация (overloading), либо посредством статического метода класса - чтобы можно было создать, но невозможно было изменить.
-Правда, при этом возникает сложность с синхронизацией состояния объектов в IdentityMap при фиксации изменений (commit), ведь состояние агрегата теперь недоступно для синхронизации.
-В таком случае остается только очистить IdentityMap при фиксации изменений.
+In other languages, it may be necessary to create an Importer/Provider, which creates a breach in encapsulation.
+Therefore, state import usually is implemented either via a constructor, if multiple dispatch (overloading) is supported, or via a static class method - so that creation is possible but modification is not.
+However, this creates a difficulty with synchronizing object state in the IdentityMap during commit, since the Aggregate state is now inaccessible for synchronization.
+In such a case, the only option is to clear the IdentityMap on commit.
 
 
 Export state of Immutable Types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Агрегаты и сущности изменяемы, поэтому инкапсуляция гарантирует охрану инвариантов при изменении их состояния.
-Но нужно ли делать экспортеры для неизменяемых типов, таких, как Value Object или Domain Event?
+Aggregates and Entities are mutable, so encapsulation guarantees invariant protection when their state changes.
+But do we need exporters for immutable types, such as Value Objects or Domain Events?
 
-Nick Tune использует экспортер даже
+Nick Tune uses an exporter even
 `for Value Object <https://github.com/elbandit/PPPDDD/blob/4d9d864fa6d9dfc0bad323ae21e949be1808b460/21%20-%20Repositories/DDDPPP.Chap21.EFExample/DDDPPP.Chap21.EFExample.Application/Model/Auction/Money.cs#L58>`__.
 
-Способ экспорта не должен зависеть от области видимости или доступности значения Value Object,
-который может измениться с течением времени, как и сама структура Value Oject.
-Иначе это внесет хрупкость в программу.
+The export method should not depend on the scope of visibility or accessibility of the Value Object's value,
+which may change over time, as may the Value Object's structure itself.
+Otherwise, this introduces fragility into the program.
 
-Композитные и простые ValueObject должны обрабатываться единообразно.
+Composite and simple Value Objects should be handled uniformly.
 
-Greg Young об экспорте состояния Domain Events:
+Greg Young on exporting Domain Event state:
 
     💬 This table represents the actual Event Log.
     There will be one entry per event in this table.
@@ -524,8 +524,8 @@ Greg Young об экспорте состояния Domain Events:
 Decision
 --------
 
-Решение - использовать единообразный способ экспорта состояния агрегатов,
-Value Objects and Domain Events посредством Accepting interface (Mediator).
+The decision is to use a uniform state export method for Aggregates,
+Value Objects and Domain Events via the Accepting interface (Mediator).
 
-Увеличение объема кода не является критичным в силу ":doc:`/adr/0007-scaffold`"
+The increase in code volume is not critical due to ":doc:`/adr/0007-scaffold`"
 
