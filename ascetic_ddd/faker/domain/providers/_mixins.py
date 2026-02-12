@@ -163,18 +163,14 @@ class BaseProvider(
     _criteria: IQueryOperator | None = None
     _input: T_Input | Empty = empty
     _output: T_Output | Empty = empty
-
-    def reset(self) -> None:
-        self._criteria = None
-        self._input = empty
-        self._output = empty
+    _is_transient: bool = False
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
         Set provider value using query format.
 
         Args:
-            query: Query in format {'$eq': v} or scalar (implicit $eq)
+            criteria: Query in format {'$eq': v} or scalar (implicit $eq)
 
         Examples:
             provider.require({'$eq': 5})
@@ -199,21 +195,30 @@ class BaseProvider(
         """Return current query as dict format."""
         return self._input
 
-    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
-        clone._criteria = None
-        clone._input = empty
-        clone._output = empty
-        super()._do_clone(clone, shunt)
-
     def is_complete(self) -> bool:
         return self._output is not empty
 
     def is_transient(self) -> bool:
-        return self._input is None
+        return self._is_transient
 
     def _set_input(self, input_: T_Input):
         self._input = input_
+        if input_ is not None:
+            self._is_transient = False
         self.notify('input', self._input)
+
+    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
+        clone._criteria = None
+        clone._input = empty
+        clone._output = empty
+        clone._is_transient = False
+        super()._do_clone(clone, shunt)
+
+    def reset(self) -> None:
+        self._criteria = None
+        self._input = empty
+        self._output = empty
+        self._is_transient = False
 
     async def append(self, session: ISession, value: T_Output):
         pass
@@ -280,28 +285,6 @@ class BaseCompositeProvider(
 
             self._output_factory = output_factory
         super().__init__()
-
-    def is_complete(self) -> bool:
-        return (
-            self._output is not empty or
-            all(provider.is_complete() for provider in self.providers.values())
-        )
-
-    def is_transient(self) -> bool:
-        return any(provider.is_transient() for provider in self.providers.values())
-
-    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
-        clone._criteria = None
-        clone._output = empty
-        for attr, provider in self.providers.items():
-            setattr(clone, attr, provider.clone(shunt))
-        super()._do_clone(clone, shunt)
-
-    def reset(self) -> None:
-        self._criteria = None
-        self._output = empty
-        for provider in self.providers.values():
-            provider.reset()
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
@@ -370,6 +353,28 @@ class BaseCompositeProvider(
         for attr, provider in self.providers.items():
             data[attr] = await provider.create(session)
         return self._output_factory(**data)
+
+    def is_complete(self) -> bool:
+        return (
+            self._output is not empty or
+            all(provider.is_complete() for provider in self.providers.values())
+        )
+
+    def is_transient(self) -> bool:
+        return any(provider.is_transient() for provider in self.providers.values())
+
+    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
+        clone._criteria = None
+        clone._output = empty
+        for attr, provider in self.providers.items():
+            setattr(clone, attr, provider.clone(shunt))
+        super()._do_clone(clone, shunt)
+
+    def reset(self) -> None:
+        self._criteria = None
+        self._output = empty
+        for provider in self.providers.values():
+            provider.reset()
 
     async def append(self, session: ISession, value: T_Output):
         pass

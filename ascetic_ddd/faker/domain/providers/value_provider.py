@@ -118,6 +118,7 @@ class ValueProvider(
             if self._input_generator is None:
                 self._set_input(None)
                 self._output = self._output_factory(None)
+                self._is_transient = True
             else:
                 self._set_input(await self._input_generator(session, self._criteria, cursor.position))
                 self._output = self._output_factory(self._input)
