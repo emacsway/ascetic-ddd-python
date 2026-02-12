@@ -65,7 +65,7 @@ from abc import ABCMeta, abstractmethod
 from typing import AsyncIterator, TypeAlias, Callable, Awaitable, Optional, Any
 
 from ascetic_ddd.outbox.message import OutboxMessage
-from ascetic_ddd.session.interfaces import IPgSession
+from ascetic_ddd.session.interfaces import ISession
 
 
 __all__ = (
@@ -96,7 +96,7 @@ class IOutbox(metaclass=ABCMeta):
     @abstractmethod
     async def publish(
             self,
-            session: 'IPgSession',
+            session: 'ISession',
             message: 'OutboxMessage'
     ) -> None:
         """Store a message in the outbox within the current transaction.
@@ -224,7 +224,7 @@ class IOutbox(metaclass=ABCMeta):
     @abstractmethod
     async def get_position(
             self,
-            session: 'IPgSession',
+            session: 'ISession',
             consumer_group: str = '',
             uri: str = ''
     ) -> tuple[int, int]:
@@ -243,7 +243,7 @@ class IOutbox(metaclass=ABCMeta):
     @abstractmethod
     async def set_position(
             self,
-            session: 'IPgSession',
+            session: 'ISession',
             consumer_group: str,
             uri: str,
             transaction_id: int,

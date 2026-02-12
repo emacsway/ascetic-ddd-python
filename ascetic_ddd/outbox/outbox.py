@@ -10,7 +10,8 @@ from psycopg.types.json import Jsonb
 from ascetic_ddd.outbox.interfaces import IOutbox, ISubscriber
 from ascetic_ddd.outbox.message import OutboxMessage
 from ascetic_ddd.seedwork.domain.session.interfaces import ISessionPool
-from ascetic_ddd.session.interfaces import IPgSession
+from ascetic_ddd.session.interfaces import ISession
+from ascetic_ddd.session.pg_session import extract_connection
 from ascetic_ddd.utils.json import JSONEncoder
 
 
@@ -23,7 +24,7 @@ class Outbox(IOutbox):
     Uses transaction_id (xid8) for correct ordering across concurrent transactions.
     See init.sql for schema and detailed documentation.
     """
-
+    _extract_connection = staticmethod(extract_connection)
     _session_pool: ISessionPool
     _outbox_table: str
     _offsets_table: str
@@ -43,7 +44,7 @@ class Outbox(IOutbox):
 
     async def publish(
             self,
-            session: 'IPgSession',
+            session: 'ISession',
             message: 'OutboxMessage'
     ) -> None:
         """Store a message in the outbox within the current transaction."""
@@ -58,7 +59,7 @@ class Outbox(IOutbox):
             'metadata': self._to_jsonb(message.metadata),
         }
 
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql, params)
 
     async def dispatch(
@@ -204,7 +205,7 @@ class Outbox(IOutbox):
 
     async def get_position(
             self,
-            session: 'IPgSession',
+            session: 'ISession',
             consumer_group: str = '',
             uri: str = ''
     ) -> tuple[int, int]:
@@ -215,7 +216,7 @@ class Outbox(IOutbox):
             WHERE consumer_group = %%(consumer_group)s AND uri = %%(uri)s
         """ % (self._offsets_table,)
 
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql, {'consumer_group': consumer_group, 'uri': uri})
             row = await cursor.fetchone()
             if row is None:
@@ -224,7 +225,7 @@ class Outbox(IOutbox):
 
     async def set_position(
             self,
-            session: 'IPgSession',
+            session: 'ISession',
             consumer_group: str,
             uri: str,
             transaction_id: int,
@@ -240,7 +241,7 @@ class Outbox(IOutbox):
                 updated_at = EXCLUDED.updated_at
         """ % (self._offsets_table,)
 
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql, {
                 'consumer_group': consumer_group,
                 'uri': uri,
@@ -250,7 +251,7 @@ class Outbox(IOutbox):
 
     # Private methods
 
-    async def _ensure_consumer_group(self, session: 'IPgSession', consumer_group: str, uri: str = '') -> None:
+    async def _ensure_consumer_group(self, session: 'ISession', consumer_group: str, uri: str = '') -> None:
         """Ensure consumer group exists with zero position.
 
         Required for FOR UPDATE locking to work (can't lock non-existent row).
@@ -261,12 +262,12 @@ class Outbox(IOutbox):
             ON CONFLICT DO NOTHING
         """ % (self._offsets_table,)
 
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql, {'consumer_group': consumer_group, 'uri': uri})
 
     async def _fetch_messages(
             self,
-            session: 'IPgSession',
+            session: 'ISession',
             consumer_group: str,
             uri: str = '',
             worker_id: int = 0,
@@ -332,7 +333,7 @@ class Outbox(IOutbox):
             'num_workers': num_workers,
         }
 
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql, params)
             rows = await cursor.fetchall()
 
@@ -340,7 +341,7 @@ class Outbox(IOutbox):
 
     async def _ack_message(
             self,
-            session: 'IPgSession',
+            session: 'ISession',
             consumer_group: str,
             uri: str,
             transaction_id: int,
@@ -356,7 +357,7 @@ class Outbox(IOutbox):
                 updated_at = EXCLUDED.updated_at
         """ % (self._offsets_table,)
 
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql, {
                 'consumer_group': consumer_group,
                 'uri': uri,
@@ -389,7 +390,7 @@ class Outbox(IOutbox):
                 await self._create_outbox_table(tx_session)
                 await self._create_offsets_table(tx_session)
 
-    async def _create_outbox_table(self, session: 'IPgSession') -> None:
+    async def _create_outbox_table(self, session: 'ISession') -> None:
         """Create outbox table with indexes."""
         sql = """
             CREATE TABLE IF NOT EXISTS %s (
@@ -402,21 +403,21 @@ class Outbox(IOutbox):
                 PRIMARY KEY ("transaction_id", "position")
             )
         """ % (self._outbox_table,)
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql)
 
         # Index for position-based queries
         sql = """
             CREATE INDEX IF NOT EXISTS %s_position_idx ON %s ("position")
         """ % (self._outbox_table, self._outbox_table)
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql)
 
         # Index for uri filtering
         sql = """
             CREATE INDEX IF NOT EXISTS %s_uri_idx ON %s ("uri")
         """ % (self._outbox_table, self._outbox_table)
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql)
 
         # Unique index on event_id for idempotency
@@ -424,10 +425,10 @@ class Outbox(IOutbox):
             CREATE UNIQUE INDEX IF NOT EXISTS %s_event_id_uniq
             ON %s (((metadata->>'event_id')::uuid))
         """ % (self._outbox_table, self._outbox_table)
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql)
 
-    async def _create_offsets_table(self, session: 'IPgSession') -> None:
+    async def _create_offsets_table(self, session: 'ISession') -> None:
         """Create offsets table for consumer groups.
 
         The composite PK (consumer_group, uri) allows:
@@ -444,7 +445,7 @@ class Outbox(IOutbox):
                 PRIMARY KEY ("consumer_group", "uri")
             )
         """ % (self._offsets_table,)
-        async with session.connection.cursor() as cursor:
+        async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql)
 
     async def cleanup(self) -> None:
