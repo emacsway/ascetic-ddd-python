@@ -26,7 +26,7 @@ extensions = [
     'sphinx.ext.inheritance_diagram',
     'sphinx_immaterial',
     'sphinx_autodoc_typehints',
-    'sphinx_copybutton',
+
     'myst_parser',
     'sphinxcontrib.mermaid',
 ]
