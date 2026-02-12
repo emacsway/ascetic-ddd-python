@@ -733,6 +733,11 @@ BoundedContextModel      model.py       dataclasses (TypeRef hierarchy)
     │
     ▼
 RenderWalker             renderer.py    walks model, renders Jinja2 templates
+    │                                   (merge=True: AST merge with existing)
+    │
+    ├──[new file]──────► write directly
+    │
+    └──[existing file]─► ast_merge.py   additive merge, then write
     │
     ▼
 *.py files               templates/     22 Jinja2 templates
@@ -888,12 +893,63 @@ All rendering goes through `_render_template(tpl_name, path, **kwargs)` —
 a single method that loads the Jinja2 template, renders, writes the file,
 and appends the path to the generated files list.
 
-Public facade:
+Public facades:
 
 ```python
 from ascetic_ddd.cli.scaffold.renderer import render_bounded_context
 
 files = render_bounded_context(model, "./output", "app.jobs")
+```
+
+For additive merge with existing files (see [AST Merge](#ast-merge)):
+
+```python
+from ascetic_ddd.cli.scaffold.renderer import ast_render_bounded_context
+
+files = ast_render_bounded_context(model, "./output", "app.jobs")
+```
+
+
+(ast-merge)=
+### AST Merge (`ast_merge.py`)
+
+When regenerating code for an existing codebase, `ast_render_bounded_context`
+uses **additive AST merge**: the Jinja2 template renders to a string,
+`ast.parse()` converts it to an AST, and `merge_modules(existing, generated)`
+adds missing elements from the generated AST into the existing file's AST.
+The result is written back via `ast.unparse()`.
+
+This approach uses Jinja2 templates as the single source of truth — no
+separate AST builders needed.
+
+What gets merged:
+
+| Element | Action |
+|---------|--------|
+| `from X import Y` | Add missing names to existing import, or add new import |
+| `import X` | Add if absent |
+| Class (by name) | Add if absent; merge members if present |
+| Field annotation (`x: int`) | Add if absent |
+| Method (`def foo`) | Add if absent; preserve existing body |
+| `__init__` params | Add missing params |
+| `self._x = x` in `__init__` | Add missing assignments |
+| `__all__` list | Add missing names |
+
+What is **not** modified:
+
+- Existing method bodies (user business logic is preserved)
+- Existing class hierarchy / decorators
+- Existing import order
+
+**Limitation:** `ast.unparse()` does not preserve comments or formatting.
+After merge, the file is reformatted by Python's AST unparsing.
+
+Convenience wrapper:
+
+```python
+from ascetic_ddd.cli.scaffold import ast_scaffold
+
+ast_scaffold("domain-model.yaml", "./output", "app.jobs")
 ```
 
 
@@ -1018,4 +1074,6 @@ python -m unittest discover -s ascetic_ddd/cli/scaffold/tests -p "test_*.py" -v
 | `test_naming.py` | CamelCase conversion, collection detection, primitive classification |
 | `test_parser.py` | YAML parsing, VO classification, type resolution, inline dotted paths, entity parsing, command derivation, validation errors |
 | `test_renderer.py` | Generated file contents, directory structure, entity rendering, custom templates, no f-strings in output |
+| `test_ast_merge.py` | AST merge: imports, classes, methods, `__init__` params, `__all__` lists |
+| `test_ast_renderer.py` | AST merge mode: additive merge with existing files, user code preservation |
 | `test_scaffold.py` | End-to-end: YAML -> compilable Python files |

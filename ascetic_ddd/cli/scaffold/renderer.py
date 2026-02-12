@@ -1,9 +1,11 @@
+import ast
 import os
 from dataclasses import dataclass, replace as dataclass_replace
 
 import inflection
 from jinja2 import ChoiceLoader, Environment, FileSystemLoader
 
+from ascetic_ddd.cli.scaffold.ast_merge import merge_modules
 from ascetic_ddd.cli.scaffold.model import (
     CollectionType, CompositeVoDef, EntityRef, EnumVoDef, FieldDef,
     IdentityVoDef, PrimitiveType, SimpleVoDef, VoRef,
@@ -68,10 +70,12 @@ class _AggregateContext:
 class RenderWalker:
     """Walks BoundedContextModel and renders files via Jinja2 templates."""
 
-    def __init__(self, output_dir, package_name=None, templates_dir=None):
+    def __init__(self, output_dir, package_name=None, templates_dir=None,
+                 merge=False):
         self._env = _make_env(templates_dir)
         self._output_dir = output_dir
         self._package_name = package_name
+        self._merge = merge
         self._generated = []
 
     def walk(self, model):
@@ -373,6 +377,16 @@ class RenderWalker:
         tpl = self._env.get_template(tpl_name)
         content = tpl.render(**kwargs)
         content = content.rstrip('\n') + '\n'
+
+        if self._merge and path.endswith('.py') and os.path.exists(path):
+            with open(path, 'r') as f:
+                existing_src = f.read()
+            existing_tree = ast.parse(existing_src)
+            generated_tree = ast.parse(content)
+            merged = merge_modules(existing_tree, generated_tree)
+            ast.fix_missing_locations(merged)
+            content = ast.unparse(merged) + '\n'
+
         with open(path, 'w') as f:
             f.write(content)
         self._generated.append(path)
@@ -384,6 +398,13 @@ class RenderWalker:
 def render_bounded_context(model, output_dir, package_name=None,
                            templates_dir=None):
     walker = RenderWalker(output_dir, package_name, templates_dir)
+    return walker.walk(model)
+
+
+def ast_render_bounded_context(model, output_dir, package_name=None,
+                               templates_dir=None):
+    walker = RenderWalker(output_dir, package_name, templates_dir,
+                          merge=True)
     return walker.walk(model)
 
 
