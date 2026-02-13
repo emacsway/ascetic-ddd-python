@@ -155,6 +155,9 @@ Exporter
 1. Accepting interface (Mediator)
 """""""""""""""""""""""""""""""""
 
+1.1. Setter per attribute
+.........................
+
 This approach is discussed in the book "`Implementing Domain-Driven Design <https://kalele.io/books/>`__" by Vaughn Vernon:
 
     Use a Mediator to Publish Aggregate Internal State
@@ -258,7 +261,122 @@ Implementation example in Golang:
 .. literalinclude:: _media/0008-aggregate-encapsulation/exporter_1.go
    :language: go
 
-Or in a more concise example:
+This is an excellent approach, but it uses interfaces,
+and this turns out to be somewhat verbose -- it requires declaring
+the type (struct) itself, the interface, and setters.
+
+One of the features of this approach is maintaining backward compatibility
+of the interface when removing an attribute from the aggregate.
+It also allows for the creation of methods for optional attributes with
+a default value, such as tenant_id,
+which can be convenient for developing plugins, extensions, and libraries.
+
+Note that the exporter methods accept Value Objects:
+
+.. code-block::
+
+  func (ex *EndorserExporter) SetId(val MemberId) {
+      val.Export(func(v string) { ex.Id = v })
+  }
+
+We could eliminate this excessive awareness as follows:
+
+.. code-block::
+
+  func (e Endorser) Export(ex EndorserExporterSetter) {
+      e.id.Export(ex.SetId)
+      ...
+  }
+
+  ...
+
+  func (ex *EndorserExporter) SetId(val uint) {
+      val.Export(func(v string) { ex.Id = v })
+  }
+
+It seems the degree of awareness has decreased.
+But there is a flip side.
+Suppose the Value Object Id becomes composite.
+We would need to change not only the Value Object exporter interface,
+but also the Aggregate exporter interface itself.
+It now has two reasons to change.
+Likewise, two reasons for change appear in the Aggregate's export logic itself.
+This violates the SRP.
+
+.. admonition:: [UPDATE]
+
+   Actually, this is not necessary if the method returns an exporter
+   for primitive values the same way as for composite values:
+
+   .. code-block::
+
+      func (e Endorser) Export(ex EndorserExporterSetter) {
+          e.id.Export(ex.SetId())
+          ...
+      }
+
+      ...
+
+      func (ex *EndorserExporter) SetId() func(uint) {
+          return func(v string) { ex.Id = v }
+      }
+
+The second problem is that for auto-increment PKs we need access to the Id.Scan(any) method.
+And in the last approach it is not available,
+meaning we would need to add a public Aggregate method to access it.
+
+The third problem is that sometimes we need access to the Value Object itself,
+for example, when implementing the Specification Pattern.
+
+The fourth problem is maintaining consistency between
+the exporter and importer interfaces,
+since when we create an Aggregate,
+we pass Value Objects to its constructor, not primitive values.
+
+This matters in programming languages that lack package-level visibility,
+where the Aggregate must provide an importer interface.
+
+What should the importer provide, primitive types or Value Objects?
+
+    A FACTORY used for **reconstitution is very similar to one used for creation, with two major differences**.
+
+    1. An ENTITY FACTORY used for reconstitution **does not assign a new tracking ID**.
+       To do so would lose the continuity with the object's previous incarnation.
+       So identifying attributes must be part of the input parameters
+       in a FACTORY reconstituting a stored object.
+
+    2. A FACTORY reconstituting an object will handle violation of
+       an invariant differently.
+       During creation of a new object, a FACTORY should simply balk when
+       an invariant isn't met, but a more flexible response may be
+       necessary in reconstitution.
+       If an object already exists somewhere in the system
+       (such as in the database), this fact cannot be ignored.
+       Yet we also can't ignore the rule violation.
+       There has to be some strategy for repairing such inconsistencies,
+       which can make reconstitution more challenging than
+       the creation of new objects.
+
+    Figures 6.16 and 6.17 (on the next page) show two kinds of reconstitution.
+    Object-mapping technologies may provide some or all of these services in
+    the case of database reconstitution, which is convenient.
+    Whenever there is exposed complexity in reconstituting an object from
+    another medium, the FACTORY is a good option.
+
+    -- "Domain-Driven Design: Tackling Complexity in the Heart of Software" by Eric Evans, Chapter "Six. The Life Cycle of a Domain Object :: Factories"
+
+..
+  The fifth problem is that database query exporter implementation becomes more verbose for composite Value Objects.
+  We still need to process the received values and insert them into query parameters.
+  But the method has already returned an exporter for the composite Value Object, and yield is not supported in Golang.
+  When receiving a Value Object as an argument, we can do anything with it. Use the standard exporter to reveal state and insert its values into SQL query parameters.
+  In the other approach, we would need to create a wrapper struct over the exporter, or return an anonymous struct with functions.
+
+
+1.2. Batch setter per node
+..........................
+
+There is also a more concise example:
 
 .. code-block:: java
    :caption: `Example from Stackoverflow <https://stackoverflow.com/questions/24921227/save-and-load-objects-without-breaking-encapsulation>`__
@@ -293,32 +411,43 @@ Or in a more concise example:
 
     }
 
-An excellent approach, but it uses interfaces,
-and this turns out to be somewhat verbose - it requires declaring the type (struct) itself, the interface, and setters.
-
-As an alternative, one can simply require the Aggregate to return a plain structure,
-and such approaches also appear in demo applications, for example,
-`here <https://github.com/kurrent-io/training-advanced-go/blob/52c0083aa717a7fac7c482c2b72e905b93c0a52a/domain/doctorday/day.go#L225>`__.
-
-    💬️ "The goal of software architecture is to minimize the human resources required to build and maintain the required system."
-
-    -- "Clean Architecture: A Craftsman's Guide to Software Structure and Design" by Robert C. Martin
-
 :ref:`The second <code-exporter-example-2>` of the examples above contains a batched setter, which makes it somewhat less verbose.
 
 However, in this case, it is not possible to traverse the hierarchy of nested
-Aggregate objects with a single exporter instance due to method name collision
-with ``setDetails``,
+Aggregate composite nodes with a single exporter instance due to
+method name collision with ``setDetails``,
 for example, when traversing an Aggregate and its composite primary key
-(though in the first approach, collisions are not entirely excluded either).
-This could have been convenient for composing SQL query parameter lists.
-One could sacrifice naming consistency, but that would strip the second approach of its advantage over the first.
-The second approach is also somewhat more fragile when adding or removing fields.
+(though in the previous approach, collisions are not entirely excluded either).
 
-Using this approach in test cases makes them somewhat more verbose.
+A single exporter instance could have been convenient for
+composing SQL query parameter lists.
 
-One could argue that testing should follow black-box principles, i.e., only external behavior.
-Absolutely true, but we need not only external behavior, but also verification that the information passed to the Aggregate constructor is correctly persisted in the database.
+One way to resolve the collision issue is to suffix the setter methods with
+the node type name:
+
+- ``set_[aggregate_type_name](...)``,
+- ``set_[entity_type_name](...)``,
+- ``set_[composite_value_object_type_name](...)``,
+- ...
+
+In this case, the exporter becomes very similar to Visitor Pattern.
+
+Unlike the previous approach, maintaining backward compatibility
+of the interface when removing an attribute from an aggregate depends on
+the syntactic capabilities of the programming language,
+whether it allows specifying keyword arguments with a default value.
+
+
+Testing
+.......
+
+Using interface-based exporter in test cases makes them somewhat more verbose.
+
+One could argue that testing should follow black-box principles,
+i.e., only external behavior.
+Absolutely true, but we need not only external behavior,
+but also verification that the data passed to the Aggregate constructor
+is correctly persisted in the database.
 
     💬️ "It has long been known that testability is an attribute of good architectures.
     The Humble Object pattern is a good example, because the separation of
@@ -329,103 +458,27 @@ Absolutely true, but we need not only external behavior, but also verification t
 
     -- "Clean Architecture: A Craftsman's Guide to Software Structure and Design" by Robert C. Martin
 
-Note that the exporter methods accept Value Objects:
-
-.. code-block::
-
-  func (ex *EndorserExporter) SetId(val MemberId) {
-      val.Export(func(v string) { ex.Id = v })
-  }
-
-We could eliminate this excessive awareness as follows:
-
-.. code-block::
-
-  func (e Endorser) Export(ex EndorserExporterSetter) {
-      e.id.Export(ex.SetId)
-      ...
-  }
-
-  ...
-
-  func (ex *EndorserExporter) SetId(val uint) {
-      val.Export(func(v string) { ex.Id = v })
-  }
-
-It seems the degree of awareness has decreased.
-But there is a flip side.
-Suppose the Value Object Id becomes composite.
-We would need to change not only the Value Object exporter interface, but also the Aggregate exporter interface itself.
-It now has two reasons to change.
-Likewise, two reasons for change appear in the Aggregate's export logic itself. This violates the SRP.
-
-.. admonition:: [UPDATE]
-
-   Actually, this is not necessary if the method returns an exporter for primitive values the same way as for composite values:
-
-   .. code-block::
-
-      func (e Endorser) Export(ex EndorserExporterSetter) {
-          e.id.Export(ex.SetId())
-          ...
-      }
-
-      ...
-
-      func (ex *EndorserExporter) SetId() func(uint) {
-          return func(v string) { ex.Id = v }
-      }
-
-The second problem is that for auto-increment PKs we need access to the Id.Scan(any) method.
-And in the second approach it is not available, meaning we would need to add a public Aggregate method to access it.
-
-The third problem is that sometimes we need access to the Value Object itself, for example, when implementing the Specification Pattern.
-
-The fourth problem is maintaining consistency between the exporter and importer interfaces,
-since when we create an Aggregate, we pass Value Objects to its constructor, not primitive values.
-This matters in languages that lack package-level visibility, where the Aggregate must provide an importer interface.
-What should the importer provide, primitive types or Value Objects?
-
-    A FACTORY used for **reconstitution is very similar to one used for creation, with two major differences**.
-
-    1. An ENTITY FACTORY used for reconstitution **does not assign a new tracking ID**.
-       To do so would lose the continuity with the object's previous incarnation.
-       So identifying attributes must be part of the input parameters in a FACTORY reconstituting a stored object.
-
-    2. A FACTORY reconstituting an object will handle violation of an invariant differently.
-       During creation of a new object, a FACTORY should simply balk when
-       an invariant isn't met, but a more flexible response may be
-       necessary in reconstitution.
-       If an object already exists somewhere in the system
-       (such as in the database), this fact cannot be ignored.
-       Yet we also can't ignore the rule violation.
-       There has to be some strategy for repairing such inconsistencies,
-       which can make reconstitution more challenging than the creation of new objects.
-
-    Figures 6.16 and 6.17 (on the next page) show two kinds of reconstitution.
-    Object-mapping technologies may provide some or all of these services in
-    the case of database reconstitution, which is convenient.
-    Whenever there is exposed complexity in reconstituting an object from
-    another medium, the FACTORY is a good option.
-
-    -- "Domain-Driven Design: Tackling Complexity in the Heart of Software" by Eric Evans, Chapter "Six. The Life Cycle of a Domain Object :: Factories"
-
-..
-  The fifth problem is that database query exporter implementation becomes more verbose for composite Value Objects.
-  We still need to process the received values and insert them into query parameters.
-  But the method has already returned an exporter for the composite Value Object, and yield is not supported in Golang.
-  When receiving a Value Object as an argument, we can do anything with it. Use the standard exporter to reveal state and insert its values into SQL query parameters.
-  In the other approach, we would need to create a wrapper struct over the exporter, or return an anonymous struct with functions.
-
-
 
 2. Returning structure
 """"""""""""""""""""""
 
+As an alternative, Aggregate can simply return a plain structure,
+and such approaches also appear in demo applications, for example,
+`here <https://github.com/kurrent-io/training-advanced-go/blob/52c0083aa717a7fac7c482c2b72e905b93c0a52a/domain/doctorday/day.go#L225>`__.
+
+    💬️ "The goal of software architecture is to minimize the human resources required to build and maintain the required system."
+
+    -- "Clean Architecture: A Craftsman's Guide to Software Structure and Design" by Robert C. Martin
+
 It becomes practical to simplify the export method, giving it the signature
-``Endorser.Export() EndorserState`` instead of ``Endorser.ExportTo(ex EndorserExporter)``.
+``Endorser.Export() EndorserState``
+instead of
+``Endorser.ExportTo(ex EndorserExporter)``.
+
 Python even has documented methods ``__getstate__()`` and ``__setstate__()`` for this purpose.
-The result is something like a DTO, with the only difference being that it crosses not network boundaries, but the Aggregate's encapsulation boundaries.
+
+The result is something like a DTO, with the only difference being that
+it crosses not network boundaries, but the Aggregate's encapsulation boundaries.
 
 Robert C. Martin wrote about the same principle:
 
@@ -465,24 +518,36 @@ Moreover, he applies it even
 .. literalinclude:: _media/0008-aggregate-encapsulation/exporter_2.go
    :language: go
 
-A disadvantage of this solution that I have identified is that
-the client has no ability to control the structure of the exported object,
+A disadvantage of this solution that I have noticed is that
+the client has no ability to define the structure of the exported object,
 unlike the interface-based approach.
+
 This makes it difficult to create generic classes, such as a
 `generic composite primary key <https://martinfowler.com/eaaCatalog/identityField.html>`__.
 As a result, intermediate structures proliferate that then need to be converted to the required form.
 
-Along with the data, the data hierarchy is also exported, i.e., the Aggregate's internal structure.
-This means that traversing the structure is no longer the Aggregate's responsibility in a single place,
-but rather the responsibility of exported data consumers in multiple places, increasing the cost of program changes.
+Along with the data, the data hierarchy is also exported,
+i.e., the Aggregate's internal structure.
+This means that traversing the structure is no longer
+the Aggregate's responsibility in a single place,
+but rather the responsibility of exported data consumers in multiple places,
+increasing the cost of program changes.
 
-Backward compatibility becomes more difficult, since the state is singular while behavior is multiple, meaning it is versionable.
+Backward compatibility becomes more difficult, since the state is singular
+while behavior is multiple, meaning it is versionable.
 
 Knowledge of the return type pushes toward using generics where it could be avoided.
 
-The returned structure and its typing constitute excessive knowledge that can hinder generalization (abstraction) of this method's client, for example, preventing the extraction of an abstract Repository pattern class.
-Instead of a structure, an array/slice of `driver.Value <https://pkg.go.dev/database/sql/driver#Value>`__ typed objects would be much more convenient.
-This is yet another argument in favor of the first approach with separate setters for each Aggregate attribute.
+The returned structure and its typing constitute excessive knowledge
+that can hinder generalization (abstraction) of this method's client,
+for example, preventing the extraction of an abstract Repository pattern class.
+
+Instead of a structure, an array/slice of
+`driver.Value <https://pkg.go.dev/database/sql/driver#Value>`__ typed objects
+would be much more convenient.
+
+This is yet another argument in favor of the intereface-based approach
+with separate setters for each Aggregate attribute.
 
 
 State Import
