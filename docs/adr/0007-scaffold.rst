@@ -36,8 +36,9 @@ without any ORM. There are several reasons for this.
   advantages of statically typed languages.
 
 However, using Raw SQL introduces a classified Code Smell known as Shotgun
-Surgery, since adding a single field to an Entity requires changes across many
-files.
+Surgery, since adding a single field to an Entity requires changes across
+multiple objects and files
+(aggregate, exporter, reconstitutor, command, domain event, sql-query, sql-params, etc.)
 
 Martin Fowler himself, who popularized ORM with his book "Patterns of
 Enterprise Application Architecture", wrote in the "Metadata Mapping" chapter
