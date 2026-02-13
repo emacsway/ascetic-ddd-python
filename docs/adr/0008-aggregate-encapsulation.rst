@@ -1,5 +1,5 @@
-ADR-0008: Accessing Aggregate State Without Breaking Encapsulation
-===================================================================
+ADR-0008: Accessing State of Encapsulated Aggregate
+===================================================
 
 .. index:: ADR; encapsulation, Aggregate, Exporter, Mediator, Value Object
 
