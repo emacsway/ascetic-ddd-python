@@ -19,3 +19,4 @@ decision, and its consequences.
    0006-mongodb-like-query-dsl-for-faker-providers
    0007-scaffold
    0008-aggregate-encapsulation
+   0009-envelope-encryption
