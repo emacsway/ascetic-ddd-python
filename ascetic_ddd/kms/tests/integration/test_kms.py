@@ -10,20 +10,6 @@ from ascetic_ddd.utils.tests.db import make_pg_session_pool
 class TestPgKeyManagementService(PgKeyManagementService):
     _table = "kms_keys_test"
 
-    _select_current_sql = """
-        SELECT key_version, encrypted_kek FROM kms_keys_test
-        WHERE tenant_id = %s ORDER BY key_version DESC LIMIT 1
-    """
-    _select_version_sql = """
-        SELECT encrypted_kek FROM kms_keys_test
-        WHERE tenant_id = %s AND key_version = %s
-    """
-    _insert_sql = """
-        INSERT INTO kms_keys_test (tenant_id, key_version, encrypted_kek)
-        VALUES (%s, %s, %s)
-    """
-    _delete_sql = "DELETE FROM kms_keys_test WHERE tenant_id = %s"
-
 
 class KmsIntegrationTestCase(IsolatedAsyncioTestCase):
 

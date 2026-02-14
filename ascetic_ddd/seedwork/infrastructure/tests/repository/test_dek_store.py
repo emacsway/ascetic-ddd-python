@@ -12,32 +12,9 @@ from ascetic_ddd.utils.tests.db import make_pg_session_pool
 class TestPgKeyManagementService(PgKeyManagementService):
     _table = "kms_keys_test"
 
-    _select_current_sql = """
-        SELECT key_version, encrypted_kek FROM kms_keys_test
-        WHERE tenant_id = %s ORDER BY key_version DESC LIMIT 1
-    """
-    _select_version_sql = """
-        SELECT encrypted_kek FROM kms_keys_test
-        WHERE tenant_id = %s AND key_version = %s
-    """
-    _insert_sql = """
-        INSERT INTO kms_keys_test (tenant_id, key_version, encrypted_kek)
-        VALUES (%s, %s, %s)
-    """
-    _delete_sql = "DELETE FROM kms_keys_test WHERE tenant_id = %s"
-
 
 class TestDekStore(DekStore):
     _table = "stream_deks_test"
-
-    _select_sql = """
-        SELECT encrypted_dek FROM stream_deks_test
-        WHERE tenant_id = %s AND stream_type = %s AND stream_id = %s
-    """
-    _insert_sql = """
-        INSERT INTO stream_deks_test (tenant_id, stream_type, stream_id, encrypted_dek)
-        VALUES (%s, %s, %s, %s)
-    """
 
 
 class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
@@ -123,6 +100,15 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 await self._kms.rotate_kek(session, stream_id.tenant_id)
                 loaded_dek = await self._dek_store.get(session, stream_id)
                 self.assertEqual(dek, loaded_dek)
+
+    async def test_delete(self):
+        stream_id = self._make_stream_id()
+        async with self._session_pool.session() as session:
+            async with session.atomic():
+                await self._dek_store.get_or_create(session, stream_id)
+                await self._dek_store.delete(session, stream_id)
+                with self.assertRaises(KeyError):
+                    await self._dek_store.get(session, stream_id)
 
     async def test_crypto_shredding(self):
         stream_id = self._make_stream_id()

@@ -24,18 +24,26 @@ class IDekStore(metaclass=ABCMeta):
     async def get(self, session: ISession, stream_id: StreamId) -> bytes:
         raise NotImplementedError
 
+    @abstractmethod
+    async def delete(self, session: ISession, stream_id: StreamId) -> None:
+        raise NotImplementedError
+
 
 class DekStore(IDekStore):
     _extract_connection = staticmethod(extract_connection)
     _table = "stream_deks"
 
     _select_sql = """
-        SELECT encrypted_dek FROM stream_deks
-        WHERE tenant_id = %s AND stream_type = %s AND stream_id = %s
+        SELECT encrypted_dek FROM %s
+        WHERE tenant_id = %%s AND stream_type = %%s AND stream_id = %%s
     """
     _insert_sql = """
-        INSERT INTO stream_deks (tenant_id, stream_type, stream_id, encrypted_dek)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO %s (tenant_id, stream_type, stream_id, encrypted_dek)
+        VALUES (%%s, %%s, %%s, %%s)
+    """
+    _delete_sql = """
+        DELETE FROM %s
+        WHERE tenant_id = %%s AND stream_type = %%s AND stream_id = %%s
     """
     _create_table_sql = """
         CREATE TABLE IF NOT EXISTS %s (
@@ -63,7 +71,7 @@ class DekStore(IDekStore):
 
     async def get(self, session: ISession, stream_id: StreamId) -> bytes:
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._select_sql, [
+            await acursor.execute(self._select_sql % self._table, [
                 stream_id.tenant_id, stream_id.stream_type, self._encode(stream_id.stream_id),
             ])
             row = await acursor.fetchone()
@@ -73,9 +81,15 @@ class DekStore(IDekStore):
 
     async def _insert(self, session: ISession, stream_id: StreamId, encrypted_dek: bytes) -> None:
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._insert_sql, [
+            await acursor.execute(self._insert_sql % self._table, [
                 stream_id.tenant_id, stream_id.stream_type, self._encode(stream_id.stream_id),
                 encrypted_dek,
+            ])
+
+    async def delete(self, session: ISession, stream_id: StreamId) -> None:
+        async with self._extract_connection(session).cursor() as acursor:
+            await acursor.execute(self._delete_sql % self._table, [
+                stream_id.tenant_id, stream_id.stream_type, self._encode(stream_id.stream_id),
             ])
 
     @staticmethod

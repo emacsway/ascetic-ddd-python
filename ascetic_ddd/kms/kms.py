@@ -15,20 +15,21 @@ class PgKeyManagementService(IKeyManagementService):
     _NONCE_SIZE = 12
     _KEY_VERSION_SIZE = 4
 
+    _table = "kms_keys"
+
     _select_current_sql = """
-        SELECT key_version, encrypted_kek FROM kms_keys
-        WHERE tenant_id = %s ORDER BY key_version DESC LIMIT 1
+        SELECT key_version, encrypted_kek FROM %s
+        WHERE tenant_id = %%s ORDER BY key_version DESC LIMIT 1
     """
     _select_version_sql = """
-        SELECT encrypted_kek FROM kms_keys
-        WHERE tenant_id = %s AND key_version = %s
+        SELECT encrypted_kek FROM %s
+        WHERE tenant_id = %%s AND key_version = %%s
     """
     _insert_sql = """
-        INSERT INTO kms_keys (tenant_id, key_version, encrypted_kek)
-        VALUES (%s, %s, %s)
+        INSERT INTO %s (tenant_id, key_version, encrypted_kek)
+        VALUES (%%s, %%s, %%s)
     """
-    _delete_sql = "DELETE FROM kms_keys WHERE tenant_id = %s"
-    _table = "kms_keys"
+    _delete_sql = "DELETE FROM %s WHERE tenant_id = %%s"
 
     _create_table_sql = """
         CREATE TABLE IF NOT EXISTS %s (
@@ -76,7 +77,7 @@ class PgKeyManagementService(IKeyManagementService):
         nonce = os.urandom(self._NONCE_SIZE)
         encrypted_kek = nonce + self._aesgcm.encrypt(nonce, kek, None)
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._insert_sql, [tenant_id, new_version, encrypted_kek])
+            await acursor.execute(self._insert_sql % self._table, [tenant_id, new_version, encrypted_kek])
         return new_version
 
     async def rewrap_dek(self, session: ISession, tenant_id: typing.Any, encrypted_dek: bytes) -> bytes:
@@ -85,11 +86,11 @@ class PgKeyManagementService(IKeyManagementService):
 
     async def delete_kek(self, session: ISession, tenant_id: typing.Any) -> None:
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._delete_sql, [tenant_id])
+            await acursor.execute(self._delete_sql % self._table, [tenant_id])
 
     async def _get_current_kek(self, session: ISession, tenant_id: typing.Any) -> tuple[int, bytes]:
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._select_current_sql, [tenant_id])
+            await acursor.execute(self._select_current_sql % self._table, [tenant_id])
             row = await acursor.fetchone()
         if row is None:
             raise KeyError(tenant_id)
@@ -100,7 +101,7 @@ class PgKeyManagementService(IKeyManagementService):
 
     async def _get_kek(self, session: ISession, tenant_id: typing.Any, key_version: int) -> bytes:
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._select_version_sql, [tenant_id, key_version])
+            await acursor.execute(self._select_version_sql % self._table, [tenant_id, key_version])
             row = await acursor.fetchone()
         if row is None:
             raise KeyError(tenant_id)
@@ -110,7 +111,7 @@ class PgKeyManagementService(IKeyManagementService):
 
     async def _get_current_version(self, session: ISession, tenant_id: typing.Any) -> int:
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._select_current_sql, [tenant_id])
+            await acursor.execute(self._select_current_sql % self._table, [tenant_id])
             row = await acursor.fetchone()
         return row[0] if row else 0
 
