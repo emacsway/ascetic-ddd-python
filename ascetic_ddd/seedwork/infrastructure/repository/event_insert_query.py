@@ -11,6 +11,7 @@ from ascetic_ddd.seedwork.domain.aggregate import (
     IPersistentDomainEventExporter,
     PersistentDomainEvent,
 )
+from ascetic_ddd.seedwork.infrastructure.repository.codec import ICodec
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.session.pg_session import extract_connection
 from ascetic_ddd.utils.json import JSONEncoder
@@ -26,7 +27,7 @@ class IEventInsertQuery(IPersistentDomainEventExporter, metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    async def evaluate(self, session: ISession) -> None:
+    async def evaluate(self, payload_codec: ICodec, session: ISession) -> None:
         raise NotImplementedError
 
     @classmethod
@@ -85,11 +86,10 @@ class EventInsertQuery(IEventInsertQuery, metaclass=ABCMeta):
         meta.export(exporter)
         self._params[7] = self._encode(exporter.data)
 
-    async def evaluate(self, session: ISession) -> None:
-        self._params[6] = self._encode(self.data)
+    async def evaluate(self, payload_codec: ICodec, session: ISession) -> None:
+        self._params[6] = payload_codec.encode(self.data)
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(self._sql, self._params)
-        pass
 
     @staticmethod
     def _encode(obj):

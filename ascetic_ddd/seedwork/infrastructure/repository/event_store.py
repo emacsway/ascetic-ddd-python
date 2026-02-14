@@ -6,6 +6,14 @@ from abc import ABCMeta
 from psycopg.errors import UniqueViolation
 
 from ascetic_ddd.mediator.interfaces import IMediator
+from ascetic_ddd.seedwork.infrastructure.repository.codec import (
+    AesGcmEncryptor,
+    ICodec,
+    JsonbCodec,
+    ZlibCompressor,
+)
+from ascetic_ddd.seedwork.infrastructure.repository.dek_store import IDekStore
+from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 from ascetic_ddd.session.exceptions import ConcurrentUpdate
 from ascetic_ddd.seedwork.domain.aggregate import (
     EventMeta,
@@ -33,17 +41,24 @@ class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
     queries = Queries()
 
     _stream_type: str
-    mediator: IMediator
+    _mediator: IMediator
+
+    def __init__(self, dek_store: IDekStore, mediator: IMediator) -> None:
+        self._dek_store = dek_store
+        self._mediator = mediator
 
     async def _save(
         self,
         session: ISession,
         agg: IDomainEventAccessor[IPDE],
         event_meta: EventMeta,
+        stream_id: StreamId,
     ) -> None:
         events = []
         pending_events = agg.pending_domain_events
         del agg.pending_domain_events
+
+        payload_codec = await self._make_payload_codec(session, stream_id)
 
         causation_id = None
         for event in pending_events:
@@ -56,13 +71,17 @@ class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
             query = self._do_make_event_query(event)
             query.set_stream_type(self._stream_type)
             try:
-                await query.evaluate(session)
+                await query.evaluate(payload_codec, session)
             except UniqueViolation as e:
                 raise ConcurrentUpdate(query) from e
             events.append(event)
 
         for event in events:
-            await self.mediator.publish(event, session)
+            await self._mediator.publish(event, session)
+
+    async def _make_payload_codec(self, session: ISession, stream_id: StreamId) -> ICodec:
+        dek = await self._dek_store.get_or_create(session, stream_id)
+        return AesGcmEncryptor(dek, ZlibCompressor(JsonbCodec()))
 
     def _do_make_event_query(self, event: IPDE) -> IEventInsertQuery:
         return self.queries[(event.event_type, event.event_version)].make(event)
