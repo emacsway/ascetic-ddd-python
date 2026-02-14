@@ -4,7 +4,7 @@ from unittest import IsolatedAsyncioTestCase
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ascetic_ddd.kms.kms import PgKeyManagementService
-from ascetic_ddd.seedwork.infrastructure.repository.dek_store import PgDekStore
+from ascetic_ddd.seedwork.infrastructure.repository.dek_store import DekStore
 from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 from ascetic_ddd.utils.tests.db import make_pg_session_pool
 
@@ -27,7 +27,7 @@ class TestPgKeyManagementService(PgKeyManagementService):
     _delete_sql = "DELETE FROM kms_keys_test WHERE tenant_id = %s"
 
 
-class TestPgDekStore(PgDekStore):
+class TestDekStore(DekStore):
     _table = "stream_deks_test"
 
     _select_sql = """
@@ -46,7 +46,7 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
         self._master_key = AESGCM.generate_key(bit_length=256)
         self._session_pool = await make_pg_session_pool()
         self._kms = TestPgKeyManagementService(self._master_key)
-        self._dek_store = TestPgDekStore(self._kms)
+        self._dek_store = TestDekStore(self._kms)
         async with self._session_pool.session() as session:
             async with session.atomic():
                 await self._kms.setup(session)

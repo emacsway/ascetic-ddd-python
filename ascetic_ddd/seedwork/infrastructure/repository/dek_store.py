@@ -9,7 +9,7 @@ from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.session.pg_session import extract_connection
 
-__all__ = ("IDekStore", "PgDekStore")
+__all__ = ("IDekStore", "DekStore")
 
 from ascetic_ddd.utils.json import JSONEncoder
 
@@ -25,7 +25,7 @@ class IDekStore(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-class PgDekStore(IDekStore):
+class DekStore(IDekStore):
     _extract_connection = staticmethod(extract_connection)
     _table = "stream_deks"
 
