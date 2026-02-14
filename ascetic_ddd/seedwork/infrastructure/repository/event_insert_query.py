@@ -1,39 +1,21 @@
 import functools
 import json
 import typing
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta
 
 from psycopg.types.json import Jsonb
 
 from ascetic_ddd.seedwork.domain.aggregate import (
     EventMeta,
     EventMetaExporter,
-    IPersistentDomainEventExporter,
-    PersistentDomainEvent,
 )
-from ascetic_ddd.seedwork.infrastructure.repository.codec import ICodec
+from ascetic_ddd.seedwork.infrastructure.repository import StreamId
+from ascetic_ddd.seedwork.infrastructure.repository.interfaces import IEventInsertQuery, ICodecFactory
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.session.pg_session import extract_connection
 from ascetic_ddd.utils.json import JSONEncoder
 
-__all__ = ("EventInsertQuery", "IEventInsertQuery")
-
-
-@abstractmethod
-class IEventInsertQuery(IPersistentDomainEventExporter, metaclass=ABCMeta):
-
-    @abstractmethod
-    def set_stream_type(self, value: str) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def evaluate(self, payload_codec: ICodec, session: ISession) -> None:
-        raise NotImplementedError
-
-    @classmethod
-    @abstractmethod
-    def make(cls, event: PersistentDomainEvent) -> "IEventInsertQuery":
-        raise NotImplementedError
+__all__ = ("EventInsertQuery",)
 
 
 class EventInsertQuery(IEventInsertQuery, metaclass=ABCMeta):
@@ -86,8 +68,9 @@ class EventInsertQuery(IEventInsertQuery, metaclass=ABCMeta):
         meta.export(exporter)
         self._params[7] = self._encode(exporter.data)
 
-    async def evaluate(self, payload_codec: ICodec, session: ISession) -> None:
-        self._params[6] = payload_codec.encode(self.data)
+    async def evaluate(self, codec_factory: ICodecFactory, session: ISession) -> None:
+        codec = await codec_factory(session, StreamId(*self._params[:3]))
+        self._params[6] = codec.encode(self.data)
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(self._sql, self._params)
 

@@ -1,32 +1,17 @@
 import functools
 import json
-from abc import ABCMeta, abstractmethod
 
 from psycopg.types.json import Jsonb
 
 from ascetic_ddd.kms.interfaces import IKeyManagementService
+from ascetic_ddd.seedwork.infrastructure.repository.interfaces import IDekStore
 from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.session.pg_session import extract_connection
 
-__all__ = ("IDekStore", "DekStore")
+__all__ = ("DekStore",)
 
 from ascetic_ddd.utils.json import JSONEncoder
-
-
-class IDekStore(metaclass=ABCMeta):
-
-    @abstractmethod
-    async def get_or_create(self, session: ISession, stream_id: StreamId) -> bytes:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def get(self, session: ISession, stream_id: StreamId) -> bytes:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def delete(self, session: ISession, stream_id: StreamId) -> None:
-        raise NotImplementedError
 
 
 class DekStore(IDekStore):

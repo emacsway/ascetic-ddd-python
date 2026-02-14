@@ -1,6 +1,6 @@
 import typing
 import uuid
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta
 from dataclasses import dataclass, replace
 
 import dateutil.parser
@@ -10,22 +10,16 @@ from ascetic_ddd.seedwork.domain.aggregate import (
     EventMeta,
     PersistentDomainEvent,
 )
-from ascetic_ddd.seedwork.infrastructure.repository.codec import ICodec
+from ascetic_ddd.seedwork.infrastructure.repository import ICodec
+from ascetic_ddd.seedwork.infrastructure.repository.interfaces import IEventGetQuery, ICodecFactory
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 from ascetic_ddd.session.pg_session import extract_connection
 
 __all__ = (
     "EventGetQuery",
-    "IEventGetQuery",
     "Row",
 )
-
-
-@abstractmethod
-class IEventGetQuery(metaclass=ABCMeta):
-    async def evaluate(self, payload_codec: ICodec, session: ISession) -> typing.Iterable[PersistentDomainEvent]:
-        raise NotImplementedError
 
 
 class EventGetQuery(IEventGetQuery, metaclass=ABCMeta):
@@ -61,13 +55,14 @@ class EventGetQuery(IEventGetQuery, metaclass=ABCMeta):
         self._stream_id = stream_id
         self._since_position = since_position
 
-    async def evaluate(self, payload_codec: ICodec, session: ISession) -> typing.Iterable[PersistentDomainEvent]:
+    async def evaluate(self, codec_factory: ICodecFactory, session: ISession) -> typing.Iterable[PersistentDomainEvent]:
+        codec = await codec_factory(session, self._stream_id)
         async with self._extract_connection(session).cursor() as acursor:
             params = [self._stream_id.tenant_id, self._stream_id.stream_type,
                       self._stream_id.stream_id, self._since_position]
             await acursor.execute(self._sql, params)
             rows = await acursor.fetchall()
-            return tuple(self._reconstitute_event(self._decode_row(payload_codec, Row(*row))) for row in rows)
+            return tuple(self._reconstitute_event(self._decode_row(codec, Row(*row))) for row in rows)
 
     def _decode_row(self, payload_codec: ICodec, row: 'Row') -> 'Row':
         return replace(row, payload=payload_codec.decode(bytes(row.payload)))

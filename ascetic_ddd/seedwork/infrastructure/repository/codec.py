@@ -1,24 +1,13 @@
 import json
 import os
 import zlib
-from abc import ABCMeta, abstractmethod
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from ascetic_ddd.seedwork.infrastructure.repository import ICodec
 from ascetic_ddd.utils.json import JSONEncoder
 
-__all__ = ("ICodec", "JsonCodec", "ZlibCompressor", "AesGcmEncryptor")
-
-
-class ICodec(metaclass=ABCMeta):
-
-    @abstractmethod
-    def encode(self, obj: dict) -> bytes:
-        raise NotImplementedError
-
-    @abstractmethod
-    def decode(self, data: bytes) -> dict:
-        raise NotImplementedError
+__all__ = ("JsonCodec", "ZlibCompressor", "AesGcmEncryptor")
 
 
 class JsonCodec(ICodec):
