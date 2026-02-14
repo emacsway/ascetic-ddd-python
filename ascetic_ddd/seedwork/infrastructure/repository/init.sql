@@ -1,5 +1,5 @@
 CREATE TABLE event_log (
-    tenant_id string NOT NULL,  -- integer NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
+    tenant_id varchar(128) NOT NULL,  -- integer NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
     stream_type varchar(128) NOT NULL,
     stream_id jsonb NOT NULL,
     stream_position integer NOT NULL,
