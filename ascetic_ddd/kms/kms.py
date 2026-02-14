@@ -76,7 +76,7 @@ class PgKeyManagementService(IKeyManagementService):
         nonce = os.urandom(self._NONCE_SIZE)
         encrypted_kek = nonce + self._aesgcm.encrypt(nonce, kek, None)
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._insert_sql, [str(tenant_id), new_version, encrypted_kek])
+            await acursor.execute(self._insert_sql, [tenant_id, new_version, encrypted_kek])
         return new_version
 
     async def rewrap_dek(self, session: ISession, tenant_id: typing.Any, encrypted_dek: bytes) -> bytes:
@@ -85,11 +85,11 @@ class PgKeyManagementService(IKeyManagementService):
 
     async def delete_kek(self, session: ISession, tenant_id: typing.Any) -> None:
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._delete_sql, [str(tenant_id)])
+            await acursor.execute(self._delete_sql, [tenant_id])
 
     async def _get_current_kek(self, session: ISession, tenant_id: typing.Any) -> tuple[int, bytes]:
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._select_current_sql, [str(tenant_id)])
+            await acursor.execute(self._select_current_sql, [tenant_id])
             row = await acursor.fetchone()
         if row is None:
             raise KeyError(tenant_id)
@@ -100,7 +100,7 @@ class PgKeyManagementService(IKeyManagementService):
 
     async def _get_kek(self, session: ISession, tenant_id: typing.Any, key_version: int) -> bytes:
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._select_version_sql, [str(tenant_id), key_version])
+            await acursor.execute(self._select_version_sql, [tenant_id, key_version])
             row = await acursor.fetchone()
         if row is None:
             raise KeyError(tenant_id)
@@ -110,7 +110,7 @@ class PgKeyManagementService(IKeyManagementService):
 
     async def _get_current_version(self, session: ISession, tenant_id: typing.Any) -> int:
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._select_current_sql, [str(tenant_id)])
+            await acursor.execute(self._select_current_sql, [tenant_id])
             row = await acursor.fetchone()
         return row[0] if row else 0
 

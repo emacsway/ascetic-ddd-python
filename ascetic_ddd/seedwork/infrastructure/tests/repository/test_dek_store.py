@@ -63,7 +63,7 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                     await cursor.execute("DROP TABLE IF EXISTS %s" % self._kms._table)
         await self._session_pool._pool.close()
 
-    def _make_stream_id(self, tenant_id=1, stream_type="Order", stream_id="order-1"):
+    def _make_stream_id(self, tenant_id="1", stream_type="Order", stream_id="order-1"):
         return StreamId(tenant_id=tenant_id, stream_type=stream_type, stream_id=stream_id)
 
     async def test_get_or_create_creates_dek(self):
@@ -107,8 +107,8 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 self.assertNotEqual(dek1, dek2)
 
     async def test_different_tenants_get_different_deks(self):
-        stream_id_1 = self._make_stream_id(tenant_id=1)
-        stream_id_2 = self._make_stream_id(tenant_id=2)
+        stream_id_1 = self._make_stream_id(tenant_id="1")
+        stream_id_2 = self._make_stream_id(tenant_id="2")
         async with self._session_pool.session() as session:
             async with session.atomic():
                 dek1 = await self._dek_store.get_or_create(session, stream_id_1)

@@ -64,7 +64,7 @@ class PgDekStore(IDekStore):
     async def get(self, session: ISession, stream_id: StreamId) -> bytes:
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(self._select_sql, [
-                str(stream_id.tenant_id), stream_id.stream_type, self._encode(stream_id.stream_id),
+                stream_id.tenant_id, stream_id.stream_type, self._encode(stream_id.stream_id),
             ])
             row = await acursor.fetchone()
         if row is None:
@@ -74,7 +74,7 @@ class PgDekStore(IDekStore):
     async def _insert(self, session: ISession, stream_id: StreamId, encrypted_dek: bytes) -> None:
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(self._insert_sql, [
-                str(stream_id.tenant_id), stream_id.stream_type, self._encode(stream_id.stream_id),
+                stream_id.tenant_id, stream_id.stream_type, self._encode(stream_id.stream_id),
                 encrypted_dek,
             ])
 
