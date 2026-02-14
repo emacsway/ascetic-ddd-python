@@ -38,9 +38,9 @@ The `ICodec` interface provides composable encode/decode transformations
 for event payloads using the Decorator pattern:
 
 ```python
-AesGcmEncryptor(dek, ZlibCompressor(JsonbCodec()))
+AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()))
 ```
 
-- `JsonbCodec` -- serializes `dict` to JSON bytes and back
+- `JsonCodec` -- serializes `dict` to JSON bytes and back
 - `ZlibCompressor` -- compresses/decompresses bytes
 - `AesGcmEncryptor` -- encrypts/decrypts with AES-256-GCM

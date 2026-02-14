@@ -9,7 +9,7 @@ from ascetic_ddd.mediator.interfaces import IMediator
 from ascetic_ddd.seedwork.infrastructure.repository.codec import (
     AesGcmEncryptor,
     ICodec,
-    JsonbCodec,
+    JsonCodec,
     ZlibCompressor,
 )
 from ascetic_ddd.seedwork.infrastructure.repository.dek_store import IDekStore
@@ -81,7 +81,7 @@ class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
 
     async def _make_payload_codec(self, session: ISession, stream_id: StreamId) -> ICodec:
         dek = await self._dek_store.get_or_create(session, stream_id)
-        return AesGcmEncryptor(dek, ZlibCompressor(JsonbCodec()))
+        return AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()))
 
     def _do_make_event_query(self, event: IPDE) -> IEventInsertQuery:
         return self.queries[(event.event_type, event.event_version)].make(event)

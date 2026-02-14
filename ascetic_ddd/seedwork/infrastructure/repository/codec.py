@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ascetic_ddd.utils.json import JSONEncoder
 
-__all__ = ("ICodec", "JsonbCodec", "ZlibCompressor", "AesGcmEncryptor")
+__all__ = ("ICodec", "JsonCodec", "ZlibCompressor", "AesGcmEncryptor")
 
 
 class ICodec(metaclass=ABCMeta):
@@ -21,7 +21,7 @@ class ICodec(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-class JsonbCodec(ICodec):
+class JsonCodec(ICodec):
 
     def encode(self, obj: dict) -> bytes:
         return json.dumps(obj, cls=JSONEncoder).encode("utf-8")

@@ -131,7 +131,7 @@ Decision
 
    .. code-block:: python
 
-      AesGcmEncryptor(dek, ZlibCompressor(JsonbCodec()))
+      AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()))
 
    The chain: serialize to JSON bytes, compress with zlib, encrypt with
    AES-256-GCM. On read -- the reverse. The ``ICodec`` interface
@@ -146,7 +146,7 @@ Decision
       class EventStore:
           async def _make_payload_codec(self, session, stream_id):
               dek = await self._dek_store.get_or_create(session, stream_id)
-              return AesGcmEncryptor(dek, ZlibCompressor(JsonbCodec()))
+              return AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()))
 
    ``get_or_create`` is used on the write path (creates DEK if absent),
    ``get`` on the read path (DEK must already exist).
