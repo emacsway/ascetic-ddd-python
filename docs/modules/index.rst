@@ -9,6 +9,7 @@ Detailed documentation for each module in the ascetic-ddd package.
    :maxdepth: 2
 
    seedwork/index
+   kms/index
    faker/index
    specification/index
    outbox/index

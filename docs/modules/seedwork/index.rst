@@ -30,3 +30,8 @@ Infrastructure Layer
 .. index:: pair: seedwork; event store
 
 PostgreSQL-based repository and event store implementations.
+
+.. toctree::
+   :maxdepth: 2
+
+   infrastructure/index
