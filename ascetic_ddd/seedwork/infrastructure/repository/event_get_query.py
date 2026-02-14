@@ -54,7 +54,7 @@ class EventGetQuery(IEventGetQuery, metaclass=ABCMeta):
         WHERE
             tenant_id=%s AND stream_type = %s AND stream_id = %s AND stream_position > %s
         ORDER BY
-            stream_type, stream_id, stream_position
+            tenant_id, stream_type, stream_id, stream_position
     """
 
     def __init__(self, stream_id: StreamId, since_position: int = 0) -> None:
