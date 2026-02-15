@@ -30,6 +30,10 @@ requires the tenant's KEK from the [KMS module](../../../kms/index.rst).
 
 See [ADR-0009: Envelope Encryption](../../../../adr/0009-envelope-encryption.rst) for the architectural decision.
 
+`tenant_id` is typed as `typing.Any` -- the actual type is determined
+by the user's DDL schema (`varchar`, `integer`, etc.). The DDL
+can include `REFERENCES` to enforce referential integrity.
+
 ## Codec
 
 ```{index} pair: seedwork; codec

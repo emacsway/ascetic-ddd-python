@@ -428,6 +428,13 @@ class OutboxMessage:
 ISubscriber: TypeAlias = Callable[[OutboxMessage], Awaitable[None]]
 ```
 
+## Notes
+
+`tenant_id` is typed as `typing.Any` -- the actual type is determined
+by the user's DDL schema (`varchar`, `integer`, etc.). The DDL
+can include `REFERENCES` to enforce referential integrity.
+
+
 ## References
 
 ```{seealso}
