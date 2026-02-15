@@ -161,3 +161,7 @@ class Kek(BaseKey):
     @property
     def encrypted_key(self) -> bytes:
         return self._encrypted_key
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        return self._created_at
