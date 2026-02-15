@@ -57,7 +57,8 @@ The core idea is a two-level key hierarchy:
   │  │   └─ metadata (jsonb)    │     │  ├─ encrypted_key        │
   │  └─ stream_deks             │     │  ├─ master_algorithm     │
   │      ├─ stream_id           │     │  └─ key_algorithm        │
-  │      ├─ encrypted_dek       │     └──────────────────────────┘
+  │      ├─ version             │     └──────────────────────────┘
+  │      ├─ encrypted_dek       │
   │      └─ algorithm           │
   └─────────────────────────────┘
 
@@ -125,12 +126,14 @@ DEK granularity
 ^^^^^^^^^^^^^^^
 
 DEKs are generated **per-stream** (per-aggregate instance), identified
-by ``StreamId(tenant_id, stream_type, stream_id)``. This provides:
+by ``StreamId(tenant_id, stream_type, stream_id)``. Each stream can
+have multiple **versioned** DEKs (for algorithm migration). This provides:
 
 - Better isolation than per-tenant (compromise of one DEK only affects
   one aggregate instance)
 - Manageable number of keys (one per aggregate instance, not per event)
 - Natural boundary for crypto-shredding at stream level
+- Safe algorithm migration without re-encrypting existing events
 
 
 Decision
@@ -150,7 +153,23 @@ Decision
    (``encode``/``decode``) allows composing arbitrary transformations
    via the Decorator pattern.
 
-3. **Query requests codec via factory, not a ready instance**.
+3. **DekStore returns** ``ICipher`` **instead of raw key bytes**.
+   ``get_or_create`` and ``get`` return a ready-to-use ``ICipher``
+   that handles version prefix and AAD internally. ``get_all`` returns
+   a composite cipher that dispatches ``decrypt()`` by the version
+   prefix in the ciphertext. The ``EventStore`` no longer knows about
+   ``Aes256GcmCipher`` -- cipher construction is encapsulated in
+   ``DekStore._make_raw_cipher()``, which dispatches by the
+   ``algorithm`` column stored per DEK version.
+
+4. **DEKs are versioned**. Each stream can have multiple DEK versions
+   (stored as separate rows in ``stream_deks``). The encrypted payload
+   starts with a 4-byte version prefix identifying which DEK was used.
+   This enables algorithm migration without re-encrypting existing
+   events: new events use the latest DEK version, old events remain
+   decryptable with their original version.
+
+5. **Query requests codec via factory, not a ready instance**.
    ``evaluate(codec_factory, session)`` -- the query receives an
    ``ICodecFactory`` (``Callable[[ISession, StreamId], Awaitable[ICodec]]``)
    and calls it with its own ``StreamId``. This way the query -- which
@@ -159,41 +178,46 @@ Decision
 
    .. code-block:: python
 
-      # EventStore creates the factory with caching closure
+      # Write path: get_or_create returns ICipher for latest DEK version
       async def _make_codec_factory(self) -> ICodecFactory:
           _cache = {}
 
           async def codec_factory(session, stream_id):
               if stream_id not in _cache:
-                  dek = await self._dek_store.get_or_create(session, stream_id)
-                  aad = str(stream_id).encode("utf-8")
-                  cipher = Aes256GcmCipher(dek, aad)
+                  cipher = await self._dek_store.get_or_create(session, stream_id)
                   _cache[stream_id] = EncryptionCodec(cipher, ZlibCodec(JsonCodec()))
               return _cache[stream_id]
 
           return codec_factory
 
-      # Query calls the factory with its own StreamId
-      async def evaluate(self, codec_factory, session):
-          codec = await codec_factory(session, StreamId(*self._params[:3]))
-          ...
+      # Read path: get_all returns composite ICipher for all DEK versions
+      async def _make_read_codec_factory(self) -> ICodecFactory:
+          _cache = {}
+
+          async def codec_factory(session, stream_id):
+              if stream_id not in _cache:
+                  cipher = await self._dek_store.get_all(session, stream_id)
+                  _cache[stream_id] = EncryptionCodec(cipher, ZlibCodec(JsonCodec()))
+              return _cache[stream_id]
+
+          return codec_factory
 
    ``_save()`` does not need ``stream_id`` as a parameter --
    the responsibility is given to the object that owns the data.
    ``get_or_create`` is used on the write path (creates DEK if absent),
-   ``get`` on the read path (DEK must already exist).
+   ``get_all`` on the read path (all DEK versions for a stream).
 
-4. **Codec factory is a dependency, session is an argument**.
+6. **Codec factory is a dependency, session is an argument**.
    ``evaluate(codec_factory, session)`` -- the factory (strategy) comes
    before the runtime argument. This follows the principle that
    dependencies (stable, suitable for ``functools.partial``) precede
    arguments (varying per call).
 
-5. **KMS and DekStore use dynamic table names** (``%s`` substitution
+7. **KMS and DekStore use dynamic table names** (``%s`` substitution
    for table name, ``%%s`` for query parameters), allowing test
    subclasses to override ``_table`` without duplicating SQL.
 
-6. **tenant_id typed as** ``typing.Any``. The KMS and DekStore do not
+8. **tenant_id typed as** ``typing.Any``. The KMS and DekStore do not
    enforce a specific type for ``tenant_id``. The DDL type is chosen
    by the user in their schema (``varchar``, ``integer``, with or
    without ``REFERENCES``). Production code does not apply type
@@ -227,6 +251,12 @@ Consequences
   SQL queries cannot filter or index on payload fields. This is
   acceptable in event sourcing where projections handle query-side
   concerns.
+
+- **Safe algorithm migration**: DEK versioning allows switching to a
+  new encryption algorithm without re-encrypting existing events.
+  New events use the latest DEK version; old events are decrypted
+  with their original version (identified by the 4-byte prefix in
+  the payload).
 
 - **Trade-off -- DEK lookup per stream**: each distinct stream requires
   a DEK lookup. The ``ICodecFactory`` closure caches codecs by
