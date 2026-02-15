@@ -22,7 +22,9 @@ class OutboxIntegrationTestCase(IsolatedAsyncioTestCase):
             outbox_table=self._outbox_table,
             offsets_table=self._offsets_table,
         )
-        await self.outbox.setup()
+        async with self._session_pool.session() as session:
+            async with session.atomic():
+                await self.outbox.setup(session)
         await self._truncate_tables()
         self.published_messages = []
 
@@ -398,7 +400,9 @@ class OutboxConcurrencyTestCase(IsolatedAsyncioTestCase):
             outbox_table=self._outbox_table,
             offsets_table=self._offsets_table,
         )
-        await self.outbox.setup()
+        async with self._session_pool.session() as session:
+            async with session.atomic():
+                await self.outbox.setup(session)
         await self._truncate_tables()
         self.published_messages = []
 

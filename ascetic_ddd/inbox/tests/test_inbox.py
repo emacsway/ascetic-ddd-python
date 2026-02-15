@@ -246,7 +246,7 @@ class InboxSetupTestCase(IsolatedAsyncioTestCase):
         pool = MockSessionPool(session)
 
         inbox = Inbox(pool)
-        await inbox.setup()
+        await inbox.setup(session)
 
         self.assertEqual(len(cursor.executed_sql), 2)
         self.assertIn("CREATE SEQUENCE", cursor.executed_sql[0])

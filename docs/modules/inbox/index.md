@@ -20,7 +20,9 @@ Transactional Inbox pattern for idempotent message processing with causal consis
 from ascetic_ddd.inbox import Inbox, InboxMessage
 
 inbox = Inbox(session_pool)
-await inbox.setup()
+async with session_pool.session() as session:
+    async with session.atomic():
+        await inbox.setup(session)
 ```
 
 
@@ -217,8 +219,8 @@ class InboxMessage:
 | `dispatch(subscriber, worker_id, num_workers)` | Process next message |
 | `run(subscriber, ...)` | Run continuous processing loop |
 | `__aiter__()` | Async iterator for message streaming |
-| `setup()` | Create tables and sequences |
-| `cleanup()` | Cleanup resources |
+| `setup(session)` | Create tables and sequences |
+| `cleanup(session)` | Cleanup resources |
 
 
 ### dispatch() Parameters

@@ -382,12 +382,10 @@ class Outbox(IOutbox):
         dumps = functools.partial(json.dumps, cls=JSONEncoder)
         return Jsonb(obj, dumps)
 
-    async def setup(self) -> None:
+    async def setup(self, session: ISession) -> None:
         """Initialize the outbox (create tables, sequences, indexes)."""
-        async with self._session_pool.session() as session:
-            async with session.atomic() as tx_session:
-                await self._create_outbox_table(tx_session)
-                await self._create_offsets_table(tx_session)
+        await self._create_outbox_table(session)
+        await self._create_offsets_table(session)
 
     async def _create_outbox_table(self, session: 'ISession') -> None:
         """Create outbox table with indexes."""
@@ -447,6 +445,6 @@ class Outbox(IOutbox):
         async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql)
 
-    async def cleanup(self) -> None:
+    async def cleanup(self, session: ISession) -> None:
         """Cleanup resources."""
         pass

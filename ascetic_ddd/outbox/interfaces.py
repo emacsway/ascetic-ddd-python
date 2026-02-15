@@ -212,12 +212,12 @@ class IOutbox(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    async def setup(self) -> None:
+    async def setup(self, session: 'ISession') -> None:
         """Initialize the outbox (create tables, sequences, indexes)."""
         raise NotImplementedError
 
     @abstractmethod
-    async def cleanup(self) -> None:
+    async def cleanup(self, session: 'ISession') -> None:
         """Cleanup resources."""
         raise NotImplementedError
 

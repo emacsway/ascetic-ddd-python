@@ -22,7 +22,9 @@ class InboxIntegrationTestCase(IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.session_pool = await make_pg_session_pool()
         self.inbox = TestInbox(self.session_pool)
-        await self.inbox.setup()
+        async with self.session_pool.session() as session:
+            async with session.atomic():
+                await self.inbox.setup(session)
         await self._truncate_table()
         self.handled_messages = []
 

@@ -64,12 +64,12 @@ class IInbox(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    async def setup(self) -> None:
+    async def setup(self, session: 'ISession') -> None:
         """Initialize the inbox (create tables if needed)."""
         raise NotImplementedError
 
     @abstractmethod
-    async def cleanup(self) -> None:
+    async def cleanup(self, session: 'ISession') -> None:
         """Cleanup resources."""
         raise NotImplementedError
 

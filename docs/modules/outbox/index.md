@@ -154,7 +154,9 @@ outbox = Outbox(
 )
 
 # Create tables
-await outbox.setup()
+async with session_pool.session() as session:
+    async with session.atomic():
+        await outbox.setup(session)
 ```
 
 ### Publishing Messages
@@ -280,7 +282,7 @@ await outbox.set_position(session, "broker", uri="kafka://orders", transaction_i
 
 ## Schema
 
-The `setup()` method creates:
+The `setup(session)` method creates:
 
 
 ### outbox table
@@ -391,8 +393,8 @@ class OutboxMessage:
 | `__aiter__()` | Async iterator for message streaming |
 | `get_position(session, consumer_group, uri)` | Get current position for consumer group |
 | `set_position(session, consumer_group, uri, transaction_id, offset)` | Set position for consumer group |
-| `setup()` | Create tables and indexes |
-| `cleanup()` | Cleanup resources |
+| `setup(session)` | Create tables and indexes |
+| `cleanup(session)` | Cleanup resources |
 
 
 ### dispatch() Parameters

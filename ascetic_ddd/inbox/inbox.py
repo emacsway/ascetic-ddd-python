@@ -356,12 +356,10 @@ class Inbox(IInbox):
         dumps = functools.partial(json.dumps, cls=JSONEncoder)
         return Jsonb(obj, dumps)
 
-    async def setup(self) -> None:
+    async def setup(self, session: ISession) -> None:
         """Create inbox table and sequence if they don't exist."""
-        async with self._session_pool.session() as session:
-            async with session.atomic():
-                await self._create_sequence(session)
-                await self._create_table(session)
+        await self._create_sequence(session)
+        await self._create_table(session)
 
     async def _create_sequence(self, session: ISession) -> None:
         """Create sequence for received_position."""
@@ -388,6 +386,6 @@ class Inbox(IInbox):
         async with self._extract_connection(session).cursor() as cursor:
             await cursor.execute(sql)
 
-    async def cleanup(self) -> None:
+    async def cleanup(self, session: ISession) -> None:
         """Cleanup resources (no-op for now)."""
         pass
