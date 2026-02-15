@@ -3,6 +3,8 @@ import typing
 from abc import ABCMeta, abstractmethod
 from types import TracebackType
 
+from aiohttp import ClientSession
+
 from ascetic_ddd.observable.interfaces import IObservable
 
 __all__ = (
@@ -19,6 +21,7 @@ __all__ = (
     "IIdentityKey",
     "IModel",
     "IPgSession",
+    "IRestSession",
 )
 
 
@@ -187,5 +190,15 @@ class IPgSession(ISession, typing.Protocol):
     @property
     @abstractmethod
     def connection(self) -> IAsyncConnection:
+        """For ReadModels (Queries)."""
+        ...
+
+
+@typing.runtime_checkable
+class IRestSession(ISession, typing.Protocol):
+
+    @property
+    @abstractmethod
+    def request(self) -> ClientSession:
         """For ReadModels (Queries)."""
         ...
