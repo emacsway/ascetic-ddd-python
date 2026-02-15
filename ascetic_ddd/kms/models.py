@@ -46,108 +46,167 @@ class Aes256GcmCipher(ICipher):
         return AESGCM.generate_key(bit_length=256)
 
 
-class Kek:
+class BaseKey:
     _KEY_VERSION_SIZE = 4
-    _master_key: bytes
-    _master_algorithm: Algorithm
-    _kek_version: int
-    _tenant_id: typing.Any
-    _kek_algorithm: Algorithm
-    _created_at: datetime.datetime
-    _encrypted_kek: bytes | None
+    _key: bytes
+    _algorithm: Algorithm
+    _version: int
 
     def __init__(
             self,
-            master_key: bytes,
-            tenant_id: typing.Any,
-            kek_version: int = 1,
-            encrypted_kek: bytes | None = None,
-            kek_algorithm: Algorithm = Algorithm.AES_256_GCM,
-            master_algorithm: Algorithm = Algorithm.AES_256_GCM,
-            created_at: datetime.datetime | None = None,
+            key: bytes,
+            version: int = 1,
+            algorithm: Algorithm = Algorithm.AES_256_GCM,
     ):
-        if kek_version != 1:
-            assert encrypted_kek is not None
-        self._master_key = master_key
-        self._master_algorithm = master_algorithm
-        self._tenant_id = tenant_id
-        self._kek_version = kek_version
-        self._encrypted_kek = encrypted_kek
-        self._kek_algorithm = kek_algorithm
-        self._created_at = created_at or self.now()
+        self._key = key
+        self._algorithm = algorithm
+        self._version = version
 
     @property
-    def master_algorithm(self) -> Algorithm:
-        return self._master_algorithm
+    def version(self) -> int:
+        return self._version
+
+    @property
+    def algorithm(self) -> Algorithm:
+        return self._algorithm
+
+    def encrypt(self, plaintext: bytes) -> bytes:
+        version_bytes = self._version.to_bytes(self._KEY_VERSION_SIZE, "big")
+        return version_bytes + self._cipher.encrypt(plaintext)
+
+    def decrypt(self, ciphertext: bytes) -> bytes:
+        return self._cipher.decrypt(ciphertext[self._KEY_VERSION_SIZE:])
+
+    def rewrap(self, ciphertext: bytes) -> bytes:
+        plaintext = self.decrypt(ciphertext)
+        return self.encrypt(plaintext)
+
+    def generate_key(self) -> tuple[bytes, bytes]:
+        key = self._cipher.generate_key()
+        return key, self.encrypt(key)
+
+    @property
+    def _aad(self) -> bytes | None:
+        return None
+
+    @property
+    def _cipher(self) -> ICipher:
+        if self._algorithm == Algorithm.AES_256_GCM:
+            return Aes256GcmCipher(self._key, self._aad)
+        raise NotImplementedError(self._algorithm)
+
+    @staticmethod
+    def now():
+        return datetime.datetime.now(datetime.timezone.utc)
+
+
+class MasterKey(BaseKey):
+
+    def generate_obj(self, **kwargs) -> 'Kek':
+        key, encrypted_key = self.generate_key()
+        return Kek(
+            key=key,
+            encrypted_key=encrypted_key,
+            **kwargs
+        )
+
+    def load_obj(self, **kwargs) -> 'Kek':
+        key = self.decrypt(kwargs['encrypted_key'])
+        return Kek(
+            key=key,
+            **kwargs
+        )
+
+    def rotate_obj(self, obj: 'Kek') -> 'Kek':
+        key, encrypted_key = self.generate_key()
+        return Kek(
+            tenant_id=obj.tenant_id,
+            key=key,
+            encrypted_key=encrypted_key,
+            version=obj.version + 1,
+            algorithm=obj.algorithm,
+            created_at=self.now(),
+        )
+
+
+class BaseStorableKey(BaseKey):
+    _encrypted_key: bytes
+
+    def __init__(
+            self,
+            key: bytes,
+            encrypted_key: bytes,
+            version: int = 1,
+            algorithm: Algorithm = Algorithm.AES_256_GCM,
+            created_at: datetime.datetime | None = None,
+    ):
+        self._encrypted_key = encrypted_key
+        self._created_at = created_at or self.now()
+        super().__init__(
+            key=key,
+            version=version,
+            algorithm=algorithm,
+        )
+
+    @property
+    def encrypted_key(self) -> bytes:
+        return self._encrypted_key
+
+
+class Kek(BaseStorableKey):
+    _tenant_id: typing.Any
+
+    def __init__(
+            self,
+            tenant_id: typing.Any,
+            key: bytes,
+            encrypted_key: bytes,
+            version: int = 1,
+            algorithm: Algorithm = Algorithm.AES_256_GCM,
+            created_at: datetime.datetime | None = None,
+    ):
+        self._tenant_id = tenant_id
+        super().__init__(
+            key=key,
+            encrypted_key=encrypted_key,
+            version=version,
+            algorithm=algorithm,
+            created_at=created_at,
+        )
 
     @property
     def tenant_id(self) -> typing.Any:
         return self._tenant_id
 
     @property
-    def kek_version(self) -> int:
-        return self._kek_version
-
-    @property
-    def kek_algorithm(self) -> Algorithm:
-        return self._kek_algorithm
-
-    @property
-    def encrypted_kek(self) -> bytes | None:
-        if self._encrypted_kek is None:
-            kek_bytes = self._master_cipher.generate_key()
-            self._encrypted_kek = self._master_cipher.encrypt(kek_bytes)
-        return self._encrypted_kek
-
-    @property
-    def created_at(self) -> datetime.datetime:
-        return self._created_at
-
-    def encrypt_dek(self, dek: bytes) -> bytes:
-        version_bytes = self._kek_version.to_bytes(self._KEY_VERSION_SIZE, "big")
-        return version_bytes + self._kek_cipher.encrypt(dek)
-
-    def decrypt_dek(self, encrypted_dek: bytes) -> bytes:
-        return self._kek_cipher.decrypt(encrypted_dek[self._KEY_VERSION_SIZE:])
-
-    def generate_dek(self) -> tuple[bytes, bytes]:
-        dek = self._kek_cipher.generate_key()
-        return dek, self.encrypt_dek(dek)
-
-    def rewrap_dek(self, encrypted_dek: bytes) -> bytes:
-        dek = self.decrypt_dek(encrypted_dek)
-        return self.encrypt_dek(dek)
-
-    def rotate(self) -> 'Kek':
-        kek_bytes = self._master_cipher.generate_key()
-        encrypted_kek = self._master_cipher.encrypt(kek_bytes)
-        return Kek(
-            master_key=self._master_key,
-            master_algorithm=self._master_algorithm,
-            tenant_id=self._tenant_id,
-            kek_version=self._kek_version + 1,
-            encrypted_kek=encrypted_kek,
-            kek_algorithm=self._kek_algorithm,
-            created_at=self.now(),
-        )
-
-    @property
     def _aad(self) -> bytes:
         return str(self._tenant_id).encode("utf-8")
 
-    @property
-    def _master_cipher(self) -> ICipher:
-        if self._master_algorithm == Algorithm.AES_256_GCM:
-            return Aes256GcmCipher(self._master_key, self._aad)
-        raise NotImplementedError(self._kek_algorithm)
+    def generate_obj(self, **kwargs) -> 'Dek':
+        key, encrypted_key = self.generate_key()
+        return Dek(
+            key=key,
+            encrypted_key=encrypted_key,
+            **kwargs
+        )
 
-    @property
-    def _kek_cipher(self) -> ICipher:
-        kek_bytes = self._master_cipher.decrypt(self.encrypted_kek)
-        if self._kek_algorithm == Algorithm.AES_256_GCM:
-            return Aes256GcmCipher(kek_bytes, self._aad)
-        raise NotImplementedError(self._kek_algorithm)
+    def load_obj(self, **kwargs) -> 'Dek':
+        key = self.decrypt(kwargs['encrypted_key'])
+        return Dek(
+            key=key,
+            **kwargs
+        )
 
-    @staticmethod
-    def now():
-        return datetime.datetime.now(datetime.timezone.utc)
+    def rotate_obj(self, obj: 'Dek') -> 'Dek':
+        key, encrypted_key = self.generate_key()
+        return Dek(
+            key=key,
+            encrypted_key=encrypted_key,
+            version=obj.version + 1,
+            algorithm=obj.algorithm,
+            created_at=self.now(),
+        )
+
+
+class Dek(BaseStorableKey):
+    pass
