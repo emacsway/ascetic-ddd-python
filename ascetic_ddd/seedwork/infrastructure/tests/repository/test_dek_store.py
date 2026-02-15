@@ -44,63 +44,84 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
     def _make_stream_id(self, tenant_id="1", stream_type="Order", stream_id="order-1"):
         return StreamId(tenant_id=tenant_id, stream_type=stream_type, stream_id=stream_id)
 
-    async def test_get_or_create_creates_dek(self):
+    async def test_get_or_create_creates_cipher(self):
         stream_id = self._make_stream_id()
         async with self._session_pool.session() as session:
             async with session.atomic():
-                dek = await self._dek_store.get_or_create(session, stream_id)
-                self.assertIsInstance(dek, bytes)
-                self.assertEqual(len(dek), 32)
+                cipher = await self._dek_store.get_or_create(session, stream_id)
+                plaintext = b"hello world"
+                encrypted = cipher.encrypt(plaintext)
+                self.assertNotEqual(encrypted, plaintext)
+                # Version prefix is 4 bytes, version 1
+                version = int.from_bytes(encrypted[:DekStore._VERSION_SIZE], "big")
+                self.assertEqual(version, 1)
 
-    async def test_get_or_create_returns_same_dek(self):
+    async def test_get_or_create_returns_same_cipher(self):
         stream_id = self._make_stream_id()
         async with self._session_pool.session() as session:
             async with session.atomic():
-                dek1 = await self._dek_store.get_or_create(session, stream_id)
-                dek2 = await self._dek_store.get_or_create(session, stream_id)
-                self.assertEqual(dek1, dek2)
+                cipher1 = await self._dek_store.get_or_create(session, stream_id)
+                cipher2 = await self._dek_store.get_or_create(session, stream_id)
+                plaintext = b"hello"
+                encrypted = cipher1.encrypt(plaintext)
+                decrypted = cipher2.decrypt(encrypted)
+                self.assertEqual(decrypted, plaintext)
 
-    async def test_get_existing_dek(self):
+    async def test_get_existing_cipher(self):
         stream_id = self._make_stream_id()
         async with self._session_pool.session() as session:
             async with session.atomic():
-                dek = await self._dek_store.get_or_create(session, stream_id)
-                loaded_dek = await self._dek_store.get(session, stream_id)
-                self.assertEqual(dek, loaded_dek)
+                cipher = await self._dek_store.get_or_create(session, stream_id)
+                plaintext = b"hello"
+                encrypted = cipher.encrypt(plaintext)
+                version = int.from_bytes(encrypted[:DekStore._VERSION_SIZE], "big")
+                loaded_cipher = await self._dek_store.get(session, stream_id, version)
+                decrypted = loaded_cipher.decrypt(encrypted)
+                self.assertEqual(decrypted, plaintext)
 
-    async def test_get_missing_dek_raises_key_error(self):
+    async def test_get_missing_dek_raises_error(self):
         stream_id = self._make_stream_id()
         async with self._session_pool.session() as session:
             async with session.atomic():
                 with self.assertRaises(DekNotFound):
-                    await self._dek_store.get(session, stream_id)
+                    await self._dek_store.get(session, stream_id, 1)
 
-    async def test_different_streams_get_different_deks(self):
+    async def test_different_streams_get_different_ciphers(self):
         stream_id_1 = self._make_stream_id(stream_id="order-1")
         stream_id_2 = self._make_stream_id(stream_id="order-2")
         async with self._session_pool.session() as session:
             async with session.atomic():
-                dek1 = await self._dek_store.get_or_create(session, stream_id_1)
-                dek2 = await self._dek_store.get_or_create(session, stream_id_2)
-                self.assertNotEqual(dek1, dek2)
+                cipher1 = await self._dek_store.get_or_create(session, stream_id_1)
+                cipher2 = await self._dek_store.get_or_create(session, stream_id_2)
+                plaintext = b"hello"
+                encrypted1 = cipher1.encrypt(plaintext)
+                with self.assertRaises(Exception):
+                    cipher2.decrypt(encrypted1)
 
-    async def test_different_tenants_get_different_deks(self):
+    async def test_different_tenants_get_different_ciphers(self):
         stream_id_1 = self._make_stream_id(tenant_id="1")
         stream_id_2 = self._make_stream_id(tenant_id="2")
         async with self._session_pool.session() as session:
             async with session.atomic():
-                dek1 = await self._dek_store.get_or_create(session, stream_id_1)
-                dek2 = await self._dek_store.get_or_create(session, stream_id_2)
-                self.assertNotEqual(dek1, dek2)
+                cipher1 = await self._dek_store.get_or_create(session, stream_id_1)
+                cipher2 = await self._dek_store.get_or_create(session, stream_id_2)
+                plaintext = b"hello"
+                encrypted1 = cipher1.encrypt(plaintext)
+                with self.assertRaises(Exception):
+                    cipher2.decrypt(encrypted1)
 
     async def test_dek_survives_kek_rotation(self):
         stream_id = self._make_stream_id()
         async with self._session_pool.session() as session:
             async with session.atomic():
-                dek = await self._dek_store.get_or_create(session, stream_id)
+                cipher = await self._dek_store.get_or_create(session, stream_id)
+                plaintext = b"hello"
+                encrypted = cipher.encrypt(plaintext)
                 await self._kms.rotate_kek(session, stream_id.tenant_id)
-                loaded_dek = await self._dek_store.get(session, stream_id)
-                self.assertEqual(dek, loaded_dek)
+                version = int.from_bytes(encrypted[:DekStore._VERSION_SIZE], "big")
+                loaded_cipher = await self._dek_store.get(session, stream_id, version)
+                decrypted = loaded_cipher.decrypt(encrypted)
+                self.assertEqual(decrypted, plaintext)
 
     async def test_delete(self):
         stream_id = self._make_stream_id()
@@ -109,20 +130,27 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 await self._dek_store.get_or_create(session, stream_id)
                 await self._dek_store.delete(session, stream_id)
                 with self.assertRaises(DekNotFound):
-                    await self._dek_store.get(session, stream_id)
+                    await self._dek_store.get(session, stream_id, 1)
 
     async def test_rewrap_after_kek_rotation(self):
         stream_id_1 = self._make_stream_id(stream_id="order-1")
         stream_id_2 = self._make_stream_id(stream_id="order-2")
         async with self._session_pool.session() as session:
             async with session.atomic():
-                dek1 = await self._dek_store.get_or_create(session, stream_id_1)
-                dek2 = await self._dek_store.get_or_create(session, stream_id_2)
+                cipher1 = await self._dek_store.get_or_create(session, stream_id_1)
+                cipher2 = await self._dek_store.get_or_create(session, stream_id_2)
+                plaintext = b"hello"
+                encrypted1 = cipher1.encrypt(plaintext)
+                encrypted2 = cipher2.encrypt(plaintext)
                 await self._kms.rotate_kek(session, "1")
                 count = await self._dek_store.rewrap(session, "1")
                 self.assertEqual(count, 2)
-                self.assertEqual(await self._dek_store.get(session, stream_id_1), dek1)
-                self.assertEqual(await self._dek_store.get(session, stream_id_2), dek2)
+                v1 = int.from_bytes(encrypted1[:DekStore._VERSION_SIZE], "big")
+                v2 = int.from_bytes(encrypted2[:DekStore._VERSION_SIZE], "big")
+                loaded1 = await self._dek_store.get(session, stream_id_1, v1)
+                loaded2 = await self._dek_store.get(session, stream_id_2, v2)
+                self.assertEqual(loaded1.decrypt(encrypted1), plaintext)
+                self.assertEqual(loaded2.decrypt(encrypted2), plaintext)
 
     async def test_crypto_shredding(self):
         stream_id = self._make_stream_id()
@@ -131,7 +159,7 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 await self._dek_store.get_or_create(session, stream_id)
                 await self._kms.delete_kek(session, stream_id.tenant_id)
                 with self.assertRaises(Exception):
-                    await self._dek_store.get(session, stream_id)
+                    await self._dek_store.get(session, stream_id, 1)
 
 
 if __name__ == '__main__':

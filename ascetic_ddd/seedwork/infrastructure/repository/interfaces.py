@@ -1,6 +1,7 @@
 import typing
 from abc import ABCMeta, abstractmethod
 
+from ascetic_ddd.kms.models import ICipher
 from ascetic_ddd.seedwork.domain.aggregate import IPersistentDomainEventExporter, PersistentDomainEvent
 from ascetic_ddd.seedwork.infrastructure.repository import StreamId
 from ascetic_ddd.session.interfaces import ISession
@@ -32,11 +33,11 @@ ICodecFactory: typing.TypeAlias = typing.Callable[[ISession, StreamId], typing.A
 class IDekStore(metaclass=ABCMeta):
 
     @abstractmethod
-    async def get_or_create(self, session: ISession, stream_id: StreamId) -> bytes:
+    async def get_or_create(self, session: ISession, stream_id: StreamId) -> ICipher:
         raise NotImplementedError
 
     @abstractmethod
-    async def get(self, session: ISession, stream_id: StreamId) -> bytes:
+    async def get(self, session: ISession, stream_id: StreamId, key_version: int) -> ICipher:
         raise NotImplementedError
 
     @abstractmethod

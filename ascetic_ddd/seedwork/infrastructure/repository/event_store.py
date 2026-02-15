@@ -5,7 +5,6 @@ from abc import ABCMeta
 
 from psycopg.errors import UniqueViolation
 
-from ascetic_ddd.kms.models import Aes256GcmCipher
 from ascetic_ddd.mediator.interfaces import IMediator
 from ascetic_ddd.seedwork.infrastructure.repository.codec import (
     EncryptionCodec,
@@ -87,9 +86,7 @@ class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
 
         async def codec_factory(session: ISession, stream_id: StreamId) -> ICodec:
             if stream_id not in _cache:
-                dek = await self._dek_store.get_or_create(session, stream_id)
-                aad = str(stream_id).encode("utf-8")
-                cipher = Aes256GcmCipher(dek, aad)
+                cipher = await self._dek_store.get_or_create(session, stream_id)
                 _cache[stream_id] = EncryptionCodec(cipher, ZlibCodec(JsonCodec()))
             return _cache[stream_id]
 
