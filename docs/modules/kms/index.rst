@@ -131,14 +131,28 @@ Implementation: PgKeyManagementService
 
 .. code-block:: python
 
+   import base64
+   import os
+
    from ascetic_ddd.kms.kms import PgKeyManagementService
 
-   master_key = AESGCM.generate_key(bit_length=256)
+   master_key = base64.b64decode(os.environ["MASTER_KEY"])
    kms = PgKeyManagementService(master_key)
 
-The ``master_key`` is a 256-bit AES key, typically loaded from
-an environment variable or secret manager. It encrypts KEKs at rest
-in the ``kms_keys`` table.
+The ``master_key`` is a 256-bit AES key (32 bytes). It **must** be
+loaded from an environment variable or a secret manager (e.g. Vault,
+AWS Secrets Manager, GCP Secret Manager). **Never** hard-code the
+master key in source code or configuration files committed to version
+control.
+
+To generate a new master key:
+
+.. code-block:: bash
+
+   python -c "from cryptography.hazmat.primitives.ciphers.aead import AESGCM; \
+       import base64; print(base64.b64encode(AESGCM.generate_key(bit_length=256)).decode())"
+
+The master key encrypts KEKs at rest in the ``kms_keys`` table.
 
 Schema:
 
