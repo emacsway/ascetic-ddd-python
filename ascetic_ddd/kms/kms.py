@@ -47,6 +47,10 @@ class PgKeyManagementService(IKeyManagementService):
     def __init__(self, master_key: bytes) -> None:
         self._aesgcm = AESGCM(master_key)
 
+    @staticmethod
+    def _make_aad(tenant_id: typing.Any) -> bytes:
+        return str(tenant_id).encode("utf-8")
+
     async def encrypt_dek(self, session: ISession, tenant_id: typing.Any, dek: bytes) -> bytes:
         try:
             key_version, kek, algorithm = await self._get_current_kek(session, tenant_id)
@@ -54,9 +58,10 @@ class PgKeyManagementService(IKeyManagementService):
             _ = await self.rotate_kek(session, tenant_id)
             key_version, kek, algorithm = await self._get_current_kek(session, tenant_id)
         kek_aesgcm = AESGCM(kek)
+        aad = self._make_aad(tenant_id)
         nonce = os.urandom(self._NONCE_SIZE)
         version_bytes = key_version.to_bytes(self._KEY_VERSION_SIZE, "big")
-        return version_bytes + nonce + kek_aesgcm.encrypt(nonce, dek, None)
+        return version_bytes + nonce + kek_aesgcm.encrypt(nonce, dek, aad)
 
     async def decrypt_dek(self, session: ISession, tenant_id: typing.Any, encrypted_dek: bytes) -> bytes:
         key_version = int.from_bytes(
@@ -64,9 +69,10 @@ class PgKeyManagementService(IKeyManagementService):
         )
         kek, algorithm = await self._get_kek(session, tenant_id, key_version)
         kek_aesgcm = AESGCM(kek)
+        aad = self._make_aad(tenant_id)
         nonce = encrypted_dek[self._KEY_VERSION_SIZE:self._KEY_VERSION_SIZE + self._NONCE_SIZE]
         ciphertext = encrypted_dek[self._KEY_VERSION_SIZE + self._NONCE_SIZE:]
-        return kek_aesgcm.decrypt(nonce, ciphertext, None)
+        return kek_aesgcm.decrypt(nonce, ciphertext, aad)
 
     async def generate_dek(self, session: ISession, tenant_id: typing.Any) -> tuple[bytes, bytes]:
         dek = AESGCM.generate_key(bit_length=256)
@@ -77,8 +83,9 @@ class PgKeyManagementService(IKeyManagementService):
         current_version = await self._get_current_version(session, tenant_id)
         new_version = current_version + 1
         kek = AESGCM.generate_key(bit_length=256)
+        aad = self._make_aad(tenant_id)
         nonce = os.urandom(self._NONCE_SIZE)
-        encrypted_kek = nonce + self._aesgcm.encrypt(nonce, kek, None)
+        encrypted_kek = nonce + self._aesgcm.encrypt(nonce, kek, aad)
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(self._insert_sql % self._table, [tenant_id, new_version, encrypted_kek, self._ALGORITHM])
         return new_version
@@ -98,8 +105,9 @@ class PgKeyManagementService(IKeyManagementService):
         if row is None:
             raise KekNotFound(tenant_id)
         key_version, encrypted_kek, algorithm = row[0], row[1], row[2]
+        aad = self._make_aad(tenant_id)
         nonce = encrypted_kek[:self._NONCE_SIZE]
-        kek = self._aesgcm.decrypt(nonce, encrypted_kek[self._NONCE_SIZE:], None)
+        kek = self._aesgcm.decrypt(nonce, encrypted_kek[self._NONCE_SIZE:], aad)
         return key_version, kek, algorithm
 
     async def _get_kek(self, session: ISession, tenant_id: typing.Any, key_version: int) -> tuple[bytes, str]:
@@ -109,8 +117,9 @@ class PgKeyManagementService(IKeyManagementService):
         if row is None:
             raise KekNotFound(tenant_id)
         encrypted_kek, algorithm = row[0], row[1]
+        aad = self._make_aad(tenant_id)
         nonce = encrypted_kek[:self._NONCE_SIZE]
-        return self._aesgcm.decrypt(nonce, encrypted_kek[self._NONCE_SIZE:], None), algorithm
+        return self._aesgcm.decrypt(nonce, encrypted_kek[self._NONCE_SIZE:], aad), algorithm
 
     async def _get_current_version(self, session: ISession, tenant_id: typing.Any) -> int:
         async with self._extract_connection(session).cursor() as acursor:

@@ -91,6 +91,10 @@ Algorithm
 - **Nonce safety** -- with a random 12-byte nonce, the collision limit
   is ~2\ :sup:`32` encryptions per DEK. With per-stream DEK granularity,
   this is not a practical concern.
+- **AAD (Associated Authenticated Data)** -- ``tenant_id`` is passed as
+  AAD at both encryption levels (master key → KEK, KEK → DEK).
+  This cryptographically binds ciphertext to its tenant, preventing
+  cross-tenant ciphertext substitution even with direct DB write access.
 
 
 KMS interface

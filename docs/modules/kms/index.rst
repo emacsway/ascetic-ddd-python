@@ -46,11 +46,12 @@ Methods
     Encrypts a plaintext DEK with the current KEK version.
     If no KEK exists for the tenant, one is created automatically.
     Returns ``key_version (4 bytes) + nonce (12 bytes) + ciphertext``.
+    Uses ``tenant_id`` as AAD.
 
 ``decrypt_dek(session, tenant_id, encrypted_dek)``
     Decrypts a DEK. Extracts the key version from the first 4 bytes
-    to locate the correct KEK version. Raises ``KekNotFound``
-    if no KEK is found for the tenant/version.
+    to locate the correct KEK version. Uses ``tenant_id`` as AAD.
+    Raises ``KekNotFound`` if no KEK is found for the tenant/version.
 
 ``generate_dek(session, tenant_id)``
     Generates a new AES-256 DEK and returns ``(plaintext_dek, encrypted_dek)``.
@@ -98,6 +99,9 @@ Schema:
 The table name is configurable via the ``_table`` class attribute.
 
 Encrypted KEK format: ``nonce (12 bytes) + AES-256-GCM ciphertext``.
+``tenant_id`` is used as AAD (Associated Authenticated Data) at both
+encryption levels (master key → KEK, KEK → DEK), binding ciphertext
+to its tenant and preventing cross-tenant substitution.
 
 Key hierarchy
 -------------
