@@ -110,6 +110,25 @@ the key hierarchy:
 Implementation: PgKeyManagementService
 ---------------------------------------
 
+.. warning::
+
+   ``PgKeyManagementService`` is a simplified KMS implementation that
+   stores KEKs in PostgreSQL (encrypted with a master key). Although
+   the implementation allows storing keys in a separate database using
+   a different connection, KEKs are still held in a general-purpose
+   DBMS rather than in dedicated key management hardware.
+
+   For higher security requirements, consider using a specialized KMS:
+
+   - `HashiCorp Vault Transit <https://developer.hashicorp.com/vault/docs/secrets/transit>`__
+   - `AWS KMS <https://docs.aws.amazon.com/kms/latest/developerguide/overview.html>`__
+   - `GCP Cloud KMS <https://cloud.google.com/kms/docs>`__
+   - `Azure Key Vault <https://learn.microsoft.com/en-us/azure/key-vault/>`__
+
+   The ``IKeyManagementService`` interface is designed to be
+   backend-agnostic. A Vault Transit adapter is planned as a future
+   addition to the project.
+
 .. code-block:: python
 
    from ascetic_ddd.kms.kms import PgKeyManagementService
