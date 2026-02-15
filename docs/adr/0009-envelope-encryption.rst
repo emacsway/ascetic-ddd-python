@@ -136,6 +136,53 @@ have multiple **versioned** DEKs (for algorithm migration). This provides:
 - Safe algorithm migration without re-encrypting existing events
 
 
+Alternatives considered
+^^^^^^^^^^^^^^^^^^^^^^^
+
+**PostgreSQL pgcrypto (column-level encryption)**
+
+PostgreSQL's ``pgcrypto`` extension can encrypt individual columns
+using ``pgp_sym_encrypt`` / ``pgp_sym_decrypt``. The per-tenant key
+is passed via ``SET LOCAL`` session variable:
+
+.. code-block:: sql
+
+   BEGIN;
+   SET LOCAL app.tenant_key = 'per-tenant-secret';
+   INSERT INTO events (payload)
+   VALUES (pgp_sym_encrypt('{"amount": 100}', current_setting('app.tenant_key')));
+   COMMIT;
+
+This was rejected for several reasons:
+
+1. **Key management stays in the application anyway.** PostgreSQL does
+   not manage keys -- the entire KEK/DEK hierarchy, rotation, and
+   caching still has to live in application code. ``pgcrypto`` only
+   moves the ``AES_ENCRYPT`` call from the application to SQL.
+
+2. **Performance.** Decryption runs on the database server CPU. During
+   projection rebuild or catch-up subscriptions, decrypting thousands
+   of events loads PostgreSQL instead of horizontally scalable
+   read-side services. In CQRS the heavy work should be on subscribers.
+
+3. **Logging and leaks.** ``pg_stat_statements``, slow query log, and
+   ``EXPLAIN ANALYZE`` may capture decrypted values or keys. Requires
+   careful tuning of ``log_min_duration_statement`` and disabling
+   parameter logging.
+
+4. **No crypto-shredding guarantee.** After deleting a tenant's key,
+   remnants may persist in PostgreSQL logs, ``pg_stat``, or WAL.
+
+5. **Backup exposure.** ``pg_dump`` exports encrypted blobs (good), but
+   if keys are stored in the same database or passed via session
+   variables that get logged, the protection is illusory.
+
+PostgreSQL-level encryption may be appropriate for prototypes or when
+a full KMS is overkill, but for a multi-tenant event sourcing system
+with crypto-shredding requirements, application-level envelope
+encryption is the correct choice.
+
+
 Decision
 --------
 
