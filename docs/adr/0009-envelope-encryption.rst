@@ -138,21 +138,39 @@ Decision
    (``encode``/``decode``) allows composing arbitrary transformations
    via the Decorator pattern.
 
-3. **EventStore orchestrates encryption** through ``DekStore`` and the
-   codec chain:
+3. **Query requests codec via factory, not a ready instance**.
+   ``evaluate(codec_factory, session)`` -- the query receives an
+   ``ICodecFactory`` (``Callable[[ISession, StreamId], Awaitable[ICodec]]``)
+   and calls it with its own ``StreamId``. This way the query -- which
+   already owns the stream identity -- decides when to obtain the codec,
+   while the EventStore controls how it is constructed:
 
    .. code-block:: python
 
-      class EventStore:
-          async def _make_payload_codec(self, session, stream_id):
-              dek = await self._dek_store.get_or_create(session, stream_id)
-              return AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()))
+      # EventStore creates the factory with caching closure
+      async def _make_codec_factory(self) -> ICodecFactory:
+          _cache = {}
 
+          async def codec_factory(session, stream_id):
+              if stream_id not in _cache:
+                  dek = await self._dek_store.get_or_create(session, stream_id)
+                  _cache[stream_id] = AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()))
+              return _cache[stream_id]
+
+          return codec_factory
+
+      # Query calls the factory with its own StreamId
+      async def evaluate(self, codec_factory, session):
+          codec = await codec_factory(session, StreamId(*self._params[:3]))
+          ...
+
+   ``_save()`` does not need ``stream_id`` as a parameter --
+   the responsibility is given to the object that owns the data.
    ``get_or_create`` is used on the write path (creates DEK if absent),
    ``get`` on the read path (DEK must already exist).
 
-4. **Codec is a dependency, session is an argument**.
-   ``evaluate(payload_codec, session)`` -- the codec (strategy) comes
+4. **Codec factory is a dependency, session is an argument**.
+   ``evaluate(codec_factory, session)`` -- the factory (strategy) comes
    before the runtime argument. This follows the principle that
    dependencies (stable, suitable for ``functools.partial``) precede
    arguments (varying per call).
@@ -196,9 +214,10 @@ Consequences
   acceptable in event sourcing where projections handle query-side
   concerns.
 
-- **Trade-off -- DEK lookup on every read**: each event stream read
-  requires a DEK lookup. Caching can be added later if this becomes
-  a bottleneck.
+- **Trade-off -- DEK lookup per stream**: each distinct stream requires
+  a DEK lookup. The ``ICodecFactory`` closure caches codecs by
+  ``StreamId``, so repeated access to the same stream within one
+  ``_save()`` / ``evaluate()`` call does not trigger additional lookups.
 
 Related
 -------
