@@ -42,7 +42,7 @@ class InboxMessage:
     similar to ascetic_ddd.seedwork.infrastructure.repository.stream_id.StreamId
     instead of three fields?
     """
-    tenant_id: str
+    tenant_id: Any
     stream_type: str
     stream_id: dict[str, Any]
     stream_position: int
