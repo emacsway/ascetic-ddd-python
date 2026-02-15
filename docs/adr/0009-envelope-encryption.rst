@@ -29,6 +29,11 @@ The standard industry approach to these requirements is
 `Envelope Encryption <https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#enveloping>`__,
 used by AWS KMS, HashiCorp Vault Transit, GCP KMS, and Azure Key Vault.
 
+See also:
+
+- `Envelope encryption (Google Cloud KMS) <https://docs.cloud.google.com/kms/docs/envelope-encryption>`__
+- `About data encryption (AWS) <https://docs.aws.amazon.com/prescriptive-guidance/latest/strategy-data-at-rest-encryption/about-data-encryption.html>`__
+
 
 Envelope Encryption
 ^^^^^^^^^^^^^^^^^^^
