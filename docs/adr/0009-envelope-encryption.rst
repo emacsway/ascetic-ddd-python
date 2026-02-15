@@ -54,10 +54,10 @@ The core idea is a two-level key hierarchy:
   │ EventStore                  │     │ kms_keys                 │
   │  ├─ event_log               │     │  ├─ tenant_id            │
   │  │   ├─ payload (bytea)     │     │  ├─ key_version          │
-  │  │   └─ metadata (jsonb)    │     │  ├─ encrypted_kek        │
-  │  └─ stream_deks             │     │  └─ algorithm            │
-  │      ├─ stream_id           │     └──────────────────────────┘
-  │      ├─ encrypted_dek       │
+  │  │   └─ metadata (jsonb)    │     │  ├─ encrypted_key        │
+  │  └─ stream_deks             │     │  ├─ master_algorithm     │
+  │      ├─ stream_id           │     │  └─ key_algorithm        │
+  │      ├─ encrypted_dek       │     └──────────────────────────┘
   │      └─ algorithm           │
   └─────────────────────────────┘
 
@@ -91,10 +91,12 @@ Algorithm
 - **Nonce safety** -- with a random 12-byte nonce, the collision limit
   is ~2\ :sup:`32` encryptions per DEK. With per-stream DEK granularity,
   this is not a practical concern.
-- **AAD (Associated Authenticated Data)** -- ``tenant_id`` is passed as
-  AAD at both encryption levels (master key → KEK, KEK → DEK).
+- **AAD (Associated Authenticated Data)** -- ``tenant_id`` is used as
+  AAD at all encryption levels (master key → KEK, KEK → DEK).
   This cryptographically binds ciphertext to its tenant, preventing
   cross-tenant ciphertext substitution even with direct DB write access.
+  The domain model (``BaseKey``) applies AAD uniformly via ``_aad``
+  property derived from ``tenant_id``.
 
 
 KMS interface

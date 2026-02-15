@@ -46,11 +46,10 @@ Methods
     Encrypts a plaintext DEK with the current KEK version.
     If no KEK exists for the tenant, one is created automatically.
     Returns ``key_version (4 bytes) + nonce (12 bytes) + ciphertext``.
-    Uses ``tenant_id`` as AAD.
 
 ``decrypt_dek(session, tenant_id, encrypted_dek)``
     Decrypts a DEK. Extracts the key version from the first 4 bytes
-    to locate the correct KEK version. Uses ``tenant_id`` as AAD.
+    to locate the correct KEK version.
     Raises ``KekNotFound`` if no KEK is found for the tenant/version.
 
 ``generate_dek(session, tenant_id)``
@@ -68,6 +67,45 @@ Methods
     Deletes all KEK versions for a tenant. This is the crypto-shredding
     operation: all DEKs encrypted with these KEKs become permanently
     undecryptable.
+
+Domain model
+------------
+
+The ``ascetic_ddd.kms.models`` module provides the domain model for
+the key hierarchy:
+
+.. code-block:: python
+
+   from ascetic_ddd.kms.models import MasterKey, Kek, Algorithm
+
+   master = MasterKey(tenant_id="t1", key=master_key_bytes)
+   kek = master.generate_obj(tenant_id="t1")      # first KEK
+   rotated = master.rotate_obj(kek)                # rotate KEK
+   loaded = master.load_obj(                       # restore from DB
+       tenant_id="t1",
+       encrypted_key=encrypted_key,
+       version=1,
+       algorithm=Algorithm.AES_256_GCM,
+   )
+
+``BaseKey``
+    Base class with ``encrypt``, ``decrypt``, ``rewrap``, ``generate_key``.
+    Each key has ``tenant_id``, ``version``, ``algorithm``.
+    ``tenant_id`` is used as AAD (Associated Authenticated Data),
+    binding ciphertext to its tenant and preventing cross-tenant
+    substitution.
+
+``MasterKey(BaseKey)``
+    Created per-tenant from the system master key.
+    Factory methods: ``generate_obj`` (first KEK), ``load_obj``
+    (restore from DB), ``rotate_obj`` (new KEK version).
+
+``Kek(BaseKey)``
+    Adds ``encrypted_key`` and ``created_at`` (persistable).
+    Encrypts/decrypts DEKs via inherited ``encrypt``/``decrypt``.
+
+``ICipher`` / ``Aes256GcmCipher``
+    Pluggable cipher strategy. ``Algorithm`` enum selects the cipher.
 
 Implementation: PgKeyManagementService
 ---------------------------------------
@@ -90,25 +128,25 @@ Schema:
    CREATE TABLE kms_keys (
        tenant_id varchar(128) NOT NULL,
        key_version integer NOT NULL,
-       encrypted_kek bytea NOT NULL,
-       algorithm varchar(32) NOT NULL,
+       encrypted_key bytea NOT NULL,
+       master_algorithm varchar(32) NOT NULL,
+       key_algorithm varchar(32) NOT NULL,
        created_at timestamptz NOT NULL DEFAULT now(),
        CONSTRAINT kms_keys_pk PRIMARY KEY (tenant_id, key_version)
    );
 
 The table name is configurable via the ``_table`` class attribute.
 
-Encrypted KEK format: ``nonce (12 bytes) + AES-256-GCM ciphertext``.
-``tenant_id`` is used as AAD (Associated Authenticated Data) at both
-encryption levels (master key → KEK, KEK → DEK), binding ciphertext
-to its tenant and preventing cross-tenant substitution.
+``master_algorithm`` records the algorithm used by the master key
+to encrypt this KEK (needed for gradual algorithm migration).
+``key_algorithm`` records the KEK's own algorithm (used to encrypt DEKs).
 
 Key hierarchy
 -------------
 
 ::
 
-  Master Key (env var / secret manager)
+  MasterKey (per-tenant, from env var / secret manager)
        │
        └─ encrypts ─→ KEK per tenant (kms_keys table)
                            │
