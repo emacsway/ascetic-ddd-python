@@ -9,10 +9,9 @@ from ascetic_ddd.seedwork.infrastructure.repository.interfaces import IDekStore
 from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.session.pg_session import extract_connection
+from ascetic_ddd.utils.json import JSONEncoder
 
 __all__ = ("DekStore",)
-
-from ascetic_ddd.utils.json import JSONEncoder
 
 
 class DekStore(IDekStore):

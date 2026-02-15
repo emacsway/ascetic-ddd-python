@@ -143,7 +143,7 @@ Decision
 
    .. code-block:: python
 
-      AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()))
+      EncryptionCodec(Aes256GcmCipher(dek, aad), ZlibCodec(JsonCodec()))
 
    The chain: serialize to JSON bytes, compress with zlib, encrypt with
    AES-256-GCM. On read -- the reverse. The ``ICodec`` interface
@@ -166,7 +166,9 @@ Decision
           async def codec_factory(session, stream_id):
               if stream_id not in _cache:
                   dek = await self._dek_store.get_or_create(session, stream_id)
-                  _cache[stream_id] = AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()))
+                  aad = str(stream_id).encode("utf-8")
+                  cipher = Aes256GcmCipher(dek, aad)
+                  _cache[stream_id] = EncryptionCodec(cipher, ZlibCodec(JsonCodec()))
               return _cache[stream_id]
 
           return codec_factory

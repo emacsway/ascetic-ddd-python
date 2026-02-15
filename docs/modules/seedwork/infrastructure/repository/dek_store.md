@@ -46,11 +46,14 @@ for event payloads using the Decorator pattern:
 
 ```python
 aad = str(stream_id).encode("utf-8")
-AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()), aad)
+cipher = Aes256GcmCipher(dek, aad)
+EncryptionCodec(cipher, ZlibCodec(JsonCodec()))
 ```
 
 - `JsonCodec` -- serializes `dict` to JSON bytes and back
-- `ZlibCompressor` -- compresses/decompresses bytes
-- `AesGcmEncryptor` -- encrypts/decrypts with AES-256-GCM.
+- `ZlibCodec` -- compresses/decompresses bytes
+- `EncryptionCodec` -- encrypts/decrypts using any `ICipher` implementation.
+  Wraps the cipher (e.g. `Aes256GcmCipher`) as a codec decorator.
+- `Aes256GcmCipher` -- `ICipher` implementation for AES-256-GCM.
   Accepts optional `aad` (Associated Authenticated Data) to
   cryptographically bind ciphertext to its stream identity.

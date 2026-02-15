@@ -1,13 +1,11 @@
 import json
-import os
 import zlib
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
+from ascetic_ddd.kms.models import ICipher
 from ascetic_ddd.seedwork.infrastructure.repository import ICodec
 from ascetic_ddd.utils.json import JSONEncoder
 
-__all__ = ("JsonCodec", "ZlibCompressor", "AesGcmEncryptor")
+__all__ = ("JsonCodec", "ZlibCodec", "EncryptionCodec")
 
 
 class JsonCodec(ICodec):
@@ -19,7 +17,7 @@ class JsonCodec(ICodec):
         return json.loads(data)
 
 
-class ZlibCompressor(ICodec):
+class ZlibCodec(ICodec):
 
     def __init__(self, delegate: ICodec) -> None:
         self._delegate = delegate
@@ -31,20 +29,14 @@ class ZlibCompressor(ICodec):
         return self._delegate.decode(zlib.decompress(data))
 
 
-class AesGcmEncryptor(ICodec):
-    _NONCE_SIZE = 12
+class EncryptionCodec(ICodec):
 
-    def __init__(self, key: bytes, delegate: ICodec, aad: bytes = None) -> None:
-        self._aesgcm = AESGCM(key)
+    def __init__(self, cipher: ICipher, delegate: ICodec) -> None:
+        self._cipher = cipher
         self._delegate = delegate
-        self._aad = aad
 
     def encode(self, obj: dict) -> bytes:
-        nonce = os.urandom(self._NONCE_SIZE)
-        ciphertext = self._aesgcm.encrypt(nonce, self._delegate.encode(obj), self._aad)
-        return nonce + ciphertext
+        return self._cipher.encrypt(self._delegate.encode(obj))
 
     def decode(self, data: bytes) -> dict:
-        nonce = data[:self._NONCE_SIZE]
-        ciphertext = data[self._NONCE_SIZE:]
-        return self._delegate.decode(self._aesgcm.decrypt(nonce, ciphertext, self._aad))
+        return self._delegate.decode(self._cipher.decrypt(data))
