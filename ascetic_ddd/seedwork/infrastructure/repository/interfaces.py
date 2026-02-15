@@ -43,6 +43,10 @@ class IDekStore(metaclass=ABCMeta):
     async def delete(self, session: ISession, stream_id: StreamId) -> None:
         raise NotImplementedError
 
+    @abstractmethod
+    async def rewrap(self, session: ISession, tenant_id: typing.Any) -> int:
+        raise NotImplementedError
+
 
 @abstractmethod
 class IEventInsertQuery(IPersistentDomainEventExporter, metaclass=ABCMeta):

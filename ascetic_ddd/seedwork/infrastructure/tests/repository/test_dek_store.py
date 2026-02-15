@@ -110,6 +110,19 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 with self.assertRaises(KeyError):
                     await self._dek_store.get(session, stream_id)
 
+    async def test_rewrap_after_kek_rotation(self):
+        stream_id_1 = self._make_stream_id(stream_id="order-1")
+        stream_id_2 = self._make_stream_id(stream_id="order-2")
+        async with self._session_pool.session() as session:
+            async with session.atomic():
+                dek1 = await self._dek_store.get_or_create(session, stream_id_1)
+                dek2 = await self._dek_store.get_or_create(session, stream_id_2)
+                await self._kms.rotate_kek(session, "1")
+                count = await self._dek_store.rewrap(session, "1")
+                self.assertEqual(count, 2)
+                self.assertEqual(await self._dek_store.get(session, stream_id_1), dek1)
+                self.assertEqual(await self._dek_store.get(session, stream_id_2), dek2)
+
     async def test_crypto_shredding(self):
         stream_id = self._make_stream_id()
         async with self._session_pool.session() as session:

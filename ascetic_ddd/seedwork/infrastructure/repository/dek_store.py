@@ -30,6 +30,14 @@ class DekStore(IDekStore):
         DELETE FROM %s
         WHERE tenant_id = %%s AND stream_type = %%s AND stream_id = %%s
     """
+    _select_by_tenant_sql = """
+        SELECT stream_type, stream_id, encrypted_dek FROM %s
+        WHERE tenant_id = %%s
+    """
+    _update_dek_sql = """
+        UPDATE %s SET encrypted_dek = %%s
+        WHERE tenant_id = %%s AND stream_type = %%s AND stream_id = %%s
+    """
     _create_table_sql = """
         CREATE TABLE IF NOT EXISTS %s (
             tenant_id varchar(128) NOT NULL,
@@ -70,6 +78,20 @@ class DekStore(IDekStore):
                 stream_id.tenant_id, stream_id.stream_type, self._encode(stream_id.stream_id),
                 encrypted_dek,
             ])
+
+    async def rewrap(self, session: ISession, tenant_id) -> int:
+        async with self._extract_connection(session).cursor() as acursor:
+            await acursor.execute(self._select_by_tenant_sql % self._table, [tenant_id])
+            rows = await acursor.fetchall()
+        count = 0
+        for stream_type, stream_id, encrypted_dek in rows:
+            new_encrypted_dek = await self._kms.rewrap_dek(session, tenant_id, encrypted_dek)
+            async with self._extract_connection(session).cursor() as acursor:
+                await acursor.execute(self._update_dek_sql % self._table, [
+                    new_encrypted_dek, tenant_id, stream_type, self._encode(stream_id),
+                ])
+            count += 1
+        return count
 
     async def delete(self, session: ISession, stream_id: StreamId) -> None:
         async with self._extract_connection(session).cursor() as acursor:

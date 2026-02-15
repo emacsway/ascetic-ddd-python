@@ -15,12 +15,15 @@ class IDekStore(metaclass=ABCMeta):
     async def get_or_create(self, session, stream_id: StreamId) -> bytes
     async def get(self, session, stream_id: StreamId) -> bytes
     async def delete(self, session, stream_id: StreamId) -> None
+    async def rewrap(self, session, tenant_id) -> int
 ```
 
 - `get_or_create` -- used on the write path. Returns the existing DEK
   or generates a new one via KMS and stores the encrypted form.
 - `get` -- used on the read path. Raises `KeyError` if no DEK exists.
 - `delete` -- removes the DEK for a stream.
+- `rewrap` -- re-encrypts all DEKs for a tenant with the current KEK
+  version (after `rotate_kek`). Returns the number of re-wrapped DEKs.
 
 DEKs are stored encrypted in the `stream_deks` table. Decryption
 requires the tenant's KEK from the [KMS module](../../../kms/index.rst).
