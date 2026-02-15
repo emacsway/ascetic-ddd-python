@@ -3,7 +3,7 @@ import typing
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from ascetic_ddd.kms.exceptions import KekDoesNotExist
+from ascetic_ddd.kms.exceptions import KekNotFound
 from ascetic_ddd.kms.interfaces import IKeyManagementService
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.session.pg_session import extract_connection
@@ -48,7 +48,7 @@ class PgKeyManagementService(IKeyManagementService):
     async def encrypt_dek(self, session: ISession, tenant_id: typing.Any, dek: bytes) -> bytes:
         try:
             key_version, kek = await self._get_current_kek(session, tenant_id)
-        except KekDoesNotExist:
+        except KekNotFound:
             _ = await self.rotate_kek(session, tenant_id)
             key_version, kek = await self._get_current_kek(session, tenant_id)
         kek_aesgcm = AESGCM(kek)
@@ -94,7 +94,7 @@ class PgKeyManagementService(IKeyManagementService):
             await acursor.execute(self._select_current_sql % self._table, [tenant_id])
             row = await acursor.fetchone()
         if row is None:
-            raise KekDoesNotExist(tenant_id)
+            raise KekNotFound(tenant_id)
         key_version, encrypted_kek = row[0], row[1]
         nonce = encrypted_kek[:self._NONCE_SIZE]
         kek = self._aesgcm.decrypt(nonce, encrypted_kek[self._NONCE_SIZE:], None)
@@ -105,7 +105,7 @@ class PgKeyManagementService(IKeyManagementService):
             await acursor.execute(self._select_version_sql % self._table, [tenant_id, key_version])
             row = await acursor.fetchone()
         if row is None:
-            raise KekDoesNotExist(tenant_id)
+            raise KekNotFound(tenant_id)
         encrypted_kek = row[0]
         nonce = encrypted_kek[:self._NONCE_SIZE]
         return self._aesgcm.decrypt(nonce, encrypted_kek[self._NONCE_SIZE:], None)

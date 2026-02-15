@@ -49,7 +49,7 @@ Methods
 
 ``decrypt_dek(session, tenant_id, encrypted_dek)``
     Decrypts a DEK. Extracts the key version from the first 4 bytes
-    to locate the correct KEK version. Raises ``KekDoesNotExist``
+    to locate the correct KEK version. Raises ``KekNotFound``
     if no KEK is found for the tenant/version.
 
 ``generate_dek(session, tenant_id)``

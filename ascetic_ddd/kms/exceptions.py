@@ -1,5 +1,5 @@
-__all__ = ('KekDoesNotExist',)
+__all__ = ('KekNotFound',)
 
 
-class KekDoesNotExist(Exception):
+class KekNotFound(Exception):
     pass
