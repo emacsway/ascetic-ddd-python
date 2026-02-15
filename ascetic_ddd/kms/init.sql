@@ -5,5 +5,5 @@ CREATE TABLE IF NOT EXISTS kms_keys (
     master_algorithm varchar(32) NOT NULL,
     key_algorithm varchar(32) NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT %s_pk PRIMARY KEY (tenant_id, key_version)
+    CONSTRAINT kms_keys_pk PRIMARY KEY (tenant_id, key_version)
 );

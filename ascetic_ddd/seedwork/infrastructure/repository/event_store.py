@@ -92,5 +92,16 @@ class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
 
         return codec_factory
 
+    async def _make_read_codec_factory(self) -> ICodecFactory:
+        _cache = {}
+
+        async def codec_factory(session: ISession, stream_id: StreamId) -> ICodec:
+            if stream_id not in _cache:
+                cipher = await self._dek_store.get_all(session, stream_id)
+                _cache[stream_id] = EncryptionCodec(cipher, ZlibCodec(JsonCodec()))
+            return _cache[stream_id]
+
+        return codec_factory
+
     def _do_make_event_query(self, event: IPDE) -> IEventInsertQuery:
         return self.queries[(event.event_type, event.event_version)].make(event)

@@ -33,6 +33,28 @@ class _VersionedCipher(ICipher):
         return self._cipher.generate_key()
 
 
+class _CompositeVersionedCipher(ICipher):
+    _VERSION_SIZE = 4
+
+    def __init__(self, latest_version: int, ciphers: dict[int, ICipher]) -> None:
+        self._latest_version = latest_version
+        self._ciphers = ciphers
+
+    def encrypt(self, plaintext: bytes) -> bytes:
+        version_bytes = self._latest_version.to_bytes(self._VERSION_SIZE, "big")
+        return version_bytes + self._ciphers[self._latest_version].encrypt(plaintext)
+
+    def decrypt(self, ciphertext: bytes) -> bytes:
+        version = int.from_bytes(ciphertext[:self._VERSION_SIZE], "big")
+        try:
+            return self._ciphers[version].decrypt(ciphertext[self._VERSION_SIZE:])
+        except KeyError:
+            raise DekNotFound(None, version)
+
+    def generate_key(self) -> bytes:
+        return self._ciphers[self._latest_version].generate_key()
+
+
 class DekStore(IDekStore):
     _extract_connection = staticmethod(extract_connection)
     _table = "stream_deks"
@@ -47,6 +69,11 @@ class DekStore(IDekStore):
     _select_version_sql = """
         SELECT encrypted_dek, algorithm FROM %s
         WHERE tenant_id = %%s AND stream_type = %%s AND stream_id = %%s AND version = %%s
+    """
+    _select_all_sql = """
+        SELECT version, encrypted_dek, algorithm FROM %s
+        WHERE tenant_id = %%s AND stream_type = %%s AND stream_id = %%s
+        ORDER BY version
     """
     _insert_sql = """
         INSERT INTO %s (tenant_id, stream_type, stream_id, version, encrypted_dek, algorithm)
@@ -102,10 +129,27 @@ class DekStore(IDekStore):
             ])
             row = await acursor.fetchone()
         if row is None:
-            raise DekNotFound(stream_id)
+            raise DekNotFound(stream_id, key_version)
         encrypted_dek, algorithm = row
         dek = await self._kms.decrypt_dek(session, stream_id.tenant_id, encrypted_dek)
         return self._make_cipher(dek, stream_id, key_version, algorithm)
+
+    async def get_all(self, session: ISession, stream_id: StreamId) -> ICipher:
+        async with self._extract_connection(session).cursor() as acursor:
+            await acursor.execute(self._select_all_sql % self._table, [
+                stream_id.tenant_id, stream_id.stream_type, self._encode(stream_id.stream_id),
+            ])
+            rows = await acursor.fetchall()
+        if not rows:
+            raise DekNotFound(stream_id)
+        ciphers = {}
+        latest_version = 0
+        for version, encrypted_dek, algorithm in rows:
+            dek = await self._kms.decrypt_dek(session, stream_id.tenant_id, encrypted_dek)
+            ciphers[version] = self._make_raw_cipher(dek, stream_id, algorithm)
+            if version > latest_version:
+                latest_version = version
+        return _CompositeVersionedCipher(latest_version, ciphers)
 
     async def _insert(self, session: ISession, stream_id: StreamId, version: int, encrypted_dek: bytes) -> None:
         async with self._extract_connection(session).cursor() as acursor:
@@ -135,13 +179,14 @@ class DekStore(IDekStore):
             ])
 
     def _make_cipher(self, dek: bytes, stream_id: StreamId, version: int, algorithm: str) -> ICipher:
+        return _VersionedCipher(version, self._make_raw_cipher(dek, stream_id, algorithm))
+
+    def _make_raw_cipher(self, dek: bytes, stream_id: StreamId, algorithm: str) -> ICipher:
         aad = str(stream_id).encode("utf-8")
         algo = Algorithm(algorithm)
         if algo == Algorithm.AES_256_GCM:
-            raw_cipher = Aes256GcmCipher(dek, aad)
-        else:
-            raise NotImplementedError(algo)
-        return _VersionedCipher(version, raw_cipher)
+            return Aes256GcmCipher(dek, aad)
+        raise NotImplementedError(algo)
 
     @staticmethod
     def _encode(obj):

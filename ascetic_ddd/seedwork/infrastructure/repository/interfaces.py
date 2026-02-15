@@ -41,6 +41,10 @@ class IDekStore(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
+    async def get_all(self, session: ISession, stream_id: StreamId) -> ICipher:
+        raise NotImplementedError
+
+    @abstractmethod
     async def delete(self, session: ISession, stream_id: StreamId) -> None:
         raise NotImplementedError
 

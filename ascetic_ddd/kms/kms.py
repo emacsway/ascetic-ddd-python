@@ -112,7 +112,7 @@ class PgKeyManagementService(IKeyManagementService):
             await acursor.execute(self._select_version_sql % self._table, [tenant_id, key_version])
             row = await acursor.fetchone()
         if row is None:
-            raise KekNotFound(tenant_id)
+            raise KekNotFound(tenant_id, key_version)
         encrypted_key, master_algorithm, key_algorithm, created_at = row
         master = self._make_master_key(tenant_id, Algorithm(master_algorithm))
         return master.load_obj(

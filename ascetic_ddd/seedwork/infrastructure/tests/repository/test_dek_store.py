@@ -152,6 +152,35 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 self.assertEqual(loaded1.decrypt(encrypted1), plaintext)
                 self.assertEqual(loaded2.decrypt(encrypted2), plaintext)
 
+    async def test_get_all_decrypts_all_versions(self):
+        stream_id = self._make_stream_id()
+        async with self._session_pool.session() as session:
+            async with session.atomic():
+                cipher_v1 = await self._dek_store.get_or_create(session, stream_id)
+                plaintext = b"hello"
+                encrypted_v1 = cipher_v1.encrypt(plaintext)
+                composite = await self._dek_store.get_all(session, stream_id)
+                self.assertEqual(composite.decrypt(encrypted_v1), plaintext)
+
+    async def test_get_all_encrypts_with_latest_version(self):
+        stream_id = self._make_stream_id()
+        async with self._session_pool.session() as session:
+            async with session.atomic():
+                await self._dek_store.get_or_create(session, stream_id)
+                composite = await self._dek_store.get_all(session, stream_id)
+                plaintext = b"hello"
+                encrypted = composite.encrypt(plaintext)
+                version = int.from_bytes(encrypted[:DekStore._VERSION_SIZE], "big")
+                self.assertEqual(version, 1)
+                self.assertEqual(composite.decrypt(encrypted), plaintext)
+
+    async def test_get_all_missing_raises_error(self):
+        stream_id = self._make_stream_id()
+        async with self._session_pool.session() as session:
+            async with session.atomic():
+                with self.assertRaises(DekNotFound):
+                    await self._dek_store.get_all(session, stream_id)
+
     async def test_crypto_shredding(self):
         stream_id = self._make_stream_id()
         async with self._session_pool.session() as session:
