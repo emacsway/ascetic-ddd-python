@@ -54,10 +54,11 @@ The core idea is a two-level key hierarchy:
   │ EventStore                  │     │ kms_keys                 │
   │  ├─ event_log               │     │  ├─ tenant_id            │
   │  │   ├─ payload (bytea)     │     │  ├─ key_version          │
-  │  │   └─ metadata (jsonb)    │     │  └─ encrypted_kek        │
-  │  └─ stream_deks             │     └──────────────────────────┘
-  │      ├─ stream_id           │
-  │      └─ encrypted_dek       │
+  │  │   └─ metadata (jsonb)    │     │  ├─ encrypted_kek        │
+  │  └─ stream_deks             │     │  └─ algorithm            │
+  │      ├─ stream_id           │     └──────────────────────────┘
+  │      ├─ encrypted_dek       │
+  │      └─ algorithm           │
   └─────────────────────────────┘
 
 Key rotation requires re-encrypting only the DEKs (few per tenant),

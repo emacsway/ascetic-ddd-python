@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS stream_deks (
     stream_type varchar(128) NOT NULL,
     stream_id jsonb NOT NULL,
     encrypted_dek bytea NOT NULL,
+    algorithm varchar(32) NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT stream_deks_pk PRIMARY KEY (tenant_id, stream_type, stream_id)
 )

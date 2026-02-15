@@ -18,25 +18,26 @@ from ascetic_ddd.utils.json import JSONEncoder
 class DekStore(IDekStore):
     _extract_connection = staticmethod(extract_connection)
     _table = "stream_deks"
+    _ALGORITHM = "AES-256-GCM"
 
     _select_sql = """
-        SELECT encrypted_dek FROM %s
+        SELECT encrypted_dek, algorithm FROM %s
         WHERE tenant_id = %%s AND stream_type = %%s AND stream_id = %%s
     """
     _insert_sql = """
-        INSERT INTO %s (tenant_id, stream_type, stream_id, encrypted_dek)
-        VALUES (%%s, %%s, %%s, %%s)
+        INSERT INTO %s (tenant_id, stream_type, stream_id, encrypted_dek, algorithm)
+        VALUES (%%s, %%s, %%s, %%s, %%s)
     """
     _delete_sql = """
         DELETE FROM %s
         WHERE tenant_id = %%s AND stream_type = %%s AND stream_id = %%s
     """
     _select_by_tenant_sql = """
-        SELECT stream_type, stream_id, encrypted_dek FROM %s
+        SELECT stream_type, stream_id, encrypted_dek, algorithm FROM %s
         WHERE tenant_id = %%s
     """
     _update_dek_sql = """
-        UPDATE %s SET encrypted_dek = %%s
+        UPDATE %s SET encrypted_dek = %%s, algorithm = %%s
         WHERE tenant_id = %%s AND stream_type = %%s AND stream_id = %%s
     """
     _create_table_sql = """
@@ -45,6 +46,7 @@ class DekStore(IDekStore):
             stream_type varchar(128) NOT NULL,
             stream_id jsonb NOT NULL,
             encrypted_dek bytea NOT NULL,
+            algorithm varchar(32) NOT NULL,
             created_at timestamptz NOT NULL DEFAULT now(),
             CONSTRAINT %s_pk PRIMARY KEY (tenant_id, stream_type, stream_id)
         )
@@ -71,13 +73,14 @@ class DekStore(IDekStore):
             row = await acursor.fetchone()
         if row is None:
             raise DekNotFound(stream_id)
-        return await self._kms.decrypt_dek(session, stream_id.tenant_id, row[0])
+        encrypted_dek, algorithm = row[0], row[1]
+        return await self._kms.decrypt_dek(session, stream_id.tenant_id, encrypted_dek)
 
     async def _insert(self, session: ISession, stream_id: StreamId, encrypted_dek: bytes) -> None:
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(self._insert_sql % self._table, [
                 stream_id.tenant_id, stream_id.stream_type, self._encode(stream_id.stream_id),
-                encrypted_dek,
+                encrypted_dek, self._ALGORITHM,
             ])
 
     async def rewrap(self, session: ISession, tenant_id) -> int:
@@ -85,11 +88,11 @@ class DekStore(IDekStore):
             await acursor.execute(self._select_by_tenant_sql % self._table, [tenant_id])
             rows = await acursor.fetchall()
         count = 0
-        for stream_type, stream_id, encrypted_dek in rows:
+        for stream_type, stream_id, encrypted_dek, algorithm in rows:
             new_encrypted_dek = await self._kms.rewrap_dek(session, tenant_id, encrypted_dek)
             async with self._extract_connection(session).cursor() as acursor:
                 await acursor.execute(self._update_dek_sql % self._table, [
-                    new_encrypted_dek, tenant_id, stream_type, self._encode(stream_id),
+                    new_encrypted_dek, self._ALGORITHM, tenant_id, stream_type, self._encode(stream_id),
                 ])
             count += 1
         return count

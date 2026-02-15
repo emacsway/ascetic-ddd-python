@@ -15,20 +15,21 @@ class PgKeyManagementService(IKeyManagementService):
     _extract_connection = staticmethod(extract_connection)
     _NONCE_SIZE = 12
     _KEY_VERSION_SIZE = 4
+    _ALGORITHM = "AES-256-GCM"
 
     _table = "kms_keys"
 
     _select_current_sql = """
-        SELECT key_version, encrypted_kek FROM %s
+        SELECT key_version, encrypted_kek, algorithm FROM %s
         WHERE tenant_id = %%s ORDER BY key_version DESC LIMIT 1
     """
     _select_version_sql = """
-        SELECT encrypted_kek FROM %s
+        SELECT encrypted_kek, algorithm FROM %s
         WHERE tenant_id = %%s AND key_version = %%s
     """
     _insert_sql = """
-        INSERT INTO %s (tenant_id, key_version, encrypted_kek)
-        VALUES (%%s, %%s, %%s)
+        INSERT INTO %s (tenant_id, key_version, encrypted_kek, algorithm)
+        VALUES (%%s, %%s, %%s, %%s)
     """
     _delete_sql = "DELETE FROM %s WHERE tenant_id = %%s"
 
@@ -37,6 +38,7 @@ class PgKeyManagementService(IKeyManagementService):
             tenant_id varchar(128) NOT NULL,
             key_version integer NOT NULL,
             encrypted_kek bytea NOT NULL,
+            algorithm varchar(32) NOT NULL,
             created_at timestamptz NOT NULL DEFAULT now(),
             CONSTRAINT %s_pk PRIMARY KEY (tenant_id, key_version)
         )
@@ -47,10 +49,10 @@ class PgKeyManagementService(IKeyManagementService):
 
     async def encrypt_dek(self, session: ISession, tenant_id: typing.Any, dek: bytes) -> bytes:
         try:
-            key_version, kek = await self._get_current_kek(session, tenant_id)
+            key_version, kek, algorithm = await self._get_current_kek(session, tenant_id)
         except KekNotFound:
             _ = await self.rotate_kek(session, tenant_id)
-            key_version, kek = await self._get_current_kek(session, tenant_id)
+            key_version, kek, algorithm = await self._get_current_kek(session, tenant_id)
         kek_aesgcm = AESGCM(kek)
         nonce = os.urandom(self._NONCE_SIZE)
         version_bytes = key_version.to_bytes(self._KEY_VERSION_SIZE, "big")
@@ -60,7 +62,7 @@ class PgKeyManagementService(IKeyManagementService):
         key_version = int.from_bytes(
             encrypted_dek[:self._KEY_VERSION_SIZE], "big"
         )
-        kek = await self._get_kek(session, tenant_id, key_version)
+        kek, algorithm = await self._get_kek(session, tenant_id, key_version)
         kek_aesgcm = AESGCM(kek)
         nonce = encrypted_dek[self._KEY_VERSION_SIZE:self._KEY_VERSION_SIZE + self._NONCE_SIZE]
         ciphertext = encrypted_dek[self._KEY_VERSION_SIZE + self._NONCE_SIZE:]
@@ -78,7 +80,7 @@ class PgKeyManagementService(IKeyManagementService):
         nonce = os.urandom(self._NONCE_SIZE)
         encrypted_kek = nonce + self._aesgcm.encrypt(nonce, kek, None)
         async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(self._insert_sql % self._table, [tenant_id, new_version, encrypted_kek])
+            await acursor.execute(self._insert_sql % self._table, [tenant_id, new_version, encrypted_kek, self._ALGORITHM])
         return new_version
 
     async def rewrap_dek(self, session: ISession, tenant_id: typing.Any, encrypted_dek: bytes) -> bytes:
@@ -89,26 +91,26 @@ class PgKeyManagementService(IKeyManagementService):
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(self._delete_sql % self._table, [tenant_id])
 
-    async def _get_current_kek(self, session: ISession, tenant_id: typing.Any) -> tuple[int, bytes]:
+    async def _get_current_kek(self, session: ISession, tenant_id: typing.Any) -> tuple[int, bytes, str]:
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(self._select_current_sql % self._table, [tenant_id])
             row = await acursor.fetchone()
         if row is None:
             raise KekNotFound(tenant_id)
-        key_version, encrypted_kek = row[0], row[1]
+        key_version, encrypted_kek, algorithm = row[0], row[1], row[2]
         nonce = encrypted_kek[:self._NONCE_SIZE]
         kek = self._aesgcm.decrypt(nonce, encrypted_kek[self._NONCE_SIZE:], None)
-        return key_version, kek
+        return key_version, kek, algorithm
 
-    async def _get_kek(self, session: ISession, tenant_id: typing.Any, key_version: int) -> bytes:
+    async def _get_kek(self, session: ISession, tenant_id: typing.Any, key_version: int) -> tuple[bytes, str]:
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(self._select_version_sql % self._table, [tenant_id, key_version])
             row = await acursor.fetchone()
         if row is None:
             raise KekNotFound(tenant_id)
-        encrypted_kek = row[0]
+        encrypted_kek, algorithm = row[0], row[1]
         nonce = encrypted_kek[:self._NONCE_SIZE]
-        return self._aesgcm.decrypt(nonce, encrypted_kek[self._NONCE_SIZE:], None)
+        return self._aesgcm.decrypt(nonce, encrypted_kek[self._NONCE_SIZE:], None), algorithm
 
     async def _get_current_version(self, session: ISession, tenant_id: typing.Any) -> int:
         async with self._extract_connection(session).cursor() as acursor:
