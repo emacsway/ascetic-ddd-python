@@ -20,7 +20,7 @@ class IDekStore(metaclass=ABCMeta):
 
 - `get_or_create` -- used on the write path. Returns the existing DEK
   or generates a new one via KMS and stores the encrypted form.
-- `get` -- used on the read path. Raises `KeyError` if no DEK exists.
+- `get` -- used on the read path. Raises `DekNotFound` if no DEK exists.
 - `delete` -- removes the DEK for a stream.
 - `rewrap` -- re-encrypts all DEKs for a tenant with the current KEK
   version (after `rotate_kek`). Returns the number of re-wrapped DEKs.

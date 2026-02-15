@@ -5,6 +5,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ascetic_ddd.kms.kms import PgKeyManagementService
 from ascetic_ddd.seedwork.infrastructure.repository.dek_store import DekStore
+from ascetic_ddd.seedwork.infrastructure.repository.exceptions import DekNotFound
 from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 from ascetic_ddd.utils.tests.db import make_pg_session_pool
 
@@ -71,7 +72,7 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
         stream_id = self._make_stream_id()
         async with self._session_pool.session() as session:
             async with session.atomic():
-                with self.assertRaises(KeyError):
+                with self.assertRaises(DekNotFound):
                     await self._dek_store.get(session, stream_id)
 
     async def test_different_streams_get_different_deks(self):
@@ -107,7 +108,7 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
             async with session.atomic():
                 await self._dek_store.get_or_create(session, stream_id)
                 await self._dek_store.delete(session, stream_id)
-                with self.assertRaises(KeyError):
+                with self.assertRaises(DekNotFound):
                     await self._dek_store.get(session, stream_id)
 
     async def test_rewrap_after_kek_rotation(self):

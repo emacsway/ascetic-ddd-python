@@ -4,6 +4,7 @@ import json
 from psycopg.types.json import Jsonb
 
 from ascetic_ddd.kms.interfaces import IKeyManagementService
+from ascetic_ddd.seedwork.infrastructure.repository.exceptions import DekNotFound
 from ascetic_ddd.seedwork.infrastructure.repository.interfaces import IDekStore
 from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 from ascetic_ddd.session.interfaces import ISession
@@ -55,7 +56,7 @@ class DekStore(IDekStore):
     async def get_or_create(self, session: ISession, stream_id: StreamId) -> bytes:
         try:
             return await self.get(session, stream_id)
-        except KeyError:
+        except DekNotFound:
             dek, encrypted_dek = await self._kms.generate_dek(
                 session, stream_id.tenant_id
             )
@@ -69,7 +70,7 @@ class DekStore(IDekStore):
             ])
             row = await acursor.fetchone()
         if row is None:
-            raise KeyError(stream_id)
+            raise DekNotFound(stream_id)
         return await self._kms.decrypt_dek(session, stream_id.tenant_id, row[0])
 
     async def _insert(self, session: ISession, stream_id: StreamId, encrypted_dek: bytes) -> None:
