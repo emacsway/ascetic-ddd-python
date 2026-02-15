@@ -6,7 +6,7 @@ from enum import Enum
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-__all__ = ('Kek', 'Algorithm',)
+__all__ = ('MasterKey', 'Kek', 'Algorithm',)
 
 
 class Algorithm(str, Enum):
