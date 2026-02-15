@@ -87,7 +87,8 @@ class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
         async def codec_factory(session: ISession, stream_id: StreamId) -> ICodec:
             if stream_id not in _cache:
                 dek = await self._dek_store.get_or_create(session, stream_id)
-                _cache[stream_id] = AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()))
+                aad = str(stream_id).encode("utf-8")
+                _cache[stream_id] = AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()), aad)
             return _cache[stream_id]
 
         return codec_factory

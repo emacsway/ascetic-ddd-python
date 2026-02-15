@@ -34,16 +34,17 @@ class ZlibCompressor(ICodec):
 class AesGcmEncryptor(ICodec):
     _NONCE_SIZE = 12
 
-    def __init__(self, key: bytes, delegate: ICodec) -> None:
+    def __init__(self, key: bytes, delegate: ICodec, aad: bytes = None) -> None:
         self._aesgcm = AESGCM(key)
         self._delegate = delegate
+        self._aad = aad
 
     def encode(self, obj: dict) -> bytes:
         nonce = os.urandom(self._NONCE_SIZE)
-        ciphertext = self._aesgcm.encrypt(nonce, self._delegate.encode(obj), None)
+        ciphertext = self._aesgcm.encrypt(nonce, self._delegate.encode(obj), self._aad)
         return nonce + ciphertext
 
     def decode(self, data: bytes) -> dict:
         nonce = data[:self._NONCE_SIZE]
         ciphertext = data[self._NONCE_SIZE:]
-        return self._delegate.decode(self._aesgcm.decrypt(nonce, ciphertext, None))
+        return self._delegate.decode(self._aesgcm.decrypt(nonce, ciphertext, self._aad))

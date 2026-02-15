@@ -45,9 +45,12 @@ The `ICodec` interface provides composable encode/decode transformations
 for event payloads using the Decorator pattern:
 
 ```python
-AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()))
+aad = str(stream_id).encode("utf-8")
+AesGcmEncryptor(dek, ZlibCompressor(JsonCodec()), aad)
 ```
 
 - `JsonCodec` -- serializes `dict` to JSON bytes and back
 - `ZlibCompressor` -- compresses/decompresses bytes
-- `AesGcmEncryptor` -- encrypts/decrypts with AES-256-GCM
+- `AesGcmEncryptor` -- encrypts/decrypts with AES-256-GCM.
+  Accepts optional `aad` (Associated Authenticated Data) to
+  cryptographically bind ciphertext to its stream identity.
