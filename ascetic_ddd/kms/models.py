@@ -48,19 +48,26 @@ class Aes256GcmCipher(ICipher):
 
 class BaseKey:
     _KEY_VERSION_SIZE = 4
+    _tenant_id: typing.Any
     _key: bytes
     _algorithm: Algorithm
     _version: int
 
     def __init__(
             self,
+            tenant_id: typing.Any,
             key: bytes,
             version: int = 1,
             algorithm: Algorithm = Algorithm.AES_256_GCM,
     ):
+        self._tenant_id = tenant_id
         self._key = key
         self._algorithm = algorithm
         self._version = version
+
+    @property
+    def tenant_id(self) -> typing.Any:
+        return self._tenant_id
 
     @property
     def version(self) -> int:
@@ -86,8 +93,8 @@ class BaseKey:
         return key, self.encrypt(key)
 
     @property
-    def _aad(self) -> bytes | None:
-        return None
+    def _aad(self) -> bytes:
+        return str(self._tenant_id).encode("utf-8")
 
     @property
     def _cipher(self) -> ICipher:
@@ -129,32 +136,9 @@ class MasterKey(BaseKey):
         )
 
 
-class BaseStorableKey(BaseKey):
+class Kek(BaseKey):
     _encrypted_key: bytes
-
-    def __init__(
-            self,
-            key: bytes,
-            encrypted_key: bytes,
-            version: int = 1,
-            algorithm: Algorithm = Algorithm.AES_256_GCM,
-            created_at: datetime.datetime | None = None,
-    ):
-        self._encrypted_key = encrypted_key
-        self._created_at = created_at or self.now()
-        super().__init__(
-            key=key,
-            version=version,
-            algorithm=algorithm,
-        )
-
-    @property
-    def encrypted_key(self) -> bytes:
-        return self._encrypted_key
-
-
-class Kek(BaseStorableKey):
-    _tenant_id: typing.Any
+    _created_at: datetime.datetime
 
     def __init__(
             self,
@@ -165,19 +149,15 @@ class Kek(BaseStorableKey):
             algorithm: Algorithm = Algorithm.AES_256_GCM,
             created_at: datetime.datetime | None = None,
     ):
-        self._tenant_id = tenant_id
+        self._encrypted_key = encrypted_key
+        self._created_at = created_at or self.now()
         super().__init__(
+            tenant_id=tenant_id,
             key=key,
-            encrypted_key=encrypted_key,
             version=version,
             algorithm=algorithm,
-            created_at=created_at,
         )
 
     @property
-    def tenant_id(self) -> typing.Any:
-        return self._tenant_id
-
-    @property
-    def _aad(self) -> bytes:
-        return str(self._tenant_id).encode("utf-8")
+    def encrypted_key(self) -> bytes:
+        return self._encrypted_key
