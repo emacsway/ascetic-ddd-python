@@ -181,32 +181,3 @@ class Kek(BaseStorableKey):
     @property
     def _aad(self) -> bytes:
         return str(self._tenant_id).encode("utf-8")
-
-    def generate_obj(self, **kwargs) -> 'Dek':
-        key, encrypted_key = self.generate_key()
-        return Dek(
-            key=key,
-            encrypted_key=encrypted_key,
-            **kwargs
-        )
-
-    def load_obj(self, **kwargs) -> 'Dek':
-        key = self.decrypt(kwargs['encrypted_key'])
-        return Dek(
-            key=key,
-            **kwargs
-        )
-
-    def rotate_obj(self, obj: 'Dek') -> 'Dek':
-        key, encrypted_key = self.generate_key()
-        return Dek(
-            key=key,
-            encrypted_key=encrypted_key,
-            version=obj.version + 1,
-            algorithm=obj.algorithm,
-            created_at=self.now(),
-        )
-
-
-class Dek(BaseStorableKey):
-    pass
