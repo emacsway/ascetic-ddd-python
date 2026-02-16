@@ -46,19 +46,6 @@ class ISessionPool(IObservable, typing.Protocol, metaclass=ABCMeta):
 
 # Infrastructure layer interfaces:
 
-
-class IHashable(typing.Protocol, metaclass=ABCMeta):
-
-    def __eq__(self, other: "IHashable") -> bool:
-        ...
-
-    def __hash__(self) -> int:
-        raise NotImplementedError
-
-
-IIdentityKey: typing.TypeAlias = IHashable
-IModel: typing.TypeAlias = typing.Any
-
 Query: typing.TypeAlias = typing.Union[str, bytes]
 Params: typing.TypeAlias = typing.Union[typing.Sequence[typing.Any], typing.Mapping[str, typing.Any]]
 Row = typing.TypeVar("Row", covariant=True)
@@ -156,6 +143,19 @@ class IAsyncConnection(typing.Protocol):
 class IAsyncConnectionPool(typing.Protocol):
     async def connection(self, timeout: float | None = None) -> typing.AsyncContextManager["IAsyncConnection"]:
         ...
+
+
+class IHashable(typing.Protocol, metaclass=ABCMeta):
+
+    def __eq__(self, other: "IHashable") -> bool:
+        ...
+
+    def __hash__(self) -> int:
+        raise NotImplementedError
+
+
+IIdentityKey: typing.TypeAlias = IHashable
+IModel: typing.TypeAlias = typing.Any
 
 
 class IIdentityMap(metaclass=ABCMeta):

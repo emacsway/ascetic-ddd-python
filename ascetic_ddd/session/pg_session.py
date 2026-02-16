@@ -66,10 +66,10 @@ class PgSessionPool(Observable, ISessionPool):
 
 class PgSession(Observable, IPgSession):
     _connection: IAsyncConnection
-    _parent: typing.Optional["PgSession"]
+    _parent: typing.Optional["IPgSession"]
     _identity_map: IIdentityMap
 
-    def __init__(self, connection: IAsyncConnection, parent: typing.Optional["PgSession"] = None):
+    def __init__(self, connection: IAsyncConnection, parent: typing.Optional["IPgSession"] = None):
         # self._connection = connection
         self._connection = AsyncConnectionStatsDecorator(connection, self)
         self._parent = parent
@@ -87,67 +87,51 @@ class PgSession(Observable, IPgSession):
     @asynccontextmanager
     async def atomic(self) -> typing.AsyncIterator[ISession]:
         async with self.connection.transaction() as transaction:
-            transaction_session = self._make_transaction_session(transaction.connection)
+            transaction_session = self._make_nested_session(transaction.connection)
             await self.anotify(
-                aspect='session_started',
+                aspect='transaction_started',
                 session=transaction_session
             )
             try:
                 yield transaction_session
             finally:
                 await self.anotify(
-                    aspect='session_ended',
+                    aspect='transaction_ended',
                     session=transaction_session
                 )
 
-    def _make_transaction_session(self, connection):
+    def _make_nested_session(self, connection: IAsyncConnection) -> IPgSession:
         return PgTransactionSession(connection, IdentityMap(), self)
 
 
-# TODO: Add savepoint support
 class PgTransactionSession(PgSession):
 
     def __init__(
             self,
             connection: IAsyncConnection,
             identity_map: IIdentityMap,
-            parent: typing.Optional["PgSession"] = None
+            parent: typing.Optional["IPgSession"] = None
     ):
         super().__init__(connection, parent)
         self._identity_map = identity_map
 
     @asynccontextmanager
     async def atomic(self) -> typing.AsyncIterator[ISession]:
-        savepoint_session = self._make_savepoint_session(self._connection)
-        await self.anotify(
-            aspect='session_started',
-            session=savepoint_session
-        )
-        try:
-            yield savepoint_session
-        finally:
-            await self.anotify(
-                aspect='session_ended',
-                session=savepoint_session
-            )
-
-    @asynccontextmanager
-    async def atomic2(self) -> typing.AsyncIterator[ISession]:
         async with self.connection.transaction() as transaction:
-            savepoint_session = self._make_savepoint_session(transaction.connection)
+            savepoint_session = self._make_nested_session(transaction.connection)
             await self.anotify(
-                aspect='session_started',
+                aspect='savepoint_started',
                 session=savepoint_session
             )
             try:
                 yield savepoint_session
             finally:
                 await self.anotify(
-                    aspect='session_ended',
+                    aspect='savepoint_ended',
                     session=savepoint_session
                 )
 
-    def _make_savepoint_session(self, connection):
+    def _make_nested_session(self, connection: IAsyncConnection) -> IPgSession:
         return PgSavepointSession(connection, self._identity_map, self)
 
 

@@ -30,7 +30,7 @@ class RestSessionPool(Observable, ISessionPool):
 
     @asynccontextmanager
     async def session(self) -> typing.AsyncIterator[ISession]:
-        session = RestSession()
+        session = self._make_session()
         await self.anotify(
             aspect='session_started',
             session=session
@@ -42,6 +42,10 @@ class RestSessionPool(Observable, ISessionPool):
                 aspect='session_ended',
                 session=session
             )
+
+    @staticmethod
+    def _make_session():
+        return RestSession()
 
 
 class RestSession(Observable, IRestSession):
@@ -59,7 +63,7 @@ class RestSession(Observable, IRestSession):
         def __str__(self):
             return self.label + "." + str(self.status)
 
-    def __init__(self, parent: typing.Optional["RestSession"] = None, client_session: ClientSession | None = None):
+    def __init__(self, client_session: ClientSession | None = None, parent: typing.Optional["RestSession"] = None):
         super().__init__()
         self._parent = parent
 
@@ -108,16 +112,16 @@ class RestSession(Observable, IRestSession):
     @asynccontextmanager
     async def atomic(self) -> typing.AsyncIterator[ISession]:
         async with self._client_session as client_session:
-            session = RestTransactionSession(self, client_session)
+            session = self._make_nested_session(client_session)
             await self.anotify(
-                aspect='session_started',
+                aspect='transaction_started',
                 session=session
             )
             try:
                 yield session
             finally:
                 await self.anotify(
-                    aspect='session_ended',
+                    aspect='transaction_ended',
                     session=session
                 )
 
@@ -126,6 +130,31 @@ class RestSession(Observable, IRestSession):
     def request(self) -> ClientSession:
         return self._client_session
 
+    def _make_nested_session(self, client_session: ClientSession) -> IRestSession:
+        return RestTransactionSession(client_session, self)
+
 
 class RestTransactionSession(RestSession):
+
+    @asynccontextmanager
+    async def atomic(self) -> typing.AsyncIterator[ISession]:
+        async with self._client_session as client_session:
+            session = self._make_nested_session(client_session)
+            await self.anotify(
+                aspect='savepoint_started',
+                session=session
+            )
+            try:
+                yield session
+            finally:
+                await self.anotify(
+                    aspect='savepoint_ended',
+                    session=session
+                )
+
+    def _make_nested_session(self, client_session: ClientSession) -> IRestSession:
+        return RestSavepointSession(client_session, self)
+
+
+class RestSavepointSession(RestTransactionSession):
     pass
