@@ -8,25 +8,24 @@ __all__ = (
     "IEventHandler",
 )
 
-SessionT_co = typing.TypeVar("SessionT_co", covariant=True)
-UriT_co = typing.TypeVar("UriT_co", covariant=True)
-EventT_co = typing.TypeVar("EventT_co", covariant=True)
+SessionT = typing.TypeVar("SessionT")
+EventT = typing.TypeVar("EventT")
 
 
-class IEventHandler(typing.Protocol[SessionT_co, UriT_co, EventT_co]):
-    def __call__(self, session: SessionT_co, uri: UriT_co, event: EventT_co):
+class IEventHandler(typing.Protocol[SessionT, EventT]):
+    def __call__(self, session: SessionT, uri: str, event: EventT):
         ...
 
 
-class IEventBus(typing.Protocol[SessionT_co, UriT_co, EventT_co], metaclass=ABCMeta):
+class IEventBus(typing.Generic[SessionT], metaclass=ABCMeta):
     @abstractmethod
-    async def publish(self, session: SessionT_co, uri: UriT_co, event: EventT_co) -> None:
+    async def publish(self, session: SessionT, uri: str, event: EventT) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    async def subscribe(self, uri: UriT_co, handler: IEventHandler[SessionT_co, UriT_co, EventT_co]) -> IDisposable:
+    async def subscribe(self, uri: str, handler: IEventHandler[SessionT, EventT]) -> IDisposable:
         raise NotImplementedError
 
     @abstractmethod
-    async def unsubscribe(self, uri: UriT_co, handler: IEventHandler[SessionT_co, UriT_co, EventT_co]) -> None:
+    async def unsubscribe(self, uri: str, handler: IEventHandler[SessionT, EventT]) -> None:
         raise NotImplementedError
