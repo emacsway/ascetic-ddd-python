@@ -1,4 +1,6 @@
 """Unit tests for JSONPath parser using jsonpath2 library."""
+import contextlib
+import io
 import threading
 import unittest
 from typing import Any
@@ -865,9 +867,10 @@ class TestErrorHandling(unittest.TestCase):
     def test_invalid_jsonpath_syntax(self):
         """Test error on invalid JSONPath syntax."""
         # jsonpath2 library should raise an error for invalid syntax
-        with self.assertRaises(Exception):
-            spec = parse("$[?(@.age >< %d)]")  # Invalid operator
-            spec.match(DictContext({"age": 30}), (25,))
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(Exception):
+                spec = parse("$[?(@.age >< %d)]")  # Invalid operator
+                spec.match(DictContext({"age": 30}), (25,))
 
     def test_error_message_contains_type_info(self):
         """Test that type error contains useful type information."""
