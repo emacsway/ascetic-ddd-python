@@ -776,7 +776,7 @@ class NativeParametrizedSpecification:
                     if ph_info["positional"]:
                         param_idx = int(ph_info["name"])
                         if param_idx < len(params):
-                            return params[param_idx]
+                            return params[param_idx]  # type: ignore[index]
                     else:
                         if ph_info["name"] in params:
                             return params[ph_info["name"]]

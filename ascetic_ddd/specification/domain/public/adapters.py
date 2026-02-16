@@ -35,11 +35,11 @@ class Delegating(IDelegating):
 class Factory(typing.Generic[T]):
     @classmethod
     def make_field(cls: type[FactoryT], name: str) -> FactoryT:
-        return cls(field(name))
+        return cls(field(name))  # type: ignore[call-arg]
 
     @classmethod
     def make_value(cls: type[FactoryT], value: T) -> FactoryT:
-        return cls(nodes.Value(value))
+        return cls(nodes.Value(value))  # type: ignore[call-arg]
 
 
 class Logical(Delegating, ILogical):
