@@ -15,14 +15,14 @@ from ascetic_ddd.faker.domain.values.empty import empty
 
 __all__ = ('ValueProvider',)
 
-T_Input = typing.TypeVar("T_Input")
-T_Output = typing.TypeVar("T_Output")
+InputT = typing.TypeVar("InputT")
+OutputT = typing.TypeVar("OutputT")
 
 
 class ValueProvider(
-    BaseDistributionProvider[T_Input, T_Output],
-    IValueProvider[T_Input, T_Output],
-    typing.Generic[T_Input, T_Output]
+    BaseDistributionProvider[InputT, OutputT],
+    IValueProvider[InputT, OutputT],
+    typing.Generic[InputT, OutputT]
 ):
     """
     Immutable output - simple ValueObject.
@@ -49,17 +49,17 @@ class ValueProvider(
         "Σx" means composition of "x",
         "⊆" means subset of a composition.
     """
-    _input_generator: IInputGenerator[T_Input] | None = None
-    _output_factory: typing.Callable[[T_Input], T_Output] = None  # T_Output of each nested Provider.
-    _output_exporter: typing.Callable[[T_Output], T_Input] = None
+    _input_generator: IInputGenerator[InputT] | None = None
+    _output_factory: typing.Callable[[InputT], OutputT] = None  # OutputT of each nested Provider.
+    _output_exporter: typing.Callable[[OutputT], InputT] = None
     _specification_factory: typing.Callable[..., ISpecification]
 
     def __init__(
             self,
             distributor: IM2ODistributor | None,
-            input_generator: IInputGenerator[T_Input] | None = None,
-            output_factory: typing.Callable[[T_Input], T_Output] | None = None,
-            output_exporter: typing.Callable[[T_Output], T_Input] | None = None,
+            input_generator: IInputGenerator[InputT] | None = None,
+            output_factory: typing.Callable[[InputT], OutputT] | None = None,
+            output_exporter: typing.Callable[[OutputT], InputT] | None = None,
             specification_factory: typing.Callable[..., ISpecification] = QueryLookupSpecification,
     ):
         if distributor is None:
@@ -86,7 +86,7 @@ class ValueProvider(
 
         super().__init__(distributor=distributor)
 
-    async def create(self, session: ISession) -> T_Output:
+    async def create(self, session: ISession) -> OutputT:
         if self._output is empty:
             raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
         return self._output

@@ -13,15 +13,15 @@ from collections.abc import Callable, Hashable
 from heapq import heappop, heappush
 from typing import TypeVar
 
-TNode = TypeVar("TNode", bound=Hashable)
+NodeT = TypeVar("NodeT", bound=Hashable)
 
 
 def stable_toposort(
-    nodes: list[TNode],
-    edges: dict[TNode, set[TNode]],
+    nodes: list[NodeT],
+    edges: dict[NodeT, set[NodeT]],
     *,
-    key: Callable[[TNode], int],
-) -> list[TNode]:
+    key: Callable[[NodeT], int],
+) -> list[NodeT]:
     """Stable topological sort; breaks ties by `key`.
 
     The `edges` mapping is an adjacency list where `edges[u]` contains all `v`
@@ -32,8 +32,8 @@ def stable_toposort(
     """
     node_set = set(nodes)
     order_index = {node: index for index, node in enumerate(nodes)}
-    indegree: dict[TNode, int] = dict.fromkeys(nodes, 0)
-    outgoing: dict[TNode, set[TNode]] = {n: set() for n in nodes}
+    indegree: dict[NodeT, int] = dict.fromkeys(nodes, 0)
+    outgoing: dict[NodeT, set[NodeT]] = {n: set() for n in nodes}
 
     for source in node_set & edges.keys():
         destinations = edges[source]
@@ -47,12 +47,12 @@ def stable_toposort(
         for node, neighbors in outgoing.items()
     }
 
-    ready: list[tuple[int, int, TNode]] = []
+    ready: list[tuple[int, int, NodeT]] = []
     for node in nodes:
         if indegree[node] == 0:
             heappush(ready, (key(node), order_index[node], node))
 
-    result: list[TNode] = []
+    result: list[NodeT] = []
     while ready:
         _, _, node = heappop(ready)
         result.append(node)

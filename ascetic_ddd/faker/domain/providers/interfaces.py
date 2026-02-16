@@ -23,10 +23,10 @@ __all__ = (
     'IDependentProvider',
 )
 
-T_Input = typing.TypeVar("T_Input")
-T_Output = typing.TypeVar("T_Output")
-T_Cloneable = typing.TypeVar("T_Cloneable")
-T_Agg_Provider = typing.TypeVar("T_Agg_Provider")
+InputT = typing.TypeVar("InputT")
+OutputT = typing.TypeVar("OutputT")
+CloneableT = typing.TypeVar("CloneableT")
+AggProviderT = typing.TypeVar("AggProviderT")
 
 
 class INameable(metaclass=ABCMeta):
@@ -61,7 +61,7 @@ class ICloneable(metaclass=ABCMeta):
 
     @abstractmethod
     def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
-        # For older python: def clone(self: T_Cloneable, shunt: IShunt | None = None) -> T_Cloneable:
+        # For older python: def clone(self: CloneableT, shunt: IShunt | None = None) -> CloneableT:
         raise NotImplementedError
 
 
@@ -95,9 +95,9 @@ class IProvidable(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-class IInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta):
+class IInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
     @abstractmethod
-    async def create(self, session: ISession) -> T_Output:
+    async def create(self, session: ISession) -> OutputT:
         raise NotImplementedError
 
     @abstractmethod
@@ -105,22 +105,22 @@ class IInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def state(self) -> T_Input:
+    def state(self) -> InputT:
         raise NotImplementedError
 
     @abstractmethod
-    async def append(self, session: ISession, value: T_Output):
+    async def append(self, session: ISession, value: OutputT):
         raise NotImplementedError
 
 
 class IValueProvider(
-    IInputOutput[T_Input, T_Output], IProvidable, IObservable, INameable, ICloneable,
-    ISetupable, typing.Generic[T_Input, T_Output], metaclass=ABCMeta
+    IInputOutput[InputT, OutputT], IProvidable, IObservable, INameable, ICloneable,
+    ISetupable, typing.Generic[InputT, OutputT], metaclass=ABCMeta
 ):
     pass
 
 
-class IRelativeValueProvider(IValueProvider[T_Input, T_Output], typing.Generic[T_Input, T_Output], metaclass=ABCMeta):
+class IRelativeValueProvider(IValueProvider[InputT, OutputT], typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @abstractmethod
     def set_scope(self, scope: Hashable) -> None:
@@ -128,7 +128,7 @@ class IRelativeValueProvider(IValueProvider[T_Input, T_Output], typing.Generic[T
 
 
 class ICompositeValueProvider(
-    IValueProvider[T_Input, T_Output], typing.Generic[T_Input, T_Output], metaclass=ABCMeta
+    IValueProvider[InputT, OutputT], typing.Generic[InputT, OutputT], metaclass=ABCMeta
 ):
     @property
     @abstractmethod
@@ -142,45 +142,45 @@ class ICompositeValueProvider(
 
 
 class IEntityProvider(
-    ICompositeValueProvider[T_Input, T_Output], typing.Generic[T_Input, T_Output], metaclass=ABCMeta
+    ICompositeValueProvider[InputT, OutputT], typing.Generic[InputT, OutputT], metaclass=ABCMeta
 ):
 
     @property
     @abstractmethod
-    def id_provider(self) -> IValueProvider[T_Input, T_Output]:
+    def id_provider(self) -> IValueProvider[InputT, OutputT]:
         raise NotImplementedError
 
 
 class IAggregateProvider(
-    IEntityProvider[T_Input, T_Output], typing.Generic[T_Input, T_Output], metaclass=ABCMeta
+    IEntityProvider[InputT, OutputT], typing.Generic[InputT, OutputT], metaclass=ABCMeta
 ):
     # TODO: Add repository here, move id_provider here
     pass
 
 
 class IReferenceProvider(
-    IValueProvider[T_Input, T_Output],
-    typing.Generic[T_Input, T_Output, T_Agg_Provider], metaclass=ABCMeta
+    IValueProvider[InputT, OutputT],
+    typing.Generic[InputT, OutputT, AggProviderT], metaclass=ABCMeta
 ):
 
     @property
     @abstractmethod
-    def aggregate_provider(self) -> IAggregateProvider[T_Input, T_Agg_Provider]:
+    def aggregate_provider(self) -> IAggregateProvider[InputT, AggProviderT]:
         raise NotImplementedError
 
     @aggregate_provider.setter
     @abstractmethod
     def aggregate_provider(
             self,
-            aggregate_provider: IAggregateProvider[T_Input, T_Agg_Provider] | Callable[[], IAggregateProvider[T_Input, T_Agg_Provider]]
+            aggregate_provider: IAggregateProvider[InputT, AggProviderT] | Callable[[], IAggregateProvider[InputT, AggProviderT]]
     ) -> None:
         raise NotImplementedError
 
 
-class IDependentInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta):
+class IDependentInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @abstractmethod
-    async def create(self, session: ISession) -> list[T_Output]:
+    async def create(self, session: ISession) -> list[OutputT]:
         raise NotImplementedError
 
     @abstractmethod
@@ -188,26 +188,26 @@ class IDependentInputOutput(typing.Generic[T_Input, T_Output], metaclass=ABCMeta
         raise NotImplementedError
 
     @abstractmethod
-    def state(self) -> list[T_Input]:
+    def state(self) -> list[InputT]:
         raise NotImplementedError
 
 
 class IDependentProvider(
-    IDependentInputOutput[T_Input, T_Output], IProvidable, IObservable, INameable, ICloneable,
-    ISetupable, typing.Generic[T_Input, T_Output, T_Agg_Provider], metaclass=ABCMeta
+    IDependentInputOutput[InputT, OutputT], IProvidable, IObservable, INameable, ICloneable,
+    ISetupable, typing.Generic[InputT, OutputT, AggProviderT], metaclass=ABCMeta
 ):
 
     @property
     @abstractmethod
-    def aggregate_providers(self) -> list[IAggregateProvider[T_Input, T_Agg_Provider]]:
+    def aggregate_providers(self) -> list[IAggregateProvider[InputT, AggProviderT]]:
         raise NotImplementedError
 
     @aggregate_providers.setter
     @abstractmethod
     def aggregate_providers(
             self,
-            aggregate_provider: list[IAggregateProvider[T_Input, T_Agg_Provider] |
-                                     Callable[[], IAggregateProvider[T_Input, T_Agg_Provider]]]
+            aggregate_provider: list[IAggregateProvider[InputT, AggProviderT] |
+                                     Callable[[], IAggregateProvider[InputT, AggProviderT]]]
     ) -> None:
         raise NotImplementedError
 

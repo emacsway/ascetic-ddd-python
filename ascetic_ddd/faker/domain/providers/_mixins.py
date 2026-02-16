@@ -32,9 +32,9 @@ __all__ = (
     'BaseCompositeDistributionProvider',
 )
 
-T_Input = typing.TypeVar("T_Input")
-T_Output = typing.TypeVar("T_Output")
-T_Cloneable = typing.TypeVar("T_Cloneable")
+InputT = typing.TypeVar("InputT")
+OutputT = typing.TypeVar("OutputT")
+CloneableT = typing.TypeVar("CloneableT")
 
 
 class ObservableMixin(Observable, IObservable, metaclass=abc.ABCMeta):
@@ -156,13 +156,13 @@ class BaseProvider(
     NameableMixin,
     ObservableMixin,
     CloneableMixin,
-    IValueProvider[T_Input, T_Output],
-    typing.Generic[T_Input, T_Output],
+    IValueProvider[InputT, OutputT],
+    typing.Generic[InputT, OutputT],
     metaclass=abc.ABCMeta
 ):
     _criteria: IQueryOperator | None = None
-    _input: T_Input | Empty = empty
-    _output: T_Output | Empty = empty
+    _input: InputT | Empty = empty
+    _output: OutputT | Empty = empty
     _is_transient: bool = False
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
@@ -191,7 +191,7 @@ class BaseProvider(
             self._output = empty
             self.notify('criteria', new_criteria)
 
-    def state(self) -> T_Input:
+    def state(self) -> InputT:
         """Return current query as dict format."""
         return self._input
 
@@ -201,7 +201,7 @@ class BaseProvider(
     def is_transient(self) -> bool:
         return self._is_transient
 
-    def _set_input(self, input_: T_Input):
+    def _set_input(self, input_: InputT):
         self._input = input_
         if input_ is not None:
             self._is_transient = False
@@ -220,7 +220,7 @@ class BaseProvider(
         self._output = empty
         self._is_transient = False
 
-    async def append(self, session: ISession, value: T_Output):
+    async def append(self, session: ISession, value: OutputT):
         pass
 
     async def setup(self, session: ISession):
@@ -230,9 +230,9 @@ class BaseProvider(
         pass
 
 
-class BaseDistributionProvider(BaseProvider[T_Input, T_Output], typing.Generic[T_Input, T_Output],
+class BaseDistributionProvider(BaseProvider[InputT, OutputT], typing.Generic[InputT, OutputT],
                                metaclass=abc.ABCMeta):
-    _distributor: IM2ODistributor[T_Output]
+    _distributor: IM2ODistributor[OutputT]
 
     def __init__(self, distributor: IM2ODistributor):
         self._distributor = distributor
@@ -255,26 +255,26 @@ class BaseDistributionProvider(BaseProvider[T_Input, T_Output], typing.Generic[T
         await self._distributor.cleanup(session)
         await super().cleanup(session)
 
-    async def append(self, session: ISession, value: T_Input):
+    async def append(self, session: ISession, value: InputT):
         await self._distributor.append(session, value)
 
 
 class BaseCompositeProvider(
     ObservableMixin,
     CloneableMixin,
-    ICompositeValueProvider[T_Input, T_Output],
-    typing.Generic[T_Input, T_Output],
+    ICompositeValueProvider[InputT, OutputT],
+    typing.Generic[InputT, OutputT],
     metaclass=abc.ABCMeta
 ):
 
     _criteria: IQueryOperator | None = None
-    _output: T_Output | Empty = empty
-    _output_factory: typing.Callable[[...], T_Output] = None  # T_Output of each nested Provider.
+    _output: OutputT | Empty = empty
+    _output_factory: typing.Callable[[...], OutputT] = None  # OutputT of each nested Provider.
     _provider_name: str | None = None
 
     def __init__(
             self,
-            output_factory: typing.Callable[[...], T_Output] | None = None,
+            output_factory: typing.Callable[[...], OutputT] | None = None,
     ):
 
         if self._output_factory is None:
@@ -326,7 +326,7 @@ class BaseCompositeProvider(
                     )
                 provider.require(query_to_dict(field_query))
 
-    def _set_input(self, input_: T_Input) -> None:
+    def _set_input(self, input_: InputT) -> None:
         """
         Unidirectional flow only. Don't call self.require()
         """
@@ -339,7 +339,7 @@ class BaseCompositeProvider(
             provider.require({'$eq': val})
         self.notify('input', input_)
 
-    def state(self) -> T_Input:
+    def state(self) -> InputT:
         """Return current query as dict format, composed from nested providers."""
         value = dict()
         for attr, provider in self.providers.items():
@@ -376,7 +376,7 @@ class BaseCompositeProvider(
         for provider in self.providers.values():
             provider.reset()
 
-    async def append(self, session: ISession, value: T_Output):
+    async def append(self, session: ISession, value: OutputT):
         pass
 
     async def setup(self, session: ISession):
@@ -444,25 +444,25 @@ class BaseCompositeProvider(
 
 
 class BaseCompositeDistributionProvider(
-    BaseCompositeProvider[T_Input, T_Output],
-    typing.Generic[T_Input, T_Output],
+    BaseCompositeProvider[InputT, OutputT],
+    typing.Generic[InputT, OutputT],
     metaclass=abc.ABCMeta
 ):
 
     _criteria: IQueryOperator | None = None
-    _output: T_Output | Empty = empty
+    _output: OutputT | Empty = empty
     _provider_name: str | None = None
-    _distributor: IM2ODistributor[T_Input]
+    _distributor: IM2ODistributor[InputT]
 
     def __init__(
             self,
-            distributor: IM2ODistributor[T_Input],
-            output_factory: typing.Callable[[...], T_Output] | None = None,
+            distributor: IM2ODistributor[InputT],
+            output_factory: typing.Callable[[...], OutputT] | None = None,
     ):
         self._distributor = distributor
         super().__init__(output_factory=output_factory)
 
-    async def append(self, session: ISession, value: T_Output):
+    async def append(self, session: ISession, value: OutputT):
         await self._distributor.append(session, value)
         await super().append(session, value)
 

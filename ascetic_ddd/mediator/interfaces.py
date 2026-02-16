@@ -8,62 +8,62 @@ __all__ = (
     "ICommandHandler",
     "IEventHandler",
     "IPipelineHandler",
-    "ICommandResult",
+    "CommandResultT",
 )
 
 
-ISession = typing.TypeVar("ISession", covariant=True)
-ICommand = typing.TypeVar("ICommand", covariant=True)
-IEvent = typing.TypeVar("IEvent", covariant=True)
-ICommandResult = typing.TypeVar("ICommandResult")
+SessionT_co = typing.TypeVar("SessionT_co", covariant=True)
+CommandT_co = typing.TypeVar("CommandT_co", covariant=True)
+EventT_co = typing.TypeVar("EventT_co", covariant=True)
+CommandResultT = typing.TypeVar("CommandResultT")
 
 
-class ICommandHandler(typing.Protocol[ISession, ICommand]):
-    def __call__(self, session: ISession, command: ICommand) -> typing.Any:
+class ICommandHandler(typing.Protocol[SessionT_co, CommandT_co]):
+    def __call__(self, session: SessionT_co, command: CommandT_co) -> typing.Any:
         ...
 
 
-class IEventHandler(typing.Protocol[ISession, IEvent]):
-    def __call__(self, session: ISession, event: IEvent):
+class IEventHandler(typing.Protocol[SessionT_co, EventT_co]):
+    def __call__(self, session: SessionT_co, event: EventT_co):
         ...
 
 
-class IPipelineHandler(typing.Protocol[ISession, ICommand]):
+class IPipelineHandler(typing.Protocol[SessionT_co, CommandT_co]):
     @abstractmethod
     async def __call__(
-            self, session: ISession, command: ICommand, next_: 'ICommandHandler[ISession, ICommand]'
+            self, session: SessionT_co, command: CommandT_co, next_: 'ICommandHandler[SessionT_co, CommandT_co]'
     ) -> typing.Any:
         ...
 
 
-class IMediator(typing.Generic[ICommand, IEvent, ISession], metaclass=ABCMeta):
+class IMediator(typing.Generic[CommandT_co, EventT_co, SessionT_co], metaclass=ABCMeta):
 
     @abstractmethod
-    async def send(self, session: ISession, command: ICommand):
+    async def send(self, session: SessionT_co, command: CommandT_co):
         raise NotImplementedError
 
     @abstractmethod
-    async def register(self, command_type: type[ICommand], handler: ICommandHandler[ISession, ICommand]) -> IDisposable:
+    async def register(self, command_type: type[CommandT_co], handler: ICommandHandler[SessionT_co, CommandT_co]) -> IDisposable:
         raise NotImplementedError
 
     @abstractmethod
-    async def unregister(self, command_type: type[ICommand]) -> None:
+    async def unregister(self, command_type: type[CommandT_co]) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    async def publish(self, session: ISession, event: IEvent) -> None:
+    async def publish(self, session: SessionT_co, event: EventT_co) -> None:
         raise NotImplementedError
 
     @abstractmethod
     async def subscribe(
-            self, event_type: type[IEvent], handler: IEventHandler[ISession, IEvent], weak: bool = False
+            self, event_type: type[EventT_co], handler: IEventHandler[SessionT_co, EventT_co], weak: bool = False
     ) -> IDisposable:
         raise NotImplementedError
 
     @abstractmethod
-    async def unsubscribe(self, event_type: type[IEvent], handler: IEventHandler[ISession, IEvent]) -> None:
+    async def unsubscribe(self, event_type: type[EventT_co], handler: IEventHandler[SessionT_co, EventT_co]) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    async def add_pipeline(self, pipeline: IPipelineHandler[ISession, ICommand]) -> None:
+    async def add_pipeline(self, pipeline: IPipelineHandler[SessionT_co, CommandT_co]) -> None:
         raise NotImplementedError

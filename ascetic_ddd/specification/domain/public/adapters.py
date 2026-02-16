@@ -19,7 +19,7 @@ __all__ = (
 )
 
 T = typing.TypeVar("T")
-T_Factory = typing.TypeVar("T_Factory", bound="Factory")
+FactoryT = typing.TypeVar("FactoryT", bound="Factory")
 
 
 class Delegating(IDelegating):
@@ -34,11 +34,11 @@ class Delegating(IDelegating):
 
 class Factory(typing.Generic[T]):
     @classmethod
-    def make_field(cls: type[T_Factory], name: str) -> T_Factory:
+    def make_field(cls: type[FactoryT], name: str) -> FactoryT:
         return cls(field(name))
 
     @classmethod
-    def make_value(cls: type[T_Factory], value: T) -> T_Factory:
+    def make_value(cls: type[FactoryT], value: T) -> FactoryT:
         return cls(nodes.Value(value))
 
 

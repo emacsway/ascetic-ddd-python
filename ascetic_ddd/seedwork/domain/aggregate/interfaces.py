@@ -30,19 +30,19 @@ class IVersionedAggregate(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-IDE = typing.TypeVar("IDE", covariant=True)
+DomainEventT_co = typing.TypeVar("DomainEventT_co", covariant=True)
 
 
-class IDomainEventAdder(typing.Generic[IDE], metaclass=ABCMeta):
+class IDomainEventAdder(typing.Generic[DomainEventT_co], metaclass=ABCMeta):
     @abstractmethod
-    def _add_domain_event(self, event: IDE):
+    def _add_domain_event(self, event: DomainEventT_co):
         raise NotImplementedError
 
 
-class IDomainEventAccessor(typing.Generic[IDE], metaclass=ABCMeta):
+class IDomainEventAccessor(typing.Generic[DomainEventT_co], metaclass=ABCMeta):
     @property
     @abstractmethod
-    def pending_domain_events(self) -> typing.Iterable[IDE]:
+    def pending_domain_events(self) -> typing.Iterable[DomainEventT_co]:
         raise NotImplementedError
 
     @pending_domain_events.deleter
@@ -52,29 +52,29 @@ class IDomainEventAccessor(typing.Generic[IDE], metaclass=ABCMeta):
 
 
 class IEventiveEntity(
-    typing.Generic[IDE], IDomainEventAdder[IDE], IDomainEventAccessor[IDE], metaclass=ABCMeta
+    typing.Generic[DomainEventT_co], IDomainEventAdder[DomainEventT_co], IDomainEventAccessor[DomainEventT_co], metaclass=ABCMeta
 ):
     pass
 
 
-IPDE = typing.TypeVar("IPDE", covariant=True)
+PersistentDomainEventT_co = typing.TypeVar("PersistentDomainEventT_co", covariant=True)
 
 
-class IDomainEventLoader(typing.Generic[IPDE], metaclass=ABCMeta):
+class IDomainEventLoader(typing.Generic[PersistentDomainEventT_co], metaclass=ABCMeta):
     @abstractmethod
-    def _load_from(self, past_events: typing.Iterable[IPDE]) -> None:
+    def _load_from(self, past_events: typing.Iterable[PersistentDomainEventT_co]) -> None:
         raise NotImplementedError
 
 
 class IEventSourcedAggregate(
-    typing.Generic[IPDE],
+    typing.Generic[PersistentDomainEventT_co],
     IDomainEventLoader[IDomainEventLoader],
-    IEventiveEntity[IPDE],
+    IEventiveEntity[PersistentDomainEventT_co],
     IVersionedAggregate,
     metaclass=ABCMeta,
 ):
     @abstractmethod
-    def _update(self, e: IPDE) -> None:
+    def _update(self, e: PersistentDomainEventT_co) -> None:
         raise NotImplementedError
 
 

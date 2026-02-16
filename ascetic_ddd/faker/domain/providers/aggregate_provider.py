@@ -17,22 +17,22 @@ from ascetic_ddd.observable.interfaces import IObservable
 
 __all__ = ('IAggregateRepository', 'AggregateProvider',)
 
-T_Input = typing.TypeVar("T_Input")
-T_Output = typing.TypeVar("T_Output")
+InputT = typing.TypeVar("InputT")
+OutputT = typing.TypeVar("OutputT")
 
 
-class IAggregateRepository(IObservable, typing.Protocol[T_Output]):
+class IAggregateRepository(IObservable, typing.Protocol[OutputT]):
 
-    async def insert(self, session: ISession, agg: T_Output):
+    async def insert(self, session: ISession, agg: OutputT):
         ...
 
-    async def get(self, session: ISession, id_: IAccessible[typing.Any]) -> T_Output | None:
+    async def get(self, session: ISession, id_: IAccessible[typing.Any]) -> OutputT | None:
         ...
 
-    async def update(self, session: ISession, agg: T_Output):
+    async def update(self, session: ISession, agg: OutputT):
         ...
 
-    async def find(self, session: ISession, specification: ISpecification) -> typing.Iterable[T_Output]:
+    async def find(self, session: ISession, specification: ISpecification) -> typing.Iterable[OutputT]:
         ...
 
     async def setup(self, session: ISession):
@@ -43,14 +43,14 @@ class IAggregateRepository(IObservable, typing.Protocol[T_Output]):
 
 
 class AggregateProvider(
-    BaseCompositeProvider[T_Input, T_Output],
-    IAggregateProvider[T_Input, T_Output],
-    typing.Generic[T_Input, T_Output],
+    BaseCompositeProvider[InputT, OutputT],
+    IAggregateProvider[InputT, OutputT],
+    typing.Generic[InputT, OutputT],
     metaclass=ABCMeta
 ):
     _id_attr: str
-    _repository: IAggregateRepository[T_Output]
-    _output_exporter: typing.Callable[[T_Output], T_Input] = None
+    _repository: IAggregateRepository[OutputT]
+    _output_exporter: typing.Callable[[OutputT], InputT] = None
 
     _aspect_mapping = {
         "repository": "_repository",
@@ -61,8 +61,8 @@ class AggregateProvider(
             self,
             repository: IAggregateRepository,
             # distributor_factory: IM2ODistributorFactory,
-            output_factory: typing.Callable[[...], T_Output] | None = None,  # T_Output of each nested Provider.
-            output_exporter: typing.Callable[[T_Output], T_Input] | None = None,
+            output_factory: typing.Callable[[...], OutputT] | None = None,  # OutputT of each nested Provider.
+            output_exporter: typing.Callable[[OutputT], InputT] | None = None,
     ):
         self._repository = repository
 
@@ -96,7 +96,7 @@ class AggregateProvider(
             return
         super().require(criteria)
 
-    async def create(self, session: ISession) -> T_Output:
+    async def create(self, session: ISession) -> OutputT:
         if self._output is not empty:
             return self._output
         output = await self._default_factory(session)

@@ -9,19 +9,19 @@ from ascetic_ddd.seedwork.domain.aggregate.versioned_aggregate import VersionedA
 
 __all__ = ("EventSourcedAggregate",)
 
-IPDE = typing.TypeVar("IPDE", covariant=True)
+PersistentDomainEventT_co = typing.TypeVar("PersistentDomainEventT_co", covariant=True)
 
 
 class EventSourcedAggregate(
-    typing.Generic[IPDE],
-    EventiveEntity[IPDE],
+    typing.Generic[PersistentDomainEventT_co],
+    EventiveEntity[PersistentDomainEventT_co],
     VersionedAggregate,
-    IEventSourcedAggregate[IPDE],
+    IEventSourcedAggregate[PersistentDomainEventT_co],
     metaclass=ABCMeta,
 ):
     class Handlers(dict):
-        def register(self, event_type: type[IPDE]):
-            def do_register(handler: typing.Callable[["EventSourcedAggregate", IPDE], None]):
+        def register(self, event_type: type[PersistentDomainEventT_co]):
+            def do_register(handler: typing.Callable[["EventSourcedAggregate", PersistentDomainEventT_co], None]):
                 self[event_type] = handler
                 return handler
 
@@ -32,12 +32,12 @@ class EventSourcedAggregate(
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-    def _load_from(self, past_events: typing.Iterable[IPDE]) -> None:
+    def _load_from(self, past_events: typing.Iterable[PersistentDomainEventT_co]) -> None:
         for event in past_events:
             self.version = event.aggregate_version
             self._handlers[type(event)](self, event)
 
-    def _update(self, event: IPDE) -> None:
+    def _update(self, event: PersistentDomainEventT_co) -> None:
         event = dataclasses.replace(event, aggregate_version=self.next_version())
         self._add_domain_event(event)
         self._handlers[type(event)](self, event)

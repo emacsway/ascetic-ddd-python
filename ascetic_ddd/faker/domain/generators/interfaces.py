@@ -10,19 +10,19 @@ __all__ = (
     'IAnyInputGenerator'
 )
 
-T_Input = typing.TypeVar("T_Input")
+InputT = typing.TypeVar("InputT")
 
 
-class IInputGenerator(typing.Protocol[T_Input]):
+class IInputGenerator(typing.Protocol[InputT]):
     """
     Value generator.
     Accepts session, query (the current provider query) and an optional position (sequence number).
     """
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int | None = None) -> T_Input:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int | None = None) -> InputT:
         ...
 
 
 IAnyInputGenerator: typing.TypeAlias = (
-        IInputGenerator[T_Input] | typing.Iterable[T_Input] | strategies.SearchStrategy[T_Input] | Callable
+        IInputGenerator[InputT] | typing.Iterable[InputT] | strategies.SearchStrategy[InputT] | Callable
 )

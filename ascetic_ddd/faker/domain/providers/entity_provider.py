@@ -7,29 +7,29 @@ from ascetic_ddd.faker.domain.providers.interfaces import IEntityProvider
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty
 
-T_Input = typing.TypeVar("T_Input")
-T_Output = typing.TypeVar("T_Output")
+InputT = typing.TypeVar("InputT")
+OutputT = typing.TypeVar("OutputT")
 
 
 __all__ = ('EntityProvider',)
 
 
 class EntityProvider(
-    BaseCompositeProvider[T_Input, T_Output],
-    IEntityProvider[T_Input, T_Output],
-    typing.Generic[T_Input, T_Output],
+    BaseCompositeProvider[InputT, OutputT],
+    IEntityProvider[InputT, OutputT],
+    typing.Generic[InputT, OutputT],
     metaclass=ABCMeta
 ):
     """
     Mutable output - composite Entity. Saved as part of aggregate.
     """
     _id_attr: str
-    _output_exporter: typing.Callable[[T_Output], T_Input] = None
+    _output_exporter: typing.Callable[[OutputT], InputT] = None
 
     def __init__(
             self,
-            output_factory: typing.Callable[[...], T_Output] | None = None,  # T_Output of each nested Provider.
-            output_exporter: typing.Callable[[T_Output], T_Input] | None = None,
+            output_factory: typing.Callable[[...], OutputT] | None = None,  # OutputT of each nested Provider.
+            output_exporter: typing.Callable[[OutputT], InputT] | None = None,
     ):
 
         if self._output_exporter is None:
@@ -42,7 +42,7 @@ class EntityProvider(
 
         super().__init__(output_factory=output_factory)
 
-    async def create(self, session: ISession) -> T_Output:
+    async def create(self, session: ISession) -> OutputT:
         if self._output is empty:
             self._output = await self._default_factory(session)
         return self._output

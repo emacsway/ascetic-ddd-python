@@ -29,10 +29,10 @@ from ascetic_ddd.session.interfaces import ISession
 ___all__ = ("EventStore",)
 
 
-IPDE = typing.TypeVar("IPDE", bound=PersistentDomainEvent, covariant=True)
+PersistentDomainEventT_co = typing.TypeVar("PersistentDomainEventT_co", bound=PersistentDomainEvent, covariant=True)
 
 
-class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
+class EventStore(typing.Generic[PersistentDomainEventT_co], metaclass=ABCMeta):
     class Queries(dict):
         def register(self, event_type: type[PersistentDomainEvent], event_version: int):
             def do_register(query_cls: type[IEventInsertQuery]):
@@ -53,7 +53,7 @@ class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
     async def _save(
         self,
         session: ISession,
-        agg: IDomainEventAccessor[IPDE],
+        agg: IDomainEventAccessor[PersistentDomainEventT_co],
         event_meta: EventMeta,
     ) -> None:
         events = []
@@ -103,5 +103,5 @@ class EventStore(typing.Generic[IPDE], metaclass=ABCMeta):
 
         return codec_factory
 
-    def _do_make_event_query(self, event: IPDE) -> IEventInsertQuery:
+    def _do_make_event_query(self, event: PersistentDomainEventT_co) -> IEventInsertQuery:
         return self.queries[(event.event_type, event.event_version)].make(event)

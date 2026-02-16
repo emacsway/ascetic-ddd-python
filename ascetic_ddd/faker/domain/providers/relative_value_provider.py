@@ -7,14 +7,14 @@ from ascetic_ddd.faker.domain.specification.scope_specification import ScopeSpec
 
 __all__ = ('RelativeValueProvider',)
 
-T_Input = typing.TypeVar("T_Input")
-T_Output = typing.TypeVar("T_Output")
+InputT = typing.TypeVar("InputT")
+OutputT = typing.TypeVar("OutputT")
 
 
 class RelativeValueProvider(
-    ValueProvider[T_Input, T_Output],
-    IRelativeValueProvider[T_Input, T_Output],
-    typing.Generic[T_Input, T_Output]
+    ValueProvider[InputT, OutputT],
+    IRelativeValueProvider[InputT, OutputT],
+    typing.Generic[InputT, OutputT]
 ):
     _scope: typing.Hashable = frozenset()
 

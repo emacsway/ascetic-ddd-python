@@ -6,20 +6,20 @@ from ascetic_ddd.event_bus.interfaces import IEventBus, IEventHandler
 
 __all__ = ("InMemoryEventBus",)
 
-T_Session = typing.TypeVar("T_Session", covariant=True)
-T_Uri = typing.TypeVar("T_Uri", covariant=True)
-T_Event = typing.TypeVar("T_Event", covariant=True)
+SessionT_co = typing.TypeVar("SessionT_co", covariant=True)
+UriT_co = typing.TypeVar("UriT_co", covariant=True)
+EventT_co = typing.TypeVar("EventT_co", covariant=True)
 
 
-class InMemoryEventBus(IEventBus[T_Session, T_Uri, T_Event], typing.Generic[T_Session, T_Uri, T_Event]):
+class InMemoryEventBus(IEventBus[SessionT_co, UriT_co, EventT_co], typing.Generic[SessionT_co, UriT_co, EventT_co]):
     def __init__(self) -> None:
         self._subscribers = collections.defaultdict(list)
 
-    async def publish(self, session: T_Session, uri: T_Uri, event: T_Event) -> None:
+    async def publish(self, session: SessionT_co, uri: UriT_co, event: EventT_co) -> None:
         for handler in self._subscribers[uri]:
             await handler(session, uri, event)
 
-    async def subscribe(self, uri: T_Uri, handler: IEventHandler[T_Session, T_Uri, T_Event]) -> IDisposable:
+    async def subscribe(self, uri: UriT_co, handler: IEventHandler[SessionT_co, UriT_co, EventT_co]) -> IDisposable:
         self._subscribers[uri].append(handler)
 
         async def callback() -> None:
@@ -27,5 +27,5 @@ class InMemoryEventBus(IEventBus[T_Session, T_Uri, T_Event], typing.Generic[T_Se
 
         return Disposable(callback)
 
-    async def unsubscribe(self, uri: T_Uri, handler: IEventHandler[T_Session, T_Uri, T_Event]) -> None:
+    async def unsubscribe(self, uri: UriT_co, handler: IEventHandler[SessionT_co, UriT_co, EventT_co]) -> None:
         self._subscribers[uri].remove(handler)

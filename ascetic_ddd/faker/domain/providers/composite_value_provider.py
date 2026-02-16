@@ -15,13 +15,13 @@ __all__ = (
 )
 
 
-T_Input = typing.TypeVar("T_Input")
-T_Output = typing.TypeVar("T_Output")
+InputT = typing.TypeVar("InputT")
+OutputT = typing.TypeVar("OutputT")
 
 
 class CompositeValueProvider(
     BaseCompositeDistributionProvider,
-    typing.Generic[T_Input, T_Output]
+    typing.Generic[InputT, OutputT]
 ):
     """
     Immutable output - composite ValueObject.
@@ -44,14 +44,14 @@ class CompositeValueProvider(
         "Σx" means composition of "x",
         "⊆" means subset of a composition.
     """
-    _output_exporter: typing.Callable[[T_Output], T_Input] = None
+    _output_exporter: typing.Callable[[OutputT], InputT] = None
     _specification_factory: typing.Callable[..., ISpecification]
 
     def __init__(
             self,
-            distributor: IM2ODistributor[T_Input] | None = None,
-            output_factory: typing.Callable[[...], T_Output] | None = None,  # T_Output of each nested Provider.
-            output_exporter: typing.Callable[[T_Output], T_Input] | None = None,
+            distributor: IM2ODistributor[InputT] | None = None,
+            output_factory: typing.Callable[[...], OutputT] | None = None,  # OutputT of each nested Provider.
+            output_exporter: typing.Callable[[OutputT], InputT] | None = None,
             specification_factory: typing.Callable[..., ISpecification] = QueryLookupSpecification,
     ):
         if distributor is None:
@@ -68,7 +68,7 @@ class CompositeValueProvider(
         self._specification_factory = specification_factory
         super().__init__(distributor=distributor, output_factory=output_factory)
 
-    async def create(self, session: ISession) -> T_Output:
+    async def create(self, session: ISession) -> OutputT:
         if self._output is empty:
             raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
         return self._output
