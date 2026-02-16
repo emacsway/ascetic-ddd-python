@@ -14,14 +14,8 @@ from ascetic_ddd.batch.utils import is_insert_query, is_autoincrement_insert_que
 
 __all__ = ("QueryCollector", "ConnectionCollector", "CursorCollector")
 
-# Type alias for query collector callable (mirrors IAsyncCursor.execute signature)
-CollectQueryFn = typing.Callable[
-    [Query, Params | None],
-    Deferred[Row],
-]
 
-
-class CursorCollector:
+class CursorCollector(typing.Generic[Row]):
     """
     Cursor that collects queries for batch execution.
 
@@ -29,7 +23,7 @@ class CursorCollector:
     Instead of executing queries immediately, stores them for batch processing.
     """
 
-    def __init__(self, collect_query: CollectQueryFn):
+    def __init__(self, collect_query: typing.Callable[[Query, Params | None], Deferred[Row]]):
         self._collect_query = collect_query
         self._last_result: Deferred[Row] | None = None
 
@@ -108,14 +102,14 @@ class CursorCollector:
         await self.close()
 
 
-class ConnectionCollector:
+class ConnectionCollector(typing.Generic[Row]):
     """
     Connection that provides batch cursors.
 
     Implements IAsyncConnection interface to mimic real database connection.
     """
 
-    def __init__(self, collect_query: CollectQueryFn):
+    def __init__(self, collect_query: typing.Callable[[Query, Params | None], Deferred[Row]]):
         self._collect_query = collect_query
 
     def cursor(self, *args: typing.Any, **kwargs: typing.Any) -> CursorCollector:
@@ -126,7 +120,7 @@ class ConnectionCollector:
         self,
         savepoint_name: str | None = None,
         force_rollback: bool = False
-    ) -> typing.AsyncContextManager["IAsyncTransaction"]:
+    ) -> typing.AsyncContextManager[IAsyncTransaction[Row]]:
         """Transactions not supported in batch mode."""
         raise NotImplementedError("Transactions not supported in batch collector")
 
@@ -141,13 +135,13 @@ class ConnectionCollector:
         *,
         prepare: bool | None = None,
         binary: bool = False,
-    ) -> CursorCollector:
+    ) -> CursorCollector[Row]:
         """Execute query through cursor."""
         cursor = self.cursor()
         await cursor.execute(query, params, prepare=prepare, binary=binary)
         return cursor
 
-    async def __aenter__(self) -> "ConnectionCollector":
+    async def __aenter__(self) -> "ConnectionCollector[Row]":
         return self
 
     async def __aexit__(
@@ -184,10 +178,10 @@ class QueryCollector:
 
     def __init__(self):
         self._multi_query_map: dict[str, IMultiQuerier] = {}
-        self._connection = ConnectionCollector(self._collect_query)
+        self._connection = ConnectionCollector[tuple[typing.Any, ...]](self._collect_query)
 
     @property
-    def connection(self) -> ConnectionCollector:
+    def connection(self) -> ConnectionCollector[tuple[typing.Any, ...]]:
         """Return batch connection for collecting queries."""
         return self._connection
 
