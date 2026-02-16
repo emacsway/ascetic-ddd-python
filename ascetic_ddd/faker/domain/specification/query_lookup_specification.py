@@ -12,7 +12,7 @@ from ascetic_ddd.session.interfaces import ISession
 __all__ = ('QueryLookupSpecification',)
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):

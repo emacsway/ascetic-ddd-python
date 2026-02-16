@@ -8,7 +8,7 @@ from ascetic_ddd.faker.domain.specification.interfaces import ISpecification, IS
 
 __all__ = ("ScopeSpecification",)
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class ScopeSpecification(ISpecification[T], typing.Generic[T]):

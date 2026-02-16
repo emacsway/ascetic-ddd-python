@@ -30,19 +30,19 @@ class IVersionedAggregate(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-DomainEventT_co = typing.TypeVar("DomainEventT_co", covariant=True)
+DomainEventT = typing.TypeVar("DomainEventT")
 
 
-class IDomainEventAdder(typing.Generic[DomainEventT_co], metaclass=ABCMeta):
+class IDomainEventAdder(typing.Generic[DomainEventT], metaclass=ABCMeta):
     @abstractmethod
-    def _add_domain_event(self, event: DomainEventT_co):
+    def _add_domain_event(self, event: DomainEventT):
         raise NotImplementedError
 
 
-class IDomainEventAccessor(typing.Generic[DomainEventT_co], metaclass=ABCMeta):
+class IDomainEventAccessor(typing.Generic[DomainEventT], metaclass=ABCMeta):
     @property
     @abstractmethod
-    def pending_domain_events(self) -> typing.Iterable[DomainEventT_co]:
+    def pending_domain_events(self) -> typing.Iterable[DomainEventT]:
         raise NotImplementedError
 
     @pending_domain_events.deleter
@@ -52,29 +52,36 @@ class IDomainEventAccessor(typing.Generic[DomainEventT_co], metaclass=ABCMeta):
 
 
 class IEventiveEntity(
-    typing.Generic[DomainEventT_co], IDomainEventAdder[DomainEventT_co], IDomainEventAccessor[DomainEventT_co], metaclass=ABCMeta
+    IDomainEventAdder[DomainEventT],
+    IDomainEventAccessor[DomainEventT],
+    typing.Generic[DomainEventT],
+    metaclass=ABCMeta
 ):
     pass
 
 
-PersistentDomainEventT_co = typing.TypeVar("PersistentDomainEventT_co", covariant=True)
+PersistentDomainEventT = typing.TypeVar("PersistentDomainEventT")
 
 
-class IDomainEventLoader(typing.Generic[PersistentDomainEventT_co], metaclass=ABCMeta):
-    @abstractmethod
-    def _load_from(self, past_events: typing.Iterable[PersistentDomainEventT_co]) -> None:
+class IDomainEventLoader(typing.Generic[PersistentDomainEventT], metaclass=ABCMeta):
+
+    @classmethod
+    def fold(cls, past_events: typing.Iterable[PersistentDomainEventT]):
+        """
+        Or reduce.
+        """
         raise NotImplementedError
 
 
 class IEventSourcedAggregate(
-    typing.Generic[PersistentDomainEventT_co],
+    typing.Generic[PersistentDomainEventT],
     IDomainEventLoader[IDomainEventLoader],
-    IEventiveEntity[PersistentDomainEventT_co],
+    IEventiveEntity[PersistentDomainEventT],
     IVersionedAggregate,
     metaclass=ABCMeta,
 ):
     @abstractmethod
-    def _update(self, e: PersistentDomainEventT_co) -> None:
+    def _update(self, e: PersistentDomainEventT) -> None:
         raise NotImplementedError
 
 

@@ -10,7 +10,7 @@ from ascetic_ddd.faker.infrastructure.specification.pg_specification_visitor imp
 __all__ = ('PgSkewDistributor',)
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class PgSkewDistributor(BasePgDistributor[T], typing.Generic[T]):

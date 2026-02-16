@@ -23,7 +23,7 @@ __all__ = (
     "prepare_input_generator",
 )
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 def prepare_input_generator(input_generator):

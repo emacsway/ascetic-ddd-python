@@ -48,7 +48,7 @@ class ISessionPool(IObservable, typing.Protocol, metaclass=ABCMeta):
 
 Query: typing.TypeAlias = typing.Union[str, bytes]
 Params: typing.TypeAlias = typing.Union[typing.Sequence[typing.Any], typing.Mapping[str, typing.Any]]
-Row = typing.TypeVar("Row", covariant=True)
+Row = typing.TypeVar("Row")
 
 
 @typing.runtime_checkable

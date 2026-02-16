@@ -8,7 +8,7 @@ from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 
 __all__ = ('DummyDistributor',)
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class DummyDistributor(Observable, IM2ODistributor[T], typing.Generic[T]):

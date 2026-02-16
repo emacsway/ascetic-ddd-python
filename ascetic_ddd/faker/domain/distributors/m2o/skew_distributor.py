@@ -109,7 +109,7 @@ def weights_to_skew(weights: list[float]) -> float:
     return max(1.0, min(skew, 10.0))
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 # =============================================================================

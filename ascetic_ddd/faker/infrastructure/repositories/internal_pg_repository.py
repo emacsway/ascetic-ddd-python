@@ -16,7 +16,7 @@ from ascetic_ddd.observable.observable import Observable
 
 __all__ = ('InternalPgRepository',)
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class InternalPgRepository(Observable, typing.Generic[T]):

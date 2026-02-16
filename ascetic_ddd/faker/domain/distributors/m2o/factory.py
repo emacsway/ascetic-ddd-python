@@ -10,7 +10,7 @@ from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import SkewDistr
 __all__ = ('distributor_factory',)
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 def distributor_factory(

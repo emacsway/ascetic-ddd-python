@@ -11,7 +11,7 @@ from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 __all__ = ('NullableDistributor',)
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class NullableDistributor(IM2ODistributor[T], typing.Generic[T]):

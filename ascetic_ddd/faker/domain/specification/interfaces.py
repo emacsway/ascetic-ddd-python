@@ -10,7 +10,7 @@ __all__ = (
     'IResolvableSpecification',
 )
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class ISpecificationVisitor(typing.Protocol):

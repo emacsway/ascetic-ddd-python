@@ -29,7 +29,7 @@ from ascetic_ddd.utils.pg import escape
 __all__ = ('BasePgDistributor', 'PgWeightedDistributor')
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):

@@ -18,7 +18,7 @@ from ascetic_ddd.seedwork.domain.utils.data import hashable
 
 __all__ = ('QueryResolvableSpecification',)
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class QueryResolvableSpecification(IResolvableSpecification[T], typing.Generic[T]):

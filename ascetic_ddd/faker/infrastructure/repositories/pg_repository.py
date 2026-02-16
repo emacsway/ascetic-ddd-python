@@ -19,7 +19,7 @@ from ascetic_ddd.observable.observable import Observable
 __all__ = ('PgRepository', 'IAggregateState', 'DataclassState',)
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class PgRepository(Observable, typing.Generic[T]):

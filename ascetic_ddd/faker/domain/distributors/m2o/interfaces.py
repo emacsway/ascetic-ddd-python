@@ -13,7 +13,7 @@ __all__ = (
 )
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 @typing.runtime_checkable

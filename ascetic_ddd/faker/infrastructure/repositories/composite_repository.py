@@ -12,7 +12,7 @@ from ascetic_ddd.disposable.interfaces import IDisposable
 __all__ = ('CompositeRepository', 'CompositeAutoPkRepository',)
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class CompositeRepository(typing.Generic[T]):

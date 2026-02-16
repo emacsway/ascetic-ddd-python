@@ -17,7 +17,7 @@ from ascetic_ddd.observable.observable import Observable
 __all__ = ('RestRepository',)
 
 
-T = typing.TypeVar("T", covariant=True, bound=IDataclass)
+T = typing.TypeVar("T", bound=IDataclass)
 
 
 class RestRepository(Observable, typing.Generic[T]):

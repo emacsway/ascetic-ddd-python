@@ -9,7 +9,7 @@ from ascetic_ddd.observable.observable import Observable
 __all__ = ('InMemoryRepository',)
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class InMemoryRepository(Observable, typing.Generic[T]):

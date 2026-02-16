@@ -10,7 +10,7 @@ from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpec
 
 __all__ = ('SequenceDistributor',)
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 class SequenceDistributor(Observable, IM2ODistributor[T], typing.Generic[T]):

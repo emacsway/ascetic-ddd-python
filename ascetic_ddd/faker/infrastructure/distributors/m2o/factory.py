@@ -9,7 +9,7 @@ from ascetic_ddd.faker.infrastructure.distributors.m2o import PgWeightedDistribu
 __all__ = ('pg_distributor_factory',)
 
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 def pg_distributor_factory(

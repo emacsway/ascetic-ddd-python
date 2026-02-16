@@ -13,7 +13,7 @@ from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpec
 
 __all__ = ('BaseIndex', 'BaseDistributor', 'Index', 'WeightedDistributor',)
 
-T = typing.TypeVar("T", covariant=True)
+T = typing.TypeVar("T")
 
 
 # =============================================================================
