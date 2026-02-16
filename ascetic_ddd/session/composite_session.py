@@ -1,5 +1,6 @@
 import typing
-from collections.abc import Callable, Hashable
+from collections.abc import Hashable
+from contextlib import asynccontextmanager, AsyncExitStack
 
 from ascetic_ddd.session.interfaces import ISessionPool, ISession
 
@@ -8,30 +9,6 @@ __all__ = (
     "CompositeSession",
 )
 
-T = typing.TypeVar("T", covariant=True)
-
-
-class CompositeAsyncContextManager(typing.Generic[T]):
-    _delegates: typing.Iterable[typing.AsyncContextManager]
-    _entered_delegates: typing.Iterable[T]
-    _factory: Callable[[typing.Iterable[T]], T]
-
-    def __init__(self,
-                 delegates: typing.Iterable[typing.AsyncContextManager],
-                 factory: Callable[[typing.Iterable[T]], T]):
-        self._delegates = delegates
-        self._factory = factory
-
-    async def __aenter__(self) -> T:
-        delegates = []
-        for i in self._delegates:
-            delegates.append(await i.__aenter__())
-        return self._factory(delegates)
-
-    async def __aexit__(self, exc_type, exc, tb):
-        for i in self._delegates:
-            await i.__aexit__(exc_type, exc, tb)
-
 
 class CompositeSessionPool(ISessionPool):
     _delegates: typing.Iterable[ISessionPool]
@@ -39,9 +16,14 @@ class CompositeSessionPool(ISessionPool):
     def __init__(self, *delegates: ISessionPool) -> None:
         self._delegates = delegates
 
-    def session(self) -> typing.AsyncContextManager[ISession]:
-        delegates = tuple(delegate.session() for delegate in self._delegates)
-        return CompositeAsyncContextManager[ISession](delegates, CompositeSession)
+    @asynccontextmanager
+    async def session(self):
+        async with AsyncExitStack() as stack:
+            delegates = [
+                await stack.enter_async_context(pool.session())
+                for pool in self._delegates
+            ]
+            yield CompositeSession(delegates)
 
     def __getitem__(self, item):
         return list(self._delegates)[item]
@@ -81,13 +63,14 @@ class CompositeSession(ISession):
         self._delegates = delegates
         self._parent = parent
 
-    def atomic(self) -> typing.AsyncContextManager[ISession]:
-        delegates = tuple(delegate.atomic() for delegate in self._delegates)
-
-        def _factory(_delegates: typing.Iterable[ISession]):
-            return CompositeTransactionSession(_delegates, self)
-
-        return CompositeAsyncContextManager[ISession](delegates, _factory)
+    @asynccontextmanager
+    async def atomic(self):
+        async with AsyncExitStack() as stack:
+            delegates = [
+                await stack.enter_async_context(d.atomic())
+                for d in self._delegates
+            ]
+            yield CompositeTransactionSession(delegates, self)
 
     def __getattr__(self, item):
         for delegate in self._delegates:
