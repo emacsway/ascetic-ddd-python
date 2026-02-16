@@ -1,7 +1,7 @@
 import contextlib
 import weakref
 
-from ascetic_ddd.session.exceptions import ObjectDoesNotExist
+from ascetic_ddd.session.exceptions import ObjectNotFound
 from ascetic_ddd.session.interfaces import IIdentityKey, IIdentityMap, IModel
 
 __all__ = ("IdentityMap",)
@@ -99,7 +99,7 @@ class SerializableStrategy(BaseStrategy):
     def get(self, key: IIdentityKey) -> IModel | None:
         obj = self._identity_map().do_get(key)
         if isinstance(obj, NonexistentObject):
-            raise ObjectDoesNotExist
+            raise ObjectNotFound
         return obj
 
     def has(self, key: IIdentityKey) -> bool:

@@ -1,10 +1,10 @@
 __all__ = (
-    "ObjectDoesNotExist",
+    "ObjectNotFound",
     "ConcurrentUpdate",
 )
 
 
-class ObjectDoesNotExist(Exception):
+class ObjectNotFound(Exception):
     pass
 
 
