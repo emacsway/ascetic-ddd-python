@@ -4,12 +4,14 @@ from abc import ABCMeta, abstractmethod
 from types import TracebackType
 
 from aiohttp import ClientSession
+from typing_extensions import TypeVar
 
 from ascetic_ddd.observable.interfaces import IObservable
 
 __all__ = (
     "Query",
     "Params",
+    "TupleRow",
     "Row",
     "IAsyncConnection",
     "IAsyncConnectionPool",
@@ -48,7 +50,8 @@ class ISessionPool(IObservable, typing.Protocol, metaclass=ABCMeta):
 
 Query: typing.TypeAlias = typing.Union[str, bytes]
 Params: typing.TypeAlias = typing.Union[typing.Sequence[typing.Any], typing.Mapping[str, typing.Any]]
-Row = typing.TypeVar("Row")
+TupleRow = tuple[typing.Any, ...]
+Row = TypeVar("Row", default=TupleRow)
 
 
 @typing.runtime_checkable
