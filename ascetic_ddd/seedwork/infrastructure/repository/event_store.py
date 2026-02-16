@@ -79,7 +79,7 @@ class EventStore(typing.Generic[PersistentDomainEventT], metaclass=ABCMeta):
             events.append(event)
 
         for event in events:
-            await self._mediator.publish(event, session)
+            await self._mediator.publish(session, event)
 
     async def _make_codec_factory(self) -> ICodecFactory:
         _cache = {}
