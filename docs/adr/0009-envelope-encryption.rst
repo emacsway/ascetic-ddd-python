@@ -116,10 +116,11 @@ API surface:
 - ``delete_kek`` -- delete all KEK versions for a tenant
   (crypto-shredding)
 
-The provided ``PgKeyManagementService`` implementation stores KEKs in
-PostgreSQL, encrypted with a master key from an environment variable.
-This is a pragmatic starting point; the interface allows replacing
-it with Vault Transit or AWS KMS without changing the EventStore code.
+Two implementations are provided: ``PgKeyManagementService`` stores
+KEKs in PostgreSQL (encrypted with a master key from an environment
+variable), ``VaultTransitService`` delegates all cryptographic
+operations to HashiCorp Vault Transit. The interface allows adding
+other backends (AWS KMS, GCP KMS) without changing the EventStore code.
 
 
 DEK granularity

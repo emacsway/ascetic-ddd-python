@@ -10,8 +10,9 @@ Overview
 --------
 
 The module manages Key Encryption Keys (KEKs) -- per-tenant symmetric keys
-used to encrypt and decrypt Data Encryption Keys (DEKs). KEKs are stored
-in PostgreSQL, encrypted with a master key.
+used to encrypt and decrypt Data Encryption Keys (DEKs). Two implementations
+are provided: ``PgKeyManagementService`` (KEKs in PostgreSQL) and
+``VaultTransitService`` (KEKs in HashiCorp Vault).
 
 The architecture follows the
 `Vault Transit Engine <https://developer.hashicorp.com/vault/docs/secrets/transit>`__
@@ -126,8 +127,8 @@ Implementation: PgKeyManagementService
    - `Azure Key Vault <https://learn.microsoft.com/en-us/azure/key-vault/>`__
 
    The ``IKeyManagementService`` interface is designed to be
-   backend-agnostic. A Vault Transit adapter is planned as a future
-   addition to the project.
+   backend-agnostic. See :doc:`vault_service` for the Vault Transit
+   adapter.
 
 .. code-block:: python
 
