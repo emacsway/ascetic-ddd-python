@@ -94,15 +94,14 @@ class VaultTransitService(IKeyManagementService):
         return result["data"]["ciphertext"].encode("utf-8")
 
     async def delete_kek(self, session: ISession, tenant_id: typing.Any) -> None:
+        if not await self._key_exists(session, tenant_id):
+            return
         key_name = self._key_name(tenant_id)
-        try:
-            await self._request(
-                session, "POST", "/keys/%s/config" % key_name,
-                {"deletion_allowed": True},
-            )
-            await self._request(session, "DELETE", "/keys/%s" % key_name)
-        except KekNotFound:
-            pass
+        await self._request(
+            session, "POST", "/keys/%s/config" % key_name,
+            {"deletion_allowed": True},
+        )
+        await self._request(session, "DELETE", "/keys/%s" % key_name)
 
     async def setup(self, session: ISession) -> None:
         pass
