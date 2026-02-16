@@ -7,8 +7,9 @@ from ascetic_ddd.event_bus.in_memory_event_bus import InMemoryEventBus
 
 
 class InMemoryEventBusTestCase(IsolatedAsyncioTestCase):
+    session = object()
     uri = "sb://test-uri"
-    payload = {"a": 5}
+    event = {"a": 5}
 
     def setUp(self) -> None:
         self.event_bus = InMemoryEventBus()
@@ -17,8 +18,8 @@ class InMemoryEventBusTestCase(IsolatedAsyncioTestCase):
         handler = mock.AsyncMock()
         await self.event_bus.subscribe(self.uri, handler)
         with self._wait_for_response_until(lambda: handler.called):
-            await self.event_bus.publish(self.uri, self.payload)
-        handler.assert_called_once_with(self.payload)
+            await self.event_bus.publish(self.session, self.uri, self.event)
+        handler.assert_called_once_with(self.session, self.uri, self.event)
 
     async def test_unsubscribe(self):
         handler = mock.AsyncMock()
@@ -27,9 +28,9 @@ class InMemoryEventBusTestCase(IsolatedAsyncioTestCase):
         await self.event_bus.subscribe(self.uri, handler2)
         await self.event_bus.unsubscribe(self.uri, handler)
         with self._wait_for_response_until(lambda: handler2.called):
-            await self.event_bus.publish(self.uri, self.payload)
+            await self.event_bus.publish(self.session, self.uri, self.event)
         handler.assert_not_called()
-        handler2.assert_called_once_with(self.payload)
+        handler2.assert_called_once_with(self.session, self.uri, self.event)
 
     async def test_disposable_event(self):
         handler = mock.AsyncMock()
@@ -38,9 +39,9 @@ class InMemoryEventBusTestCase(IsolatedAsyncioTestCase):
         await self.event_bus.subscribe(self.uri, handler2)
         await disposable.dispose()
         with self._wait_for_response_until(lambda: handler2.called):
-            await self.event_bus.publish(self.uri, self.payload)
+            await self.event_bus.publish(self.session, self.uri, self.event)
         handler.assert_not_called()
-        handler2.assert_called_once_with(self.payload)
+        handler2.assert_called_once_with(self.session, self.uri, self.event)
 
     @staticmethod
     def _wait_for_response_until(*checkers):

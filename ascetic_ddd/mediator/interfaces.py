@@ -24,7 +24,7 @@ class ICommandHandler(typing.Protocol[ISession, ICommand]):
 
 
 class IEventHandler(typing.Protocol[ISession, IEvent]):
-    def __call__(self, session: ISession, command: IEvent):
+    def __call__(self, session: ISession, event: IEvent):
         ...
 
 
