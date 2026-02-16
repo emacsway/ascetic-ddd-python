@@ -18,7 +18,7 @@ __all__ = (
 )
 
 
-class MultiQueryBase(metaclass=ABCMeta):
+class MultiQueryBase(typing.Generic[Row], metaclass=ABCMeta):
     """
     Base class for batching multiple INSERT queries into one.
 
@@ -101,7 +101,7 @@ class MultiQueryBase(metaclass=ABCMeta):
         return result
 
 
-class MultiQuery(MultiQueryBase, IMultiQuerier):
+class MultiQuery(MultiQueryBase[Row], IMultiQuerier[Row], typing.Generic[Row]):
     """
     Multi-query implementation for INSERT without RETURNING.
 
@@ -137,7 +137,7 @@ class MultiQuery(MultiQueryBase, IMultiQuerier):
             raise ExceptionGroup("Errors occurred in deferred callbacks", errors)
 
 
-class AutoincrementMultiInsertQuery(MultiQueryBase, IMultiQuerier):
+class AutoincrementMultiInsertQuery(MultiQueryBase[Row], IMultiQuerier[Row], typing.Generic[Row]):
     """
     Multi-query implementation for INSERT with RETURNING (auto-increment PK).
 

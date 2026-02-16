@@ -27,7 +27,7 @@ class IQueryEvaluator(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-class IMultiQuerier(IQueryEvaluator, metaclass=ABCMeta):
+class IMultiQuerier(IQueryEvaluator, typing.Generic[Row], metaclass=ABCMeta):
     """Interface for multi-query batch operations."""
 
     @abstractmethod
@@ -55,7 +55,7 @@ class IMultiQuerier(IQueryEvaluator, metaclass=ABCMeta):
 
 
 @typing.runtime_checkable
-class IDeferredCursor(typing.Protocol):
+class IDeferredCursor(typing.Protocol[Row]):
     """
     Cursor interface that returns Deferred results.
 
@@ -70,7 +70,7 @@ class IDeferredCursor(typing.Protocol):
         *,
         prepare: bool | None = None,
         binary: bool | None = None,
-    ) -> "IDeferredCursor":
+    ) -> "IDeferredCursor[Row]":
         ...
 
     async def fetchone(self) -> Deferred[Row | None]:
@@ -85,7 +85,7 @@ class IDeferredCursor(typing.Protocol):
     async def close(self) -> None:
         ...
 
-    async def __aenter__(self) -> "IDeferredCursor":
+    async def __aenter__(self) -> "IDeferredCursor[Row]":
         ...
 
     async def __aexit__(
@@ -98,14 +98,14 @@ class IDeferredCursor(typing.Protocol):
 
 
 @typing.runtime_checkable
-class IDeferredConnection(typing.Protocol):
+class IDeferredConnection(typing.Protocol[Row]):
     """
     Connection interface that provides deferred cursors.
 
     Used for batch query collection.
     """
 
-    def cursor(self, *args: typing.Any, **kwargs: typing.Any) -> IDeferredCursor:
+    def cursor(self, *args: typing.Any, **kwargs: typing.Any) -> IDeferredCursor[Row]:
         ...
 
     async def close(self) -> None:
@@ -118,10 +118,10 @@ class IDeferredConnection(typing.Protocol):
         *,
         prepare: bool | None = None,
         binary: bool = False,
-    ) -> IDeferredCursor:
+    ) -> IDeferredCursor[Row]:
         ...
 
-    async def __aenter__(self) -> "IDeferredConnection":
+    async def __aenter__(self) -> "IDeferredConnection[Row]":
         ...
 
     async def __aexit__(
@@ -145,7 +145,7 @@ class IDeferredPgSession(typing.Protocol):
 
     @property
     @abstractmethod
-    def connection(self) -> IDeferredConnection:
+    def connection(self) -> IDeferredConnection[tuple[typing.Any, ...]]:
         ...
 
     async def evaluate(self, session: ISession) -> None:
