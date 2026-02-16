@@ -36,9 +36,9 @@ def extract_connection(session: ISession) -> IAsyncConnection[tuple[typing.Any, 
 
 
 class PgSessionPool(Observable, ISessionPool):
-    _pool: IAsyncConnectionPool
+    _pool: IAsyncConnectionPool[tuple[typing.Any, ...]]
 
-    def __init__(self, pool: IAsyncConnectionPool) -> None:
+    def __init__(self, pool: IAsyncConnectionPool[tuple[typing.Any, ...]]) -> None:
         self._pool = pool
         super().__init__()
 
@@ -60,16 +60,20 @@ class PgSessionPool(Observable, ISessionPool):
                 )
 
     @staticmethod
-    def _make_session(connection):
+    def _make_session(connection: IAsyncConnection[tuple[typing.Any, ...]]) -> 'ISession':
         return PgSession(connection)
 
 
 class PgSession(Observable, IPgSession):
-    _connection: IAsyncConnection
+    _connection: IAsyncConnection[tuple[typing.Any, ...]]
     _parent: typing.Optional["IPgSession"]
     _identity_map: IIdentityMap
 
-    def __init__(self, connection: IAsyncConnection, parent: typing.Optional["IPgSession"] = None):
+    def __init__(
+            self,
+            connection: IAsyncConnection[tuple[typing.Any, ...]],
+            parent: typing.Optional["IPgSession"] = None
+    ):
         # self._connection = connection
         self._connection = AsyncConnectionStatsDecorator(connection, self)
         self._parent = parent
@@ -100,7 +104,7 @@ class PgSession(Observable, IPgSession):
                     session=transaction_session
                 )
 
-    def _make_nested_session(self, connection: IAsyncConnection) -> IPgSession:
+    def _make_nested_session(self, connection: IAsyncConnection[tuple[typing.Any, ...]]) -> IPgSession:
         return PgTransactionSession(connection, IdentityMap(), self)
 
 
@@ -108,7 +112,7 @@ class PgTransactionSession(PgSession):
 
     def __init__(
             self,
-            connection: IAsyncConnection,
+            connection: IAsyncConnection[tuple[typing.Any, ...]],
             identity_map: IIdentityMap,
             parent: typing.Optional["IPgSession"] = None
     ):
@@ -131,7 +135,7 @@ class PgTransactionSession(PgSession):
                     session=savepoint_session
                 )
 
-    def _make_nested_session(self, connection: IAsyncConnection) -> IPgSession:
+    def _make_nested_session(self, connection: IAsyncConnection[tuple[typing.Any, ...]]) -> IPgSession:
         return PgSavepointSession(connection, self._identity_map, self)
 
 
