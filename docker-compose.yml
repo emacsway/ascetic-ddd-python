@@ -7,15 +7,6 @@ networks:
 
 services:
 
-  postgres:
-    image: postgres:17
-    environment:
-      POSTGRES_USER: devel
-      POSTGRES_PASSWORD: devel
-      POSTGRES_DB: devel_karmabot_test
-    ports:
-      - "5432:5432"
-
   vault:
     image: hashicorp/vault:latest
     environment:
