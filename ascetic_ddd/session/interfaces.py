@@ -52,7 +52,7 @@ Row = typing.TypeVar("Row")
 
 
 @typing.runtime_checkable
-class IAsyncCursor(typing.Protocol):
+class IAsyncCursor(typing.Protocol[Row]):
     async def execute(
         self,
         query: Query,
@@ -60,7 +60,7 @@ class IAsyncCursor(typing.Protocol):
         *,
         prepare: bool | None = None,
         binary: bool | None = None,
-    ) -> "IAsyncCursor": ...
+    ) -> "IAsyncCursor[Row]": ...
 
     async def fetchone(self) -> Row | None:
         ...
@@ -74,7 +74,7 @@ class IAsyncCursor(typing.Protocol):
     async def close(self) -> None:
         ...
 
-    async def __aenter__(self) -> "IAsyncCursor":
+    async def __aenter__(self) -> "IAsyncCursor[Row]":
         ...
 
     async def __aexit__(
@@ -87,12 +87,12 @@ class IAsyncCursor(typing.Protocol):
 
 
 @typing.runtime_checkable
-class IAsyncTransaction(typing.Protocol):
+class IAsyncTransaction(typing.Protocol[Row]):
     @property
-    def connection(self) -> "IAsyncConnection":
+    def connection(self) -> "IAsyncConnection[Row]":
         ...
 
-    async def __aenter__(self) -> "IAsyncTransaction":
+    async def __aenter__(self) -> "IAsyncTransaction[Row]":
         ...
 
     async def __aexit__(
@@ -105,15 +105,15 @@ class IAsyncTransaction(typing.Protocol):
 
 
 @typing.runtime_checkable
-class IAsyncConnection(typing.Protocol):
-    def cursor(self, *args: typing.Any, **kwargs: typing.Any) -> IAsyncCursor:
+class IAsyncConnection(typing.Protocol[Row]):
+    def cursor(self, *args: typing.Any, **kwargs: typing.Any) -> IAsyncCursor[Row]:
         ...
 
     def transaction(
         self,
         savepoint_name: str | None = None,
         force_rollback: bool = False
-    ) -> typing.AsyncContextManager["IAsyncTransaction"]:
+    ) -> typing.AsyncContextManager["IAsyncTransaction[Row]"]:
         ...
 
     async def close(self) -> None:
@@ -126,9 +126,9 @@ class IAsyncConnection(typing.Protocol):
         *,
         prepare: bool | None = None,
         binary: bool = False,
-    ) -> IAsyncCursor: ...
+    ) -> IAsyncCursor[Row]: ...
 
-    async def __aenter__(self) -> "IAsyncConnection":
+    async def __aenter__(self) -> "IAsyncConnection[Row]":
         ...
 
     async def __aexit__(
@@ -140,8 +140,8 @@ class IAsyncConnection(typing.Protocol):
         ...
 
 
-class IAsyncConnectionPool(typing.Protocol):
-    async def connection(self, timeout: float | None = None) -> typing.AsyncContextManager["IAsyncConnection"]:
+class IAsyncConnectionPool(typing.Protocol[Row]):
+    async def connection(self, timeout: float | None = None) -> typing.AsyncContextManager["IAsyncConnection[Row]"]:
         ...
 
 
@@ -189,7 +189,7 @@ class IPgSession(ISession, typing.Protocol):
 
     @property
     @abstractmethod
-    def connection(self) -> IAsyncConnection:
+    def connection(self) -> IAsyncConnection[tuple[typing.Any, ...]]:
         """For ReadModels (Queries)."""
         ...
 
