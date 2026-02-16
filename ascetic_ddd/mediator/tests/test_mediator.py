@@ -28,7 +28,7 @@ class SampleCommand(ICommand):
 
 class MediatorTestCase(IsolatedAsyncioTestCase):
     def setUp(self) -> None:
-        self.mediator = Mediator[IEvent, ICommand, Session]()
+        self.mediator = Mediator[Session]()
         self.session = Session()
 
     async def test_publish(self):

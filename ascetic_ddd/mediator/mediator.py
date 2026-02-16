@@ -2,50 +2,54 @@ import collections
 import typing
 from weakref import WeakSet
 
-from ascetic_ddd.mediator.interfaces import ICommandHandler, IEventHandler, IMediator, IPipelineHandler, CommandResultT
+from ascetic_ddd.mediator.interfaces import IRequestHandler, IEventHandler, IMediator, IPipelineHandler, IRequest
 from ascetic_ddd.disposable.interfaces import IDisposable
 from ascetic_ddd.disposable.disposable import Disposable
 
 __all__ = ("Mediator",)
 
-SessionT_co = typing.TypeVar("SessionT_co", covariant=True)
-CommandT_co = typing.TypeVar("CommandT_co", covariant=True)
-EventT_co = typing.TypeVar("EventT_co", covariant=True)
+SessionT = typing.TypeVar("SessionT")
+EventT = typing.TypeVar("EventT")
+ResultT = typing.TypeVar("ResultT")
 
 
-class Mediator(typing.Generic[CommandT_co, EventT_co, SessionT_co], IMediator[CommandT_co, EventT_co, SessionT_co]):
+class Mediator(IMediator[SessionT], typing.Generic[SessionT]):
     def __init__(self) -> None:
-        self._subscribers: collections.defaultdict[
-            type[EventT_co], WeakSet[IEventHandler[SessionT_co, EventT_co]]
-        ] = collections.defaultdict(
-            WeakSet
-        )
-        self._weak_cache: set[IEventHandler[SessionT_co, EventT_co]] = set()
-        self._handlers: dict[type[CommandT_co], ICommandHandler[SessionT_co, CommandT_co]] = {}
-        self._pipelines: list[IPipelineHandler[SessionT_co, CommandT_co, CommandResultT]] = []
+        self._subscribers: collections.defaultdict[type, WeakSet] = collections.defaultdict(WeakSet)
+        self._weak_cache: set = set()
+        self._handlers: dict[type, typing.Any] = {}
+        self._broadcast_pipelines: list = []
+        self._pipelines: collections.defaultdict[type, list] = collections.defaultdict(list)
 
-    async def send(self, session: SessionT_co, command: CommandT_co) -> typing.Optional[CommandResultT]:
-        if handler := self._handlers.get(type(command)):
-            return await self._execute_pipelines(session, command, handler)
+    async def send(self, session: SessionT, request: IRequest[ResultT]) -> ResultT:
+        if handler := self._handlers.get(type(request)):
+            return await self._execute_pipelines(session, request, handler)
         return None
 
-    async def register(self, command_type: type[CommandT_co], handler: ICommandHandler[SessionT_co, CommandT_co]) -> IDisposable:
-        self._handlers[command_type] = handler
+    async def register(
+            self,
+            request_type: type[IRequest[ResultT]],
+            handler: IRequestHandler[SessionT, IRequest[ResultT], ResultT]
+    ) -> IDisposable:
+        self._handlers[request_type] = handler
 
         async def callback():
-            await self.unregister(command_type)
+            await self.unregister(request_type)
 
         return Disposable(callback)
 
-    async def unregister(self, command_type: type[CommandT_co]) -> None:
-        self._handlers.pop(command_type)
+    async def unregister(self, request_type: type[IRequest[ResultT]]) -> None:
+        self._handlers.pop(request_type)
 
-    async def publish(self, session: SessionT_co, event: EventT_co) -> None:
+    async def publish(self, session: SessionT, event: EventT) -> None:
         for handler in self._subscribers[type(event)]:
             await handler(session, event)
 
     async def subscribe(
-            self, event_type: type[EventT_co], handler: IEventHandler[SessionT_co, EventT_co], weak: bool = False
+            self,
+            event_type: type[EventT],
+            handler: IEventHandler[SessionT, EventT],
+            weak: bool = False
     ) -> IDisposable:
         self._subscribers[event_type].add(handler)
         if not weak:
@@ -56,31 +60,39 @@ class Mediator(typing.Generic[CommandT_co, EventT_co, SessionT_co], IMediator[Co
 
         return Disposable(callback)
 
-    async def unsubscribe(self, event_type: type[EventT_co], handler: IEventHandler[SessionT_co, EventT_co]) -> None:
+    async def unsubscribe(self, event_type: type[EventT], handler: IEventHandler[SessionT, EventT]) -> None:
         self._subscribers[event_type].discard(handler)
         self._weak_cache.discard(handler)
 
-    async def add_pipeline(self, pipeline: IPipelineHandler[SessionT_co, CommandT_co]) -> None:
-        self._pipelines.append(pipeline)
+    async def add_pipeline(
+            self,
+            request_type: typing.Optional[type[IRequest[ResultT]]],
+            pipeline: IPipelineHandler[SessionT, IRequest[ResultT], ResultT]
+    ) -> None:
+        if request_type is None:
+            self._broadcast_pipelines.append(pipeline)
+        else:
+            self._pipelines[request_type].append(pipeline)
 
     async def _execute_pipelines(
-            self, session: SessionT_co, command: CommandT_co, handler: ICommandHandler[SessionT_co, CommandT_co]
+            self, session: SessionT, request: typing.Any, handler: typing.Any
     ) -> typing.Any:
 
         current_handler = handler
+        pipelines = self._broadcast_pipelines + self._pipelines.get(type(request), [])
 
-        for pipeline in reversed(self._pipelines):
+        for pipeline in reversed(pipelines):
             current_handler = self._create_pipeline_handler(pipeline, current_handler)
 
-        return await current_handler(session, command)
+        return await current_handler(session, request)
 
     @staticmethod
     def _create_pipeline_handler(
-            pipeline: IPipelineHandler[SessionT_co, CommandT_co],
-            next_handler: ICommandHandler[SessionT_co, CommandT_co]
-    ) -> ICommandHandler[SessionT_co, CommandT_co]:
+            pipeline: typing.Any,
+            next_handler: typing.Any
+    ) -> typing.Any:
 
-        async def handler(session: SessionT_co, command: CommandT_co) -> typing.Any:
-            return await pipeline(session, command, next_handler)
+        async def handler(session: typing.Any, request: typing.Any) -> typing.Any:
+            return await pipeline(session, request, next_handler)
 
         return handler
