@@ -269,12 +269,12 @@ class BaseCompositeProvider(
 
     _criteria: IQueryOperator | None = None
     _output: OutputT | Empty = empty
-    _output_factory: typing.Callable[[...], OutputT] = None  # OutputT of each nested Provider.
+    _output_factory: typing.Callable[..., OutputT] = None  # OutputT of each nested Provider.
     _provider_name: str | None = None
 
     def __init__(
             self,
-            output_factory: typing.Callable[[...], OutputT] | None = None,
+            output_factory: typing.Callable[..., OutputT] | None = None,
     ):
 
         if self._output_factory is None:
@@ -457,7 +457,7 @@ class BaseCompositeDistributionProvider(
     def __init__(
             self,
             distributor: IM2ODistributor[InputT],
-            output_factory: typing.Callable[[...], OutputT] | None = None,
+            output_factory: typing.Callable[..., OutputT] | None = None,
     ):
         self._distributor = distributor
         super().__init__(output_factory=output_factory)

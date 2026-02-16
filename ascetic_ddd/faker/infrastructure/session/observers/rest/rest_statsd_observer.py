@@ -3,7 +3,7 @@ try:
     from aiodogstatsd import Client
 except ImportError:
 
-    class Client:
+    class Client:  # type: ignore[no-redef]
         pass
 
 

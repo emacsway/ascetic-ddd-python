@@ -14,7 +14,7 @@ T = typing.TypeVar("T")
 
 class InMemoryRepository(Observable, typing.Generic[T]):
     _id_attr: str = None
-    _aggregates: dict[T]
+    _aggregates: dict[typing.Any, T]
     _agg_exporter: typing.Callable[[T], dict]
 
     def __init__(self, agg_exporter: typing.Callable[[T], dict], id_attr: str = None):

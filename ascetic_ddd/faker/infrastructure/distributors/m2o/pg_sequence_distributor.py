@@ -175,5 +175,5 @@ class PgSequenceDistributor(Observable, IM2ODistributor[T], typing.Generic[T]):
         sql = """SELECT to_regclass(%s)"""
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(sql, (self._table, ))
-            regclass = (await acursor.fetchone())[0]
+            regclass = (await acursor.fetchone())[0]  # type: ignore[index]
         return regclass is not None

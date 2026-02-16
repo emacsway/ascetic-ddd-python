@@ -93,7 +93,7 @@ class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T])
             value: Value to add
             position: Slot number (key in the dictionary).
         """
-        self._values[position] = value
+        self._values[position] = value  # type: ignore[index]
         await self.anotify('value', session, value)
 
     async def append(self, session: ISession, value: T):

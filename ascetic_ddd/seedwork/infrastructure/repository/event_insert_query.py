@@ -47,7 +47,7 @@ class EventInsertQuery(IEventInsertQuery, metaclass=ABCMeta):
         """
         self._params[1] = value
 
-    def set_stream_id(self, value: any) -> None:
+    def set_stream_id(self, value: typing.Any) -> None:
         """
         aggregate.id.internal_id
         Use JsonB to store

@@ -56,7 +56,7 @@ class PgRepository(Observable, typing.Generic[T]):
                 raise
             else:
                 if state.is_auto_increment_pk():
-                    state.pk_setter()(await acursor.fetchone()[0])
+                    state.pk_setter()((await acursor.fetchone())[0])  # type: ignore[index]
 
         await self.anotify('inserted', session, agg)
 

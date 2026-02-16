@@ -5,7 +5,7 @@ try:
     from geopy import Point as _Point
 except ImportError:
 
-    class _Point:
+    class _Point:  # type: ignore[no-redef]
         pass
 
 __all__ = (

@@ -37,7 +37,7 @@ class EventSourcedAggregate(
             self._handlers[type(event)](self, event)
 
     def _update(self, event: PersistentDomainEventT) -> None:
-        event = dataclasses.replace(event, aggregate_version=self.next_version())
+        event = dataclasses.replace(event, aggregate_version=self.next_version())  # type: ignore[type-var]
         self._add_domain_event(event)
         self._handlers[type(event)](self, event)
 
