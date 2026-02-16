@@ -20,14 +20,14 @@ __all__ = (
 )
 
 
-def extract_internal_connection(session: ISession) -> IAsyncConnection:
+def extract_internal_connection(session: ISession) -> IAsyncConnection[tuple[typing.Any, ...]]:
     try:
         return typing.cast(IInternalPgSession, session).internal_connection
     except AttributeError:
         return extract_connection(session)
 
 
-def extract_external_connection(session: ISession) -> IAsyncConnection:
+def extract_external_connection(session: ISession) -> IAsyncConnection[tuple[typing.Any, ...]]:
     try:
         return typing.cast(IExternalPgSession, session).external_connection
     except AttributeError:

@@ -31,7 +31,7 @@ __all__ = (
 )
 
 
-def extract_connection(session: ISession) -> IAsyncConnection:
+def extract_connection(session: ISession) -> IAsyncConnection[tuple[typing.Any, ...]]:
     return typing.cast(IPgSession, session).connection
 
 
@@ -77,7 +77,7 @@ class PgSession(Observable, IPgSession):
         super().__init__()
 
     @property
-    def connection(self) -> IAsyncConnection:
+    def connection(self) -> IAsyncConnection[tuple[typing.Any, ...]]:
         return self._connection
 
     @property

@@ -16,7 +16,7 @@ class IExternalPgSession(ISession, typing.Protocol):
 
     @property
     @abstractmethod
-    def external_connection(self) -> IAsyncConnection:
+    def external_connection(self) -> IAsyncConnection[tuple[typing.Any, ...]]:
         """For ReadModels (Queries)."""
         ...
 
@@ -26,7 +26,7 @@ class IInternalPgSession(ISession, typing.Protocol):
 
     @property
     @abstractmethod
-    def internal_connection(self) -> IAsyncConnection:
+    def internal_connection(self) -> IAsyncConnection[tuple[typing.Any, ...]]:
         """For ReadModels (Queries)."""
         ...
 
