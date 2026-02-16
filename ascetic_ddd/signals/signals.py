@@ -19,16 +19,16 @@ class Signal:
         self._receivers = WeakKeyDictionary()
         self._weak_cache = set()
 
-    def connect(self, receiver, sender=None, weak=True, receiver_id=None):
-        if sender is None:
-            sender = undefined_sender
+    def connect(self, receiver, sender_type=None, weak=True, receiver_id=None):
+        if sender_type is None:
+            sender_type = undefined_sender
         if not weak:
             self._weak_cache.add(receiver)
         if receiver_id is None:
             receiver_id = self._make_id(receiver)
-        if sender not in self._receivers:
-            self._receivers[sender] = WeakValueDictionary()
-        self._receivers[sender][receiver_id] = receiver
+        if sender_type not in self._receivers:
+            self._receivers[sender_type] = WeakValueDictionary()
+        self._receivers[sender_type][receiver_id] = receiver
 
     @staticmethod
     def _make_id(target):
@@ -36,17 +36,17 @@ class Signal:
             return (type(target), id(target.__self__), id(target.__func__))
         return (type(target), id(target))
 
-    def disconnect(self, receiver=None, sender=None, receiver_id=None):
-        if sender is None:
-            sender = undefined_sender
+    def disconnect(self, receiver=None, sender_type=None, receiver_id=None):
+        if sender_type is None:
+            sender_type = undefined_sender
         if receiver_id is None:
             receiver_id = self._make_id(receiver)
         if receiver_id:
             try:
-                self._weak_cache.discard(receiver or self._receivers[sender][receiver_id])
-                del self._receivers[sender][receiver_id]
-                if not self._receivers[sender]:
-                    del self._receivers[sender]
+                self._weak_cache.discard(receiver or self._receivers[sender_type][receiver_id])
+                del self._receivers[sender_type][receiver_id]
+                if not self._receivers[sender_type]:
+                    del self._receivers[sender_type]
             except KeyError:
                 pass
         else:
@@ -56,10 +56,11 @@ class Signal:
         if sender is None:
             sender = undefined_sender
         responses = []
-        if sender in self._receivers:
-            for receiver in self._receivers[sender].values():
-                responses.append((receiver, receiver(sender, *args, **kwargs)))
-        if sender is not undefined_sender:
+        sender_type = type(sender)
+        if sender_type in self._receivers:
+            for receiver in self._receivers[sender_type].values():
+                responses.append((receiver, receiver(sender_type, *args, **kwargs)))
+        if sender_type is not undefined_sender:
             responses += self.send(undefined_sender, *args, **kwargs)
         return responses
 
@@ -67,10 +68,11 @@ class Signal:
         if sender is None:
             sender = undefined_sender
         responses = []
-        if sender in self._receivers:
-            for receiver in self._receivers[sender].values():
-                responses.append((receiver, await receiver(sender, *args, **kwargs)))
-        if sender is not undefined_sender:
+        sender_type = type(sender)
+        if sender_type in self._receivers:
+            for receiver in self._receivers[sender_type].values():
+                responses.append((receiver, await receiver(sender_type, *args, **kwargs)))
+        if sender_type is not undefined_sender:
             responses += await self.asend(undefined_sender, *args, **kwargs)
         return responses
 
