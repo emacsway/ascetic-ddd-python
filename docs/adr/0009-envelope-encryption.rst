@@ -33,6 +33,9 @@ See also:
 
 - `Envelope encryption (Google Cloud KMS) <https://docs.cloud.google.com/kms/docs/envelope-encryption>`__
 - `About data encryption (AWS) <https://docs.aws.amazon.com/prescriptive-guidance/latest/strategy-data-at-rest-encryption/about-data-encryption.html>`__
+- `KMS wrapping libraries split out from Vault <https://github.com/hashicorp/go-kms-wrapping>`__
+- `Eventsourcing Patterns: Crypto-Shredding <https://verraes.net/2019/05/eventsourcing-patterns-throw-away-the-key/>`__
+- `Eventsourcing Patterns: Forgettable Payloads <https://verraes.net/2019/05/eventsourcing-patterns-forgettable-payloads/>`__
 
 
 Envelope Encryption
