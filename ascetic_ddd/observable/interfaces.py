@@ -8,11 +8,11 @@ from ascetic_ddd.disposable.interfaces import IDisposable
 class IObservable(typing.Protocol, metaclass=ABCMeta):
 
     @abstractmethod
-    def attach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None) -> IDisposable:
+    def attach(self, aspect: Hashable, observer: Callable, observer_id: Hashable | None = None) -> IDisposable:
         raise NotImplementedError
 
     @abstractmethod
-    def detach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None):
+    def detach(self, aspect: Hashable, observer: Callable, observer_id: Hashable | None = None):
         raise NotImplementedError
 
     @abstractmethod

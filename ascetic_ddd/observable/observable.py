@@ -14,19 +14,19 @@ class Observable(IObservable):
         self._observers = collections.defaultdict(collections.OrderedDict)
         super().__init__()
 
-    def attach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None) -> IDisposable:
-        id_ = id_ or id(observer)
-        if id_ not in self._observers[aspect]:
-            self._observers[aspect][id_] = observer
+    def attach(self, aspect: Hashable, observer: Callable, observer_id: Hashable | None = None) -> IDisposable:
+        observer_id = observer_id or self._make_id(observer)
+        if observer_id not in self._observers[aspect]:
+            self._observers[aspect][observer_id] = observer
 
         async def detach():
-            self.detach(aspect, observer, id_)
+            self.detach(aspect, observer, observer_id)
 
         return Disposable(detach)
 
-    def detach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None):
-        id_ = id_ or id(observer)
-        del self._observers[aspect][id_]
+    def detach(self, aspect: Hashable, observer: Callable, observer_id: Hashable | None = None):
+        observer_id = observer_id or self._make_id(observer)
+        del self._observers[aspect][observer_id]
 
     def notify(self, aspect: Hashable, *args, **kwargs):
         observers = collections.OrderedDict()
@@ -41,6 +41,12 @@ class Observable(IObservable):
         observers.update(self._observers[aspect])
         for observer in observers.values():
             await observer(aspect, *args, **kwargs)
+
+    @staticmethod
+    def _make_id(target) -> Hashable:
+        if hasattr(target, "__func__"):
+            return (id(target.__self__), id(target.__func__))
+        return id(target)
 
     def __copy__(self):
         c = copy.copy(super())
