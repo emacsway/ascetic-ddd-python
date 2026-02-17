@@ -11,6 +11,7 @@ from ascetic_ddd.faker.domain.query.operators import (
     OrOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.domain.query.parser import QueryParser
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 
 
 # =============================================================================
@@ -609,7 +610,8 @@ class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
                 self._raise_cursor = raise_cursor
                 self._appended = []
                 self._provider_name = None
-                self._observers = []
+                from ascetic_ddd.signals.signal import AsyncSignal
+                self._on_value_appended = AsyncSignal[ValueAppendedEvent]()
 
             async def next(self, session, specification=None):
                 if self._raise_cursor or self._index >= len(self._values):
@@ -641,18 +643,9 @@ class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
             def bind_external_source(self, external_source):
                 pass
 
-            def attach(self, aspect, observer, id_=None):
-                self._observers.append((aspect, observer))
-                return lambda: self._observers.remove((aspect, observer))
-
-            def detach(self, aspect, observer, id_=None):
-                self._observers = [(a, o) for a, o in self._observers if o != observer]
-
-            def notify(self, aspect, *args, **kwargs):
-                pass
-
-            async def anotify(self, aspect, *args, **kwargs):
-                pass
+            @property
+            def on_value_appended(self):
+                return self._on_value_appended
 
             def __copy__(self):
                 return self
@@ -1248,7 +1241,8 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
                 self._raise_cursor = raise_cursor
                 self._appended = []
                 self._provider_name = None
-                self._observers = []
+                from ascetic_ddd.signals.signal import AsyncSignal
+                self._on_value_appended = AsyncSignal[ValueAppendedEvent]()
 
             async def next(self, session, specification=None):
                 if self._raise_cursor or self._index >= len(self._values):
@@ -1280,18 +1274,9 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
             def bind_external_source(self, external_source):
                 pass
 
-            def attach(self, aspect, observer, id_=None):
-                self._observers.append((aspect, observer))
-                return lambda: self._observers.remove((aspect, observer))
-
-            def detach(self, aspect, observer, id_=None):
-                self._observers = [(a, o) for a, o in self._observers if o != observer]
-
-            def notify(self, aspect, *args, **kwargs):
-                pass
-
-            async def anotify(self, aspect, *args, **kwargs):
-                pass
+            @property
+            def on_value_appended(self):
+                return self._on_value_appended
 
             def __copy__(self):
                 return self

@@ -1,12 +1,12 @@
 import typing
-from collections.abc import Callable, Hashable
 
 from ascetic_ddd.faker.domain.providers.aggregate_provider import IAggregateRepository
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.infrastructure.distributors.m2o.interfaces import IPgExternalSource
 from ascetic_ddd.seedwork.domain.identity.interfaces import IAccessible
-from ascetic_ddd.disposable.interfaces import IDisposable
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 
 
 __all__ = ('CompositeRepository', 'CompositeAutoPkRepository',)
@@ -51,19 +51,15 @@ class CompositeRepository(typing.Generic[T]):
     async def cleanup(self, session: ISession):
         await self._internal_repository.cleanup(session)
 
-    # IObservable delegation to internal_repository
+    # Signal delegation to internal_repository
 
-    def attach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None) -> IDisposable:
-        return self._internal_repository.attach(aspect, observer, id_)
+    @property
+    def on_aggregate_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[T]]:
+        return self._internal_repository.on_aggregate_inserted
 
-    def detach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None):
-        return self._internal_repository.detach(aspect, observer, id_)
-
-    def notify(self, aspect: Hashable, *args, **kwargs):
-        return self._internal_repository.notify(aspect, *args, **kwargs)
-
-    async def anotify(self, aspect: Hashable, *args, **kwargs):
-        return await self._internal_repository.anotify(aspect, *args, **kwargs)
+    @property
+    def on_aggregate_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[T]]:
+        return self._internal_repository.on_aggregate_updated
 
 
 class CompositeAutoPkRepository(CompositeRepository[T], typing.Generic[T]):

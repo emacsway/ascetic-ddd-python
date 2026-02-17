@@ -14,7 +14,9 @@ from ascetic_ddd.seedwork.domain.identity.interfaces import IAccessible
 from ascetic_ddd.faker.infrastructure.session.pg_session import extract_external_connection
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.observable.observable import Observable
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.signals.signal import AsyncSignal
+from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 
 __all__ = ('PgRepository', 'IAggregateState', 'DataclassState',)
 
@@ -22,7 +24,7 @@ __all__ = ('PgRepository', 'IAggregateState', 'DataclassState',)
 T = typing.TypeVar("T")
 
 
-class PgRepository(Observable, typing.Generic[T]):
+class PgRepository(typing.Generic[T]):
     _extract_connection = staticmethod(extract_external_connection)
     _table: str
     _id_attr: str
@@ -30,7 +32,16 @@ class PgRepository(Observable, typing.Generic[T]):
     _agg_factory: typing.Callable[[dict], T]
 
     def __init__(self):
-        super().__init__()
+        self._on_aggregate_inserted = AsyncSignal[AggregateInsertedEvent[T]]()
+        self._on_aggregate_updated = AsyncSignal[AggregateUpdatedEvent[T]]()
+
+    @property
+    def on_aggregate_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[T]]:
+        return self._on_aggregate_inserted
+
+    @property
+    def on_aggregate_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[T]]:
+        return self._on_aggregate_updated
 
     async def insert(self, session: ISession, agg: T):
         state = self._agg_exporter(agg)
@@ -58,7 +69,7 @@ class PgRepository(Observable, typing.Generic[T]):
                 if state.is_auto_increment_pk():
                     state.pk_setter()((await acursor.fetchone())[0])  # type: ignore[index]
 
-        await self.anotify('inserted', session, agg)
+        await self._on_aggregate_inserted.notify(AggregateInsertedEvent(session, agg))
 
     async def get(self, session: ISession, id_: IAccessible[typing.Any]) -> T | None:
         raise NotImplementedError

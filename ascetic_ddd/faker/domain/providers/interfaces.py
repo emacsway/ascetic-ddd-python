@@ -2,9 +2,16 @@ import typing
 from abc import ABCMeta, abstractmethod
 from collections.abc import Callable, Hashable
 
+from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
+from ascetic_ddd.seedwork.domain.identity.interfaces import IAccessible
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.observable.interfaces import IObservable
-
+from ascetic_ddd.signals.interfaces import ISyncSignal, IAsyncSignal
+from ascetic_ddd.faker.domain.providers.events import (
+    CriteriaRequiredEvent,
+    InputSetEvent,
+    AggregateInsertedEvent,
+    AggregateUpdatedEvent,
+)
 
 __all__ = (
     'INameable',
@@ -17,6 +24,7 @@ __all__ = (
     'IRelativeValueProvider',
     'ICompositeValueProvider',
     'IEntityProvider',
+    'IAggregateRepository',
     'IAggregateProvider',
     'IReferenceProvider',
     'IDependentInputOutput',
@@ -104,6 +112,16 @@ class IInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
     def require(self, criteria: dict[str, typing.Any]) -> None:
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def on_criteria_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def on_input_set(self) -> ISyncSignal[InputSetEvent[InputT]]:
+        raise NotImplementedError
+
     @abstractmethod
     def state(self) -> InputT:
         raise NotImplementedError
@@ -114,7 +132,7 @@ class IInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
 
 class IValueProvider(
-    IInputOutput[InputT, OutputT], IProvidable, IObservable, INameable, ICloneable,
+    IInputOutput[InputT, OutputT], IProvidable, INameable, ICloneable,
     ISetupable, typing.Generic[InputT, OutputT], metaclass=ABCMeta
 ):
     pass
@@ -151,11 +169,44 @@ class IEntityProvider(
         raise NotImplementedError
 
 
+class IAggregateRepository(typing.Protocol[OutputT]):
+
+    @property
+    def on_aggregate_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[OutputT]]:
+        ...
+
+    @property
+    def on_aggregate_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[OutputT]]:
+        ...
+
+    async def insert(self, session: ISession, agg: OutputT):
+        ...
+
+    async def get(self, session: ISession, id_: IAccessible[typing.Any]) -> OutputT | None:
+        ...
+
+    async def update(self, session: ISession, agg: OutputT):
+        ...
+
+    async def find(self, session: ISession, specification: ISpecification) -> typing.Iterable[OutputT]:
+        ...
+
+    async def setup(self, session: ISession):
+        ...
+
+    async def cleanup(self, session: ISession):
+        ...
+
+
 class IAggregateProvider(
     IEntityProvider[InputT, OutputT], typing.Generic[InputT, OutputT], metaclass=ABCMeta
 ):
-    # TODO: Add repository here, move id_provider here
-    pass
+    # TODO: move id_provider here?
+
+    @property
+    @abstractmethod
+    def repository(self) -> IAggregateRepository[OutputT]:
+        raise NotImplementedError
 
 
 class IReferenceProvider(
@@ -187,13 +238,23 @@ class IDependentInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
     def require(self, criteria: list[dict], weights: list[float] | None = None) -> None:
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def on_criteria_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def on_input_set(self) -> ISyncSignal[InputSetEvent[list[InputT]]]:
+        raise NotImplementedError
+
     @abstractmethod
     def state(self) -> list[InputT]:
         raise NotImplementedError
 
 
 class IDependentProvider(
-    IDependentInputOutput[InputT, OutputT], IProvidable, IObservable, INameable, ICloneable,
+    IDependentInputOutput[InputT, OutputT], IProvidable, INameable, ICloneable,
     ISetupable, typing.Generic[InputT, OutputT, AggProviderT], metaclass=ABCMeta
 ):
 

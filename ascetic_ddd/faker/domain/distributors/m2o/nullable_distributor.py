@@ -1,8 +1,8 @@
 import random
 import typing
-from typing import Hashable, Callable
 
-from ascetic_ddd.disposable import IDisposable
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
@@ -51,17 +51,9 @@ class NullableDistributor(IM2ODistributor[T], typing.Generic[T]):
     def _is_null(self) -> bool:
         return random.random() < self._null_weight
 
-    def attach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None) -> IDisposable:
-        return self._delegate.attach(aspect, observer, id_)
-
-    def detach(self, aspect, observer, id_: Hashable | None = None):
-        return self._delegate.detach(aspect, observer, id_)
-
-    def notify(self, aspect, *args, **kwargs):
-        return self._delegate.notify(aspect, *args, **kwargs)
-
-    async def anotify(self, aspect: Hashable, *args, **kwargs):
-        return await self._delegate.anotify(aspect, *args, **kwargs)
+    @property
+    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+        return self._delegate.on_value_appended
 
     async def append(self, session: ISession, value: T):
         await self._delegate.append(session, value)

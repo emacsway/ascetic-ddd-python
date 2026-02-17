@@ -2,9 +2,6 @@ import copy
 import functools
 import typing
 import abc
-from collections.abc import Hashable, Callable
-
-from ascetic_ddd.disposable import IDisposable
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.faker.domain.providers.interfaces import (
     IValueProvider, INameable, ICloningShunt, ICloneable,
@@ -18,11 +15,11 @@ from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty, Empty
-from ascetic_ddd.observable.interfaces import IObservable
-from ascetic_ddd.observable.observable import Observable
+from ascetic_ddd.signals.interfaces import ISyncSignal
+from ascetic_ddd.signals.signal import SyncSignal
+from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, InputSetEvent
 
 __all__ = (
-    'ObservableMixin',
     'NameableMixin',
     'CloneableMixin',
     'CloningShunt',
@@ -35,48 +32,6 @@ __all__ = (
 InputT = typing.TypeVar("InputT")
 OutputT = typing.TypeVar("OutputT")
 CloneableT = typing.TypeVar("CloneableT")
-
-
-class ObservableMixin(Observable, IObservable, metaclass=abc.ABCMeta):
-
-    _aspect_mapping = {
-        "distributor": "_distributor"
-    }
-
-    def _split_aspect(self, aspect: typing.Hashable) -> tuple[str | None, typing.Hashable]:
-        if isinstance(aspect, str) and "." in aspect:
-            attr, inner_aspect = aspect.split('.', maxsplit=1)
-            attr = self._aspect_mapping.get(attr, attr)
-            return attr, inner_aspect
-        return None, aspect
-
-    def attach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None) -> IDisposable:
-        attr, inner_aspect = self._split_aspect(aspect)
-        if attr is not None:
-            return getattr(self, attr).attach(inner_aspect, observer, id_)
-        else:
-            return super().attach(inner_aspect, observer, id_)
-
-    def detach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None):
-        attr, inner_aspect = self._split_aspect(aspect)
-        if attr is not None:
-            return getattr(self, attr).detach(inner_aspect, observer, id_)
-        else:
-            super().detach(inner_aspect, observer, id_)
-
-    def notify(self, aspect: Hashable, *args, **kwargs):
-        attr, inner_aspect = self._split_aspect(aspect)
-        if attr is not None:
-            return getattr(self, attr).notify(inner_aspect, *args, **kwargs)
-        else:
-            super().notify(inner_aspect, *args, **kwargs)
-
-    async def anotify(self, aspect: Hashable, *args, **kwargs):
-        attr, inner_aspect = self._split_aspect(aspect)
-        if attr is not None:
-            return await getattr(self, attr).anotify(inner_aspect, *args, **kwargs)
-        else:
-            await super().anotify(inner_aspect, *args, **kwargs)
 
 
 class NameableMixin(INameable, metaclass=abc.ABCMeta):
@@ -154,7 +109,6 @@ class CloneableMixin(ICloneable):
 
 class BaseProvider(
     NameableMixin,
-    ObservableMixin,
     CloneableMixin,
     IValueProvider[InputT, OutputT],
     typing.Generic[InputT, OutputT],
@@ -164,6 +118,21 @@ class BaseProvider(
     _input: InputT | Empty = empty
     _output: OutputT | Empty = empty
     _is_transient: bool = False
+    _on_criteria_required: ISyncSignal[CriteriaRequiredEvent]
+    _on_input_set: ISyncSignal[InputSetEvent[InputT]]
+
+    def _do_init(self):
+        self._on_criteria_required = SyncSignal[CriteriaRequiredEvent]()
+        self._on_input_set = SyncSignal[InputSetEvent[InputT]]()
+        super()._do_init()
+
+    @property
+    def on_criteria_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+        return self._on_criteria_required
+
+    @property
+    def on_input_set(self) -> ISyncSignal[InputSetEvent[InputT]]:
+        return self._on_input_set
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
@@ -189,7 +158,7 @@ class BaseProvider(
         if self._criteria != old_criteria:
             self._input = empty
             self._output = empty
-            self.notify('criteria', new_criteria)
+            self._on_criteria_required.notify(CriteriaRequiredEvent(new_criteria))
 
     def state(self) -> InputT:
         """Return current query as dict format."""
@@ -205,7 +174,7 @@ class BaseProvider(
         self._input = input_
         if input_ is not None:
             self._is_transient = False
-        self.notify('input', self._input)
+        self._on_input_set.notify(InputSetEvent(self._input))
 
     def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         clone._criteria = None
@@ -260,7 +229,6 @@ class BaseDistributionProvider(BaseProvider[InputT, OutputT], typing.Generic[Inp
 
 
 class BaseCompositeProvider(
-    ObservableMixin,
     CloneableMixin,
     ICompositeValueProvider[InputT, OutputT],
     typing.Generic[InputT, OutputT],
@@ -271,6 +239,21 @@ class BaseCompositeProvider(
     _output: OutputT | Empty = empty
     _output_factory: typing.Callable[..., OutputT] = None  # OutputT of each nested Provider.
     _provider_name: str | None = None
+    _on_criteria_required: ISyncSignal[CriteriaRequiredEvent]
+    _on_input_set: ISyncSignal[InputSetEvent]
+
+    def _do_init(self):
+        self._on_criteria_required = SyncSignal[CriteriaRequiredEvent]()
+        self._on_input_set = SyncSignal[InputSetEvent]()
+        super()._do_init()
+
+    @property
+    def on_criteria_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+        return self._on_criteria_required
+
+    @property
+    def on_input_set(self) -> ISyncSignal[InputSetEvent]:
+        return self._on_input_set
 
     def __init__(
             self,
@@ -309,7 +292,7 @@ class BaseCompositeProvider(
         if self._criteria != old_criteria:
             self._output = empty
             self._distribute_criteria(new_criteria)
-            self.notify('criteria', new_criteria)
+            self._on_criteria_required.notify(CriteriaRequiredEvent(new_criteria))
 
     def _distribute_criteria(self, query: IQueryOperator) -> None:
         """
@@ -337,7 +320,7 @@ class BaseCompositeProvider(
                     f"Provider '{self.provider_name}': has no nested provider '{attr}'"
                 )
             provider.require({'$eq': val})
-        self.notify('input', input_)
+        self._on_input_set.notify(InputSetEvent(input_))
 
     def state(self) -> InputT:
         """Return current query as dict format, composed from nested providers."""

@@ -11,6 +11,8 @@ from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.infrastructure.specification.pg_specification_visitor import PgSpecificationVisitor
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
+from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 
 
 # =============================================================================
@@ -75,7 +77,8 @@ class StubDistributor(IM2ODistributor):
         self._raise_cursor = raise_cursor
         self._appended = []
         self._provider_name = None
-        self._observers = []
+        from ascetic_ddd.signals.signal import AsyncSignal
+        self._on_value_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session: ISession, specification: ISpecification = None):
         if self._raise_cursor or self._index >= len(self._values):
@@ -107,18 +110,9 @@ class StubDistributor(IM2ODistributor):
     def bind_external_source(self, external_source: typing.Any) -> None:
         pass
 
-    def attach(self, aspect, observer, id_=None):
-        self._observers.append((aspect, observer))
-        return lambda: self._observers.remove((aspect, observer))
-
-    def detach(self, aspect, observer, id_=None):
-        self._observers = [(a, o) for a, o in self._observers if o != observer]
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
+    @property
+    def on_value_appended(self):
+        return self._on_value_appended
 
     def __copy__(self):
         return self
@@ -131,9 +125,11 @@ class StubRepository(IAggregateRepository):
     """Stub repository with table property for testing."""
 
     def __init__(self, table: str = "test_table"):
+        from ascetic_ddd.signals.signal import AsyncSignal
         self._table = table
         self._storage = {}
-        self._observers = []
+        self._on_aggregate_inserted = AsyncSignal[AggregateInsertedEvent]()
+        self._on_aggregate_updated = AsyncSignal[AggregateUpdatedEvent]()
 
     @property
     def table(self) -> str:
@@ -157,17 +153,13 @@ class StubRepository(IAggregateRepository):
     async def cleanup(self, session: ISession):
         pass
 
-    def attach(self, aspect, observer, id_=None):
-        return lambda: None
+    @property
+    def on_aggregate_inserted(self):
+        return self._on_aggregate_inserted
 
-    def detach(self, aspect, observer, id_=None):
-        pass
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
+    @property
+    def on_aggregate_updated(self):
+        return self._on_aggregate_updated
 
 
 # =============================================================================

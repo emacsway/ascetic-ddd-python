@@ -18,6 +18,7 @@ from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpec
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.faker.domain.values.empty import empty
+from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, CriteriaRequiredEvent
 
 __all__ = ('ReferenceProvider',)
 
@@ -146,7 +147,7 @@ class ReferenceProvider(
             self._input = empty
             self._output = empty
             self._propagate_to_aggregate(new_criteria)
-            self.notify('criteria', new_criteria)
+            self._on_criteria_required.notify(CriteriaRequiredEvent(new_criteria))
 
     def _propagate_to_aggregate(self, criteria: IQueryOperator) -> None:
         """
@@ -192,7 +193,10 @@ class ReferenceProvider(
         await self._aggregate_provider_accessor.cleanup(session)
 
 
-class SubscriptionAggregateProviderAccessor(IAggregateProviderAccessor[AggProviderT], typing.Generic[InputT, OutputT, AggProviderT]):
+class SubscriptionAggregateProviderAccessor(
+    IAggregateProviderAccessor[AggProviderT],
+    typing.Generic[InputT, OutputT, AggProviderT]
+):
     _reference_provider: IReferenceProvider[InputT, OutputT, AggProviderT]
     _initialized: bool = False
     _delegate: IAggregateProviderAccessor[AggProviderT]
@@ -213,13 +217,13 @@ class SubscriptionAggregateProviderAccessor(IAggregateProviderAccessor[AggProvid
                     aggregate_provider._repository
                 )
 
-            async def _observer(aspect, session, agg):
+            async def _observer(event: AggregateInsertedEvent):
                 # Needed for in-memory distributor and repository.
                 # For Pg distributor with external_source — this is a no-op (append checks _external_source).
-                await self._reference_provider.append(session, agg)
+                await self._reference_provider.append(event.session, event.agg)
 
-            aggregate_provider.attach(
-                'repository.value', _observer, self._reference_provider.provider_name
+            aggregate_provider.repository.on_aggregate_inserted.attach(
+                _observer, self._reference_provider.provider_name
             )
 
             self._initialized = True

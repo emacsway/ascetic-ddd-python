@@ -1,45 +1,21 @@
 import typing
 from abc import ABCMeta
 
-from ascetic_ddd.seedwork.domain.identity.interfaces import IAccessible
-from ascetic_ddd.faker.domain.providers._mixins import BaseCompositeProvider, ObservableMixin
+from ascetic_ddd.faker.domain.providers._mixins import BaseCompositeProvider
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 from ascetic_ddd.faker.domain.query.evaluate_visitor import EvaluateWalker
 from ascetic_ddd.faker.domain.query.operators import MergeConflict
 from ascetic_ddd.faker.domain.query.parser import parse_query
 from ascetic_ddd.faker.domain.query.visitors import dict_to_query, query_to_dict
-from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.providers.interfaces import IAggregateProvider
+from ascetic_ddd.faker.domain.providers.interfaces import IAggregateProvider, IAggregateRepository
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty
-from ascetic_ddd.observable.interfaces import IObservable
 
 
-__all__ = ('IAggregateRepository', 'AggregateProvider',)
+__all__ = ('AggregateProvider',)
 
 InputT = typing.TypeVar("InputT")
 OutputT = typing.TypeVar("OutputT")
-
-
-class IAggregateRepository(IObservable, typing.Protocol[OutputT]):
-
-    async def insert(self, session: ISession, agg: OutputT):
-        ...
-
-    async def get(self, session: ISession, id_: IAccessible[typing.Any]) -> OutputT | None:
-        ...
-
-    async def update(self, session: ISession, agg: OutputT):
-        ...
-
-    async def find(self, session: ISession, specification: ISpecification) -> typing.Iterable[OutputT]:
-        ...
-
-    async def setup(self, session: ISession):
-        ...
-
-    async def cleanup(self, session: ISession):
-        ...
 
 
 class AggregateProvider(
@@ -51,11 +27,6 @@ class AggregateProvider(
     _id_attr: str
     _repository: IAggregateRepository[OutputT]
     _output_exporter: typing.Callable[[OutputT], InputT] = None
-
-    _aspect_mapping = {
-        "repository": "_repository",
-        **ObservableMixin._aspect_mapping
-    }
 
     def __init__(
             self,
@@ -157,6 +128,10 @@ class AggregateProvider(
     @property
     def id_provider(self):
         return getattr(self, self._id_attr)
+
+    @property
+    def repository(self) -> IAggregateRepository[OutputT]:
+        return self._repository
 
     async def setup(self, session: ISession):
         await self._repository.setup(session)

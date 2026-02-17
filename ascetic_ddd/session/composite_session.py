@@ -1,5 +1,4 @@
 import typing
-from collections.abc import Hashable
 from contextlib import asynccontextmanager, AsyncExitStack
 
 from ascetic_ddd.session.interfaces import ISessionPool, ISession
@@ -28,32 +27,6 @@ class CompositeSessionPool(ISessionPool):
     def __getitem__(self, item):
         return list(self._delegates)[item]
 
-    def _split_aspect(self, aspect: typing.Hashable) -> tuple[str | None, typing.Hashable]:
-        if isinstance(aspect, str) and "." in aspect:
-            item, inner_aspect = aspect.split('.', maxsplit=1)
-            return item, inner_aspect
-        return None, aspect
-
-    def attach(self, aspect, observer, id_: Hashable | None = None):
-        item, inner_aspect = self._split_aspect(aspect)
-        if item is not None:
-            return self[item].attach(inner_aspect, observer, id_)
-
-    def detach(self, aspect, observer, id_: Hashable | None = None):
-        item, inner_aspect = self._split_aspect(aspect)
-        if item is not None:
-            return self[item].detach(inner_aspect, observer, id_)
-
-    def notify(self, aspect, *args, **kwargs):
-        item, inner_aspect = self._split_aspect(aspect)
-        if item is not None:
-            return self[item].notify(inner_aspect, *args, **kwargs)
-
-    async def anotify(self, aspect, *args, **kwargs):
-        item, inner_aspect = self._split_aspect(aspect)
-        if item is not None:
-            return await self[item].anotify(inner_aspect, *args, **kwargs)
-
 
 class CompositeSession(ISession):
     _delegates: typing.Iterable[ISession]
@@ -80,32 +53,6 @@ class CompositeSession(ISession):
 
     def __getitem__(self, item):
         return list(self._delegates)[item]
-
-    def _split_aspect(self, aspect: typing.Hashable) -> tuple[str | None, typing.Hashable]:
-        if isinstance(aspect, str) and "." in aspect:
-            item, inner_aspect = aspect.split('.', maxsplit=1)
-            return item, inner_aspect
-        return None, aspect
-
-    def attach(self, aspect, observer, id_: Hashable | None = None):
-        item, inner_aspect = self._split_aspect(aspect)
-        if item is not None:
-            return self[item].attach(inner_aspect, observer, id_)
-
-    def detach(self, aspect, observer, id_: Hashable | None = None):
-        item, inner_aspect = self._split_aspect(aspect)
-        if item is not None:
-            return self[item].detach(inner_aspect, observer, id_)
-
-    def notify(self, aspect, *args, **kwargs):
-        item, inner_aspect = self._split_aspect(aspect)
-        if item is not None:
-            return self[item].notify(inner_aspect, *args, **kwargs)
-
-    async def anotify(self, aspect, *args, **kwargs):
-        item, inner_aspect = self._split_aspect(aspect)
-        if item is not None:
-            return await self[item].anotify(inner_aspect, *args, **kwargs)
 
 
 class CompositeTransactionSession(CompositeSession):

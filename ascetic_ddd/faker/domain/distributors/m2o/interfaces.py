@@ -1,7 +1,8 @@
 import typing
 from abc import ABCMeta, abstractmethod
 
-from ascetic_ddd.observable.interfaces import IObservable
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 
@@ -17,11 +18,16 @@ T = typing.TypeVar("T")
 
 
 @typing.runtime_checkable
-class IExternalSource(IObservable, typing.Protocol[T]):
-    ...
+class IExternalSource(typing.Protocol[T]):
+    pass
 
 
-class IM2ODistributor(IObservable, typing.Generic[T], metaclass=ABCMeta):
+class IM2ODistributor(typing.Generic[T], metaclass=ABCMeta):
+
+    @property
+    @abstractmethod
+    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+        raise NotImplementedError
 
     @abstractmethod
     async def next(

@@ -2,11 +2,11 @@ import math
 import random
 import typing
 from abc import abstractmethod
-from typing import Hashable, Callable
 
-from ascetic_ddd.disposable import IDisposable
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor, IExternalSource
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
@@ -235,10 +235,12 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
             return
         if value not in self._indexes[self._default_spec]:
             self._indexes[self._default_spec].append(value)
-            await self.anotify('value', session, value)
+            # Prevent double notification, self._delegate._append() will be called from Cursor.
+            # await self.on_value_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
         await self._append(session, value, None)
+        await self._delegate.append(session, value)
 
     @property
     def provider_name(self):
@@ -249,17 +251,9 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
         if self._provider_name is None:
             self._provider_name = value
 
-    def attach(self, aspect: Hashable, observer: Callable, id_: Hashable | None = None) -> IDisposable:
-        return self._delegate.attach(aspect, observer, id_)
-
-    def detach(self, aspect, observer, id_: Hashable | None = None):
-        return self._delegate.detach(aspect, observer, id_)
-
-    def notify(self, aspect, *args, **kwargs):
-        return self._delegate.notify(aspect, *args, **kwargs)
-
-    async def anotify(self, aspect: Hashable, *args, **kwargs):
-        return await self._delegate.anotify(aspect, *args, **kwargs)
+    @property
+    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+        return self._delegate.on_value_appended
 
     async def setup(self, session: ISession):
         pass

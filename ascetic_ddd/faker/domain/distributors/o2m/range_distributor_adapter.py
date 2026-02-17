@@ -7,14 +7,16 @@ from ascetic_ddd.faker.domain.distributors.o2m.interfaces import IO2MDistributor
 from ascetic_ddd.faker.domain.distributors.o2m.weighted_range_distributor import WeightedRangeDistributor
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.observable.observable import Observable
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.signals.signal import AsyncSignal
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 
 __all__ = ('RangeDistributorAdapter', 'RangeDistributorFactory')
 
 T = typing.TypeVar("T")
 
 
-class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T]):
+class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
     """
     Adapter of O2M range distributor to the IM2ODistributor interface.
 
@@ -43,6 +45,7 @@ class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T])
     _distributor: IO2MDistributor
     _values: dict[int, T]
     _provider_name: str | None
+    _on_value_appended: IAsyncSignal[ValueAppendedEvent[T]]
 
     def __init__(self, distributor: IO2MDistributor):
         """
@@ -52,7 +55,11 @@ class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T])
         self._distributor = distributor
         self._values = {}
         self._provider_name = None
-        super().__init__()
+        self._on_value_appended = AsyncSignal[ValueAppendedEvent[T]]()
+
+    @property
+    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+        return self._on_value_appended
 
     async def next(
             self,
@@ -94,7 +101,7 @@ class RangeDistributorAdapter(Observable, IM2ODistributor[T], typing.Generic[T])
             position: Slot number (key in the dictionary).
         """
         self._values[position] = value  # type: ignore[index]
-        await self.anotify('value', session, value)
+        await self._on_value_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
         await self._append(session, value, None)

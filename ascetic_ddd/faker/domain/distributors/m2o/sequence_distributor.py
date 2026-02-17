@@ -2,7 +2,9 @@ import typing
 from collections import defaultdict
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
-from ascetic_ddd.observable.observable import Observable
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.signals.signal import AsyncSignal
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
@@ -13,15 +15,20 @@ __all__ = ('SequenceDistributor',)
 T = typing.TypeVar("T")
 
 
-class SequenceDistributor(Observable, IM2ODistributor[T], typing.Generic[T]):
+class SequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
     _sequences: dict[ISpecification, int]
     _provider_name: str | None = None
     _default_spec: ISpecification
+    _on_value_appended: IAsyncSignal[ValueAppendedEvent[T]]
 
     def __init__(self):
         self._sequences = defaultdict(int)
         self._default_spec = EmptySpecification()
-        super().__init__()
+        self._on_value_appended = AsyncSignal[ValueAppendedEvent[T]]()
+
+    @property
+    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+        return self._on_value_appended
 
     async def next(
             self,
@@ -38,7 +45,7 @@ class SequenceDistributor(Observable, IM2ODistributor[T], typing.Generic[T]):
         )
 
     async def _append(self, session: ISession, value: T, position: int | None):
-        await self.anotify('value', session, value)
+        await self._on_value_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
         await self._append(session, value, None)
