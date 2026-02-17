@@ -1,6 +1,6 @@
 import typing
+from collections.abc import Hashable
 
-from ascetic_ddd.seedwork.domain.aggregate import IHashable
 from ascetic_ddd.specification.domain.interfaces import IEqualOperand
 from ascetic_ddd.seedwork.domain.identity.interfaces import IAccessible
 
@@ -10,7 +10,7 @@ __all__ = ("Identity",)
 T = typing.TypeVar("T")
 
 
-class Identity(typing.Generic[T], IAccessible[T], IHashable):
+class Identity(Hashable, IAccessible[T], typing.Generic[T]):
     def __init__(self, value: T | None):
         self._value = value
 
