@@ -4,6 +4,8 @@ from abc import ABCMeta, abstractmethod
 
 from ascetic_ddd.disposable.interfaces import IDisposable
 
+__all__ = ('ISyncSignal', 'IAsyncSignal',)
+
 EventT = typing.TypeVar("EventT")
 
 

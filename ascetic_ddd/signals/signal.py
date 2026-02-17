@@ -8,13 +8,17 @@ from ascetic_ddd.disposable import IDisposable
 from ascetic_ddd.disposable.disposable import Disposable
 from ascetic_ddd.signals.interfaces import ISyncSignal, IAsyncSignal
 
+__all__ = ('SyncSignal', 'AsyncSignal',)
+
+
 EventT = typing.TypeVar("EventT")
 
 
 class SyncSignal(ISyncSignal[EventT], typing.Generic[EventT]):
+    _observers: collections.OrderedDict[Hashable, Callable[[EventT], None]]
 
     def __init__(self):
-        self._observers: collections.OrderedDict[Hashable, Callable[[EventT], None]] = collections.OrderedDict()
+        self._observers = collections.OrderedDict()
 
     def attach(self, observer: Callable[[EventT], None], observer_id: Hashable | None = None) -> IDisposable:
         observer_id = observer_id or self._make_id(observer)
@@ -47,9 +51,10 @@ class SyncSignal(ISyncSignal[EventT], typing.Generic[EventT]):
 
 
 class AsyncSignal(IAsyncSignal[EventT], typing.Generic[EventT]):
+    _observers: collections.OrderedDict[Hashable, Callable[[EventT], typing.Awaitable[None]]]
 
     def __init__(self):
-        self._observers: collections.OrderedDict[Hashable, Callable[[EventT], typing.Awaitable[None]]] = collections.OrderedDict()
+        self._observers = collections.OrderedDict()
 
     def attach(self, observer: Callable[[EventT], typing.Awaitable[None]], observer_id: Hashable | None = None) -> IDisposable:
         observer_id = observer_id or self._make_id(observer)
