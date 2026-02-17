@@ -1,6 +1,11 @@
 KMS
 ===
 
+.. toctree::
+   :hidden:
+
+   vault_service
+
 .. index:: KMS, Key Management Service, KEK, envelope encryption
 
 The ``ascetic_ddd.kms`` module provides a Key Management Service for

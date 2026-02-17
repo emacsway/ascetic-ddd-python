@@ -38,99 +38,97 @@ See also:
 - `Eventsourcing Patterns: Crypto-Shredding <https://verraes.net/2019/05/eventsourcing-patterns-throw-away-the-key/>`__
 - `Eventsourcing Patterns: Forgettable Payloads <https://verraes.net/2019/05/eventsourcing-patterns-forgettable-payloads/>`__
 
-Предостережение
-^^^^^^^^^^^^^^^
+Caveat
+^^^^^^
 
-Вопрос об использовании Crypto-Shredding для соблюдения GDPR является спорным:
+The use of crypto-shredding for GDPR compliance is a debated topic:
 
-  Harrison J. Brown wrote the following answer to that question:
+    Harrison J. Brown wrote the following answer to that question:
 
-  The legal question is important and the GDPR does actually state
-  that encrypted personal information is still personal information.
-  I spoke to my lawyer about this and they said that in the event of
-  a breach you’d still have to notify the authority (the ICO, in the UK)
-  though you might not have to tell the data subjects
-  (since the breach wouldn’t affect them).
-  This document from the European Commission states this clearly in
-  section1, paragraph 5:
+    The legal question is important and the GDPR does actually state
+    that encrypted personal information is still personal information.
+    I spoke to my lawyer about this and they said that in the event of
+    a breach you'd still have to notify the authority (the ICO, in the UK)
+    though you might not have to tell the data subjects
+    (since the breach wouldn't affect them).
+    This document from the European Commission states this clearly in
+    section1, paragraph 5:
 
-  "A confidentiality breach on personal data that were encrypted with
-  a state of the art algorithm is still a personal data breach,
-  and has to be notified to the authority.
-  Nevertheless, if the confidentiality of the key is intact,
-  the data are in principle unintelligible to any person who is not authorised,
-  thus the breach is unlikely to adversely affect the data subject and
-  therefore doesn’t need to be notified to the data subject."
+    "A confidentiality breach on personal data that were encrypted with
+    a state of the art algorithm is still a personal data breach,
+    and has to be notified to the authority.
+    Nevertheless, if the confidentiality of the key is intact,
+    the data are in principle unintelligible to any person who is not authorised,
+    thus the breach is unlikely to adversely affect the data subject and
+    therefore doesn't need to be notified to the data subject."
 
-  As for the deletion request scenario, the law does not consider deleting
-  the encryption key equal to actually deleting the data itself.
-  Encrypted personal data is still personal data,
-  regardless of whether anyone has the key.
-  So, if were asked by a data subject to delete their personal data and
-  all you did was delete the encryption key you would not be complying with
-  the removal request, at least according to the GDPR.
-  So, whilst this crypto-shredding pattern is, I think,
-  really useful for certain types of data
-  (business sensitive information, for example)
-  I think your Forgettable Payloads pattern
-  (where one stores the sensitive payload of an event in
-  a separate store to control access and removal)
-  is more appropriate for personal data.
+    As for the deletion request scenario, the law does not consider deleting
+    the encryption key equal to actually deleting the data itself.
+    Encrypted personal data is still personal data,
+    regardless of whether anyone has the key.
+    So, if were asked by a data subject to delete their personal data and
+    all you did was delete the encryption key you would not be complying with
+    the removal request, at least according to the GDPR.
+    So, whilst this crypto-shredding pattern is, I think,
+    really useful for certain types of data
+    (business sensitive information, for example)
+    I think your Forgettable Payloads pattern
+    (where one stores the sensitive payload of an event in
+    a separate store to control access and removal)
+    is more appropriate for personal data.
 
-  -- `Eventsourcing Patterns: Crypto-Shredding <https://verraes.net/2019/05/eventsourcing-patterns-throw-away-the-key/>`__
+    -- `Eventsourcing Patterns: Crypto-Shredding <https://verraes.net/2019/05/eventsourcing-patterns-throw-away-the-key/>`__
 
-Комментарий Harrison J. Brown со страницы Mathias Verraes
-о паттерне Crypto-Shredding, по сути, корректен, но с нюансами.
+Harrison J. Brown's comment on Mathias Verraes' page about the
+Crypto-Shredding pattern is essentially correct, but with nuances.
 
-Цитата про уведомление об утечке — это почти дословная выдержка
-из мнения WP29 (Opinion 03/2014),
-которое затем было включено в Руководство EDPB 9/2022 (параграф 76):
-утечка зашифрованных персональных данных всё равно является утечкой
-и требует уведомления регулятора, но если ключ не скомпрометирован,
-данные остаются непонятными для неавторизованных лиц,
-и уведомление субъектов данных, скорее всего, не требуется.
+The quote about breach notification is an almost verbatim excerpt
+from the WP29 opinion (Opinion 03/2014), which was later incorporated
+into EDPB Guidelines 9/2022 (paragraph 76): a breach of encrypted
+personal data is still a breach and requires notifying the regulator,
+but if the key is not compromised, the data remains unintelligible
+to unauthorized parties, and notifying data subjects is most likely
+not required.
 `EDPB <https://www.edpb.europa.eu/system/files/2023-04/edpb_guidelines_202209_personal_data_breach_notification_v2.0_en.pdf>`__
 
-Где всё сложнее — вопрос права на удаление (Art. 17):
-Утверждение о том, что crypto-shredding не соответствует GDPR
-для целей erasure — это спорная позиция, а не установленный юридический факт.
-На практике мнения расходятся:
+Where things get more complicated is the right to erasure (Art. 17):
+the claim that crypto-shredding does not comply with GDPR for erasure
+purposes is a debatable position, not an established legal fact.
+In practice, opinions diverge:
 
-Скептики (SecuPi) считают, что crypto-shredding не подходит
-для right to erasure,
-потому что зашифрованные данные формально остаются персональными данными,
-а прочность шифрования со временем может ослабнуть.
+Skeptics (SecuPi) argue that crypto-shredding is not suitable for the
+right to erasure because encrypted data formally remains personal data,
+and encryption strength may weaken over time.
 `SecuPi <https://secupi.com/crypto-shredding-is-not-nirvana-for-right-of-erasure-or-rtbf-compliance/>`__
 
-Сторонники (Verdict, Spotify) рассматривают crypto-shredding как
-эффективное и масштабируемое решение для GDPR compliance,
-особенно в распределённых системах.
-Spotify, например, построил систему «Padlock» на этом принципе.
+Proponents (Verdict, Spotify) view crypto-shredding as an effective
+and scalable solution for GDPR compliance, especially in distributed
+systems. Spotify, for example, built their "Padlock" system on this
+principle.
 `Verdict <https://www.verdict.co.uk/crypto-shredding-gdpr-cloud-systems/>`__
 
-ThoughtWorks поместили crypto-shredding в категорию
-«Trial» в своём Technology Radar,
-считая технику полезной для privacy protection и GDPR compliance.
+ThoughtWorks placed crypto-shredding in the "Trial" category of their
+Technology Radar, considering the technique useful for privacy
+protection and GDPR compliance.
 `Thoughtworks <https://www.thoughtworks.com/radar/techniques/crypto-shredding>`__
 
-В распределённых системах (event stores, Kafka, backups)
-физическое удаление всех копий данных часто технически невозможно
-или крайне дорого.
+In distributed systems (event stores, Kafka, backups), physically
+deleting all copies of data is often technically impossible or
+prohibitively expensive.
 
-Harrison Brown прав в консервативной интерпретации.
-GDPR буквально говорит об «erasure», а не о «making inaccessible».
-Но на практике многие организации и юристы принимают
-crypto-shredding как достаточную меру, особенно в системах,
-где физическое удаление технически затруднительно
-(event stores, distributed logs, backups).
+Harrison Brown is correct in his conservative interpretation.
+The GDPR literally speaks of "erasure", not "making inaccessible".
+However, in practice many organizations and legal professionals accept
+crypto-shredding as a sufficient measure, especially in systems where
+physical deletion is technically impractical (event stores, distributed
+logs, backups).
 
-Рекомендация Brown'а использовать Forgettable Payloads для персональных данных —
-это более безопасный с правовой точки зрения подход.
-Crypto-shredding хорошо работает как дополнительный слой защиты,
-но полагаться только на него для Art. 17 —
-рискованно без явного одобрения юристов.
+Brown's recommendation to use Forgettable Payloads for personal data
+is the legally safer approach. Crypto-shredding works well as an
+additional layer of protection, but relying solely on it for Art. 17
+is risky without explicit approval from legal counsel.
 
-Комбинация обоих паттернов — наиболее надёжный вариант.
+A combination of both patterns is the most robust option.
 
 
 Envelope Encryption
