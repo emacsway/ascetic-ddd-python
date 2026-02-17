@@ -1,6 +1,7 @@
 import typing
 
 from abc import ABCMeta, abstractmethod
+from collections.abc import Hashable
 from types import TracebackType
 
 from aiohttp import ClientSession
@@ -148,16 +149,7 @@ class IAsyncConnectionPool(typing.Protocol[Row]):
         ...
 
 
-class IHashable(typing.Protocol, metaclass=ABCMeta):
-
-    def __eq__(self, other: "IHashable") -> bool:
-        ...
-
-    def __hash__(self) -> int:
-        raise NotImplementedError
-
-
-IIdentityKey: typing.TypeAlias = IHashable
+IIdentityKey: typing.TypeAlias = Hashable
 IModel: typing.TypeAlias = typing.Any
 
 
