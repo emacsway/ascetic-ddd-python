@@ -1,12 +1,12 @@
 from abc import ABCMeta, abstractmethod
+from collections.abc import Hashable
 
 from ascetic_ddd.specification.domain.interfaces import IEqualOperand
-from ascetic_ddd.seedwork.domain.aggregate.interfaces import IHashable
 
 __all__ = ("HashableEntity",)
 
 
-class HashableEntity(IHashable, metaclass=ABCMeta):
+class HashableEntity(Hashable, metaclass=ABCMeta):
     @property
     @abstractmethod
     def id(self) -> IEqualOperand:  # noqa: A003 # id shadowing Python builtin

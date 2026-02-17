@@ -10,7 +10,6 @@ __all__ = (
     "IEventiveEntity",
     "IDomainEventLoader",
     "IEventSourcedAggregate",
-    "IHashable",
 )
 
 
@@ -83,9 +82,3 @@ class IEventSourcedAggregate(
     @abstractmethod
     def _update(self, e: PersistentDomainEventT) -> None:
         raise NotImplementedError
-
-
-class IHashable(IEqualOperand, typing.Protocol):
-
-    def __hash__(self) -> int:
-        ...
