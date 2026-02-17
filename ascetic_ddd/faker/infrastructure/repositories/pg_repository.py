@@ -30,18 +30,20 @@ class PgRepository(typing.Generic[T]):
     _id_attr: str
     _agg_exporter: typing.Callable[[T], 'IAggregateState']
     _agg_factory: typing.Callable[[dict], T]
+    _on_inserted: IAsyncSignal[AggregateInsertedEvent[T]]
+    _on_updated: IAsyncSignal[AggregateUpdatedEvent[T]]
 
     def __init__(self):
-        self._on_aggregate_inserted = AsyncSignal[AggregateInsertedEvent[T]]()
-        self._on_aggregate_updated = AsyncSignal[AggregateUpdatedEvent[T]]()
+        self._on_inserted = AsyncSignal[AggregateInsertedEvent[T]]()
+        self._on_updated = AsyncSignal[AggregateUpdatedEvent[T]]()
 
     @property
-    def on_aggregate_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[T]]:
-        return self._on_aggregate_inserted
+    def on_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[T]]:
+        return self._on_inserted
 
     @property
-    def on_aggregate_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[T]]:
-        return self._on_aggregate_updated
+    def on_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[T]]:
+        return self._on_updated
 
     async def insert(self, session: ISession, agg: T):
         state = self._agg_exporter(agg)
@@ -69,7 +71,7 @@ class PgRepository(typing.Generic[T]):
                 if state.is_auto_increment_pk():
                     state.pk_setter()((await acursor.fetchone())[0])  # type: ignore[index]
 
-        await self._on_aggregate_inserted.notify(AggregateInsertedEvent(session, agg))
+        await self._on_inserted.notify(AggregateInsertedEvent(session, agg))
 
     async def get(self, session: ISession, id_: IAccessible[typing.Any]) -> T | None:
         raise NotImplementedError

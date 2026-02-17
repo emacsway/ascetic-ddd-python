@@ -10,6 +10,9 @@ from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvi
 from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
+from ascetic_ddd.signals.signal import AsyncSignal
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
+from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 
 
 # =============================================================================
@@ -74,6 +77,7 @@ class StubDistributor(IM2ODistributor):
         self._index = 0
         self._raise_cursor_at = raise_cursor_at
         self._provider_name = None
+        self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session, specification=None):
         if self._raise_cursor_at is not None and self._index >= self._raise_cursor_at:
@@ -89,6 +93,11 @@ class StubDistributor(IM2ODistributor):
 
     async def append(self, session, value):
         await self._append(session, value, None)
+
+    # Signal properties
+    @property
+    def on_appended(self):
+        return self._on_appended
 
     @property
     def provider_name(self):
@@ -110,18 +119,6 @@ class StubDistributor(IM2ODistributor):
     def __deepcopy__(self, memodict={}):
         return self
 
-    def attach(self, aspect, observer, id_=None):
-        pass
-
-    def detach(self, aspect, observer, id_=None):
-        pass
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
-
     def bind_external_source(self, external_source):
         pass
 
@@ -132,18 +129,17 @@ class StubRepository:
         self._storage = {}
         self._counter = auto_increment_start
         self._inserted = []
+        self._on_inserted = AsyncSignal[AggregateInsertedEvent]()
+        self._on_updated = AsyncSignal[AggregateUpdatedEvent]()
 
-    def attach(self, aspect, observer, id_=None):
-        pass
+    # Signal properties
+    @property
+    def on_inserted(self):
+        return self._on_inserted
 
-    def detach(self, aspect, observer, id_=None):
-        pass
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
+    @property
+    def on_updated(self):
+        return self._on_updated
 
     async def find(self, session, specification):
         return list(self._storage.values())

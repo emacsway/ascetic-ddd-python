@@ -45,7 +45,7 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
     _distributor: IO2MDistributor
     _values: dict[int, T]
     _provider_name: str | None
-    _on_value_appended: IAsyncSignal[ValueAppendedEvent[T]]
+    _on_appended: IAsyncSignal[ValueAppendedEvent[T]]
 
     def __init__(self, distributor: IO2MDistributor):
         """
@@ -55,11 +55,11 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
         self._distributor = distributor
         self._values = {}
         self._provider_name = None
-        self._on_value_appended = AsyncSignal[ValueAppendedEvent[T]]()
+        self._on_appended = AsyncSignal[ValueAppendedEvent[T]]()
 
     @property
-    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._on_value_appended
+    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+        return self._on_appended
 
     async def next(
             self,
@@ -101,7 +101,7 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
             position: Slot number (key in the dictionary).
         """
         self._values[position] = value  # type: ignore[index]
-        await self._on_value_appended.notify(ValueAppendedEvent(session, value, position))
+        await self._on_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
         await self._append(session, value, None)

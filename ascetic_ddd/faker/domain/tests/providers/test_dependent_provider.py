@@ -11,6 +11,9 @@ from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.values.empty import empty
+from ascetic_ddd.signals.signal import AsyncSignal
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
+from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 
 
 # =============================================================================
@@ -70,6 +73,7 @@ class StubM2ODistributor(IM2ODistributor):
     def __init__(self):
         self._provider_name = None
         self._appended = []
+        self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session: ISession, specification=None):
         raise Cursor(position=len(self._appended), callback=self._append)
@@ -79,6 +83,11 @@ class StubM2ODistributor(IM2ODistributor):
 
     async def append(self, session: ISession, value):
         await self._append(session, value, None)
+
+    # Signal properties
+    @property
+    def on_appended(self):
+        return self._on_appended
 
     @property
     def provider_name(self):
@@ -100,18 +109,6 @@ class StubM2ODistributor(IM2ODistributor):
     def __deepcopy__(self, memodict={}):
         return StubM2ODistributor()
 
-    def attach(self, aspect, observer, id_=None):
-        pass
-
-    def detach(self, aspect, observer, id_=None):
-        pass
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
-
     def bind_external_source(self, external_source) -> None:
         pass
 
@@ -127,19 +124,17 @@ class StubEmployeeRepository(IAggregateRepository[Employee]):
         self._storage: dict[int, Employee] = {}
         self._auto_increment_counter = auto_increment_start
         self._inserted: list[Employee] = []
+        self._on_inserted = AsyncSignal[AggregateInsertedEvent]()
+        self._on_updated = AsyncSignal[AggregateUpdatedEvent]()
 
-    # IObservable methods
-    def attach(self, aspect, observer, id_=None):
-        pass
+    # Signal properties
+    @property
+    def on_inserted(self):
+        return self._on_inserted
 
-    def detach(self, aspect, observer, id_=None):
-        pass
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
+    @property
+    def on_updated(self):
+        return self._on_updated
 
     async def insert(self, session: ISession, agg: Employee):
         if agg.id is None or (isinstance(agg.id, EmployeeId) and agg.id.value in (0, None)):
@@ -560,19 +555,17 @@ class StubCompanyRepository(IAggregateRepository[Company]):
         self._storage: dict[int, Company] = {}
         self._auto_increment_counter = auto_increment_start
         self._inserted: list[Company] = []
+        self._on_inserted = AsyncSignal[AggregateInsertedEvent]()
+        self._on_updated = AsyncSignal[AggregateUpdatedEvent]()
 
-    # IObservable methods
-    def attach(self, aspect, observer, id_=None):
-        pass
+    # Signal properties
+    @property
+    def on_inserted(self):
+        return self._on_inserted
 
-    def detach(self, aspect, observer, id_=None):
-        pass
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
+    @property
+    def on_updated(self):
+        return self._on_updated
 
     async def insert(self, session: ISession, agg: Company):
         if agg.id is None or (isinstance(agg.id, CompanyId) and agg.id.value in (0, None)):

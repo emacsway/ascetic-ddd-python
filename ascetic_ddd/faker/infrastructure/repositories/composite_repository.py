@@ -54,12 +54,12 @@ class CompositeRepository(typing.Generic[T]):
     # Signal delegation to internal_repository
 
     @property
-    def on_aggregate_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[T]]:
-        return self._internal_repository.on_aggregate_inserted
+    def on_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[T]]:
+        return self._internal_repository.on_inserted
 
     @property
-    def on_aggregate_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[T]]:
-        return self._internal_repository.on_aggregate_updated
+    def on_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[T]]:
+        return self._internal_repository.on_updated
 
 
 class CompositeAutoPkRepository(CompositeRepository[T], typing.Generic[T]):

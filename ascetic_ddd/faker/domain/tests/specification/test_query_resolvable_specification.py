@@ -16,6 +16,9 @@ from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
 from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
 from ascetic_ddd.session.interfaces import ISession
+from ascetic_ddd.signals.signal import AsyncSignal
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
+from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 
 
 # =============================================================================
@@ -66,7 +69,7 @@ class StubDistributor(IM2ODistributor):
         self._raise_cursor = raise_cursor
         self._appended = []
         self._provider_name = None
-        self._observers = []
+        self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session: ISession, specification: ISpecification = None):
         if self._raise_cursor or self._index >= len(self._values):
@@ -80,6 +83,11 @@ class StubDistributor(IM2ODistributor):
 
     async def append(self, session: ISession, value):
         self._appended.append(value)
+
+    # Signal properties
+    @property
+    def on_appended(self):
+        return self._on_appended
 
     @property
     def provider_name(self):
@@ -98,19 +106,6 @@ class StubDistributor(IM2ODistributor):
     def bind_external_source(self, external_source: typing.Any) -> None:
         pass
 
-    def attach(self, aspect, observer, id_=None):
-        self._observers.append((aspect, observer))
-        return lambda: self._observers.remove((aspect, observer))
-
-    def detach(self, aspect, observer, id_=None):
-        self._observers = [(a, o) for a, o in self._observers if o != observer]
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
-
     def __copy__(self):
         return self
 
@@ -123,7 +118,17 @@ class StubRepository(IAggregateRepository):
 
     def __init__(self):
         self._storage = {}
-        self._observers = []
+        self._on_inserted = AsyncSignal[AggregateInsertedEvent]()
+        self._on_updated = AsyncSignal[AggregateUpdatedEvent]()
+
+    # Signal properties
+    @property
+    def on_inserted(self):
+        return self._on_inserted
+
+    @property
+    def on_updated(self):
+        return self._on_updated
 
     async def insert(self, session: ISession, agg):
         key = self._get_key(agg)
@@ -158,19 +163,6 @@ class StubRepository(IAggregateRepository):
         if isinstance(id_, dict):
             return tuple(sorted(id_.items()))
         return id_
-
-    def attach(self, aspect, observer, id_=None):
-        self._observers.append((aspect, observer))
-        return lambda: self._observers.remove((aspect, observer))
-
-    def detach(self, aspect, observer, id_=None):
-        self._observers = [(a, o) for a, o in self._observers if o != observer]
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
 
 
 # =============================================================================

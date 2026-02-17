@@ -8,7 +8,7 @@ from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.signals.interfaces import ISyncSignal, IAsyncSignal
 from ascetic_ddd.faker.domain.providers.events import (
     CriteriaRequiredEvent,
-    InputSetEvent,
+    InputPopulatedEvent,
     AggregateInsertedEvent,
     AggregateUpdatedEvent,
 )
@@ -114,12 +114,12 @@ class IInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def on_criteria_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+    def on_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def on_input_set(self) -> ISyncSignal[InputSetEvent[InputT]]:
+    def on_populated(self) -> ISyncSignal[InputPopulatedEvent[InputT]]:
         raise NotImplementedError
 
     @abstractmethod
@@ -172,11 +172,11 @@ class IEntityProvider(
 class IAggregateRepository(typing.Protocol[OutputT]):
 
     @property
-    def on_aggregate_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[OutputT]]:
+    def on_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[OutputT]]:
         ...
 
     @property
-    def on_aggregate_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[OutputT]]:
+    def on_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[OutputT]]:
         ...
 
     async def insert(self, session: ISession, agg: OutputT):
@@ -240,12 +240,12 @@ class IDependentInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def on_criteria_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+    def on_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def on_input_set(self) -> ISyncSignal[InputSetEvent[list[InputT]]]:
+    def on_populated(self) -> ISyncSignal[InputPopulatedEvent[list[InputT]]]:
         raise NotImplementedError
 
     @abstractmethod

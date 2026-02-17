@@ -611,7 +611,7 @@ class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
                 self._appended = []
                 self._provider_name = None
                 from ascetic_ddd.signals.signal import AsyncSignal
-                self._on_value_appended = AsyncSignal[ValueAppendedEvent]()
+                self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
             async def next(self, session, specification=None):
                 if self._raise_cursor or self._index >= len(self._values):
@@ -644,8 +644,8 @@ class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
                 pass
 
             @property
-            def on_value_appended(self):
-                return self._on_value_appended
+            def on_appended(self):
+                return self._on_appended
 
             def __copy__(self):
                 return self
@@ -1242,7 +1242,7 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
                 self._appended = []
                 self._provider_name = None
                 from ascetic_ddd.signals.signal import AsyncSignal
-                self._on_value_appended = AsyncSignal[ValueAppendedEvent]()
+                self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
             async def next(self, session, specification=None):
                 if self._raise_cursor or self._index >= len(self._values):
@@ -1275,8 +1275,8 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
                 pass
 
             @property
-            def on_value_appended(self):
-                return self._on_value_appended
+            def on_appended(self):
+                return self._on_appended
 
             def __copy__(self):
                 return self

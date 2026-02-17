@@ -7,8 +7,15 @@ from time import perf_counter
 
 from aiohttp.client import ClientSession
 
-from ascetic_ddd.observable.observable import Observable
-from ascetic_ddd.session.interfaces import ISessionPool, ISession, IRestSession
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.signals.signal import AsyncSignal
+from ascetic_ddd.session.events import (
+    SessionScopeStartedEvent,
+    SessionScopeEndedEvent,
+    RequestStartedEvent,
+    RequestEndedEvent,
+)
+from ascetic_ddd.session.interfaces import ISession, IRestSession
 
 __all__ = (
     "RestSession",
@@ -23,24 +30,33 @@ def extract_request(session: ISession) -> ClientSession:
     return typing.cast(IRestSession, session).request
 
 
-class RestSessionPool(Observable, ISessionPool):
+class RestSessionPool:
+    _on_session_started: IAsyncSignal[SessionScopeStartedEvent]
+    _on_session_ended: IAsyncSignal[SessionScopeEndedEvent]
 
     def __init__(self) -> None:
-        super().__init__()
+        self._on_session_started = AsyncSignal[SessionScopeStartedEvent]()
+        self._on_session_ended = AsyncSignal[SessionScopeEndedEvent]()
+
+    @property
+    def on_session_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
+        return self._on_session_started
+
+    @property
+    def on_session_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
+        return self._on_session_ended
 
     @asynccontextmanager
     async def session(self) -> typing.AsyncIterator[ISession]:
         session = self._make_session()
-        await self.anotify(
-            aspect='session_started',
-            session=session
+        await self._on_session_started.notify(
+            SessionScopeStartedEvent(session=session)
         )
         try:
             yield session
         finally:
-            await self.anotify(
-                aspect='session_ended',
-                session=session
+            await self._on_session_ended.notify(
+                SessionScopeEndedEvent(session=session)
             )
 
     @staticmethod
@@ -48,10 +64,14 @@ class RestSessionPool(Observable, ISessionPool):
         return RestSession()
 
 
-class RestSession(Observable, IRestSession):
+class RestSession:
     # _client_session: httpx.AsyncClient
     _client_session: ClientSession
     _parent: typing.Optional["RestSession"]
+    _on_started: IAsyncSignal[SessionScopeStartedEvent]
+    _on_ended: IAsyncSignal[SessionScopeEndedEvent]
+    _on_request_started: IAsyncSignal[RequestStartedEvent]
+    _on_request_ended: IAsyncSignal[RequestEndedEvent]
 
     @dataclasses.dataclass(kw_only=True)
     class RequestViewModel:
@@ -64,13 +84,32 @@ class RestSession(Observable, IRestSession):
             return self.label + "." + str(self.status)
 
     def __init__(self, client_session: ClientSession | None = None, parent: typing.Optional["RestSession"] = None):
-        super().__init__()
         self._parent = parent
+        self._on_started = AsyncSignal[SessionScopeStartedEvent]()
+        self._on_ended = AsyncSignal[SessionScopeEndedEvent]()
+        self._on_request_started = AsyncSignal[RequestStartedEvent]()
+        self._on_request_ended = AsyncSignal[RequestEndedEvent]()
 
         trace_config = aiohttp.TraceConfig()
         trace_config.on_request_start.append(self._on_request_start)
         trace_config.on_request_end.append(self._on_request_end)
         self._client_session = client_session or ClientSession(trace_configs=[trace_config])
+
+    @property
+    def on_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
+        return self._on_started
+
+    @property
+    def on_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
+        return self._on_ended
+
+    @property
+    def on_request_started(self) -> IAsyncSignal[RequestStartedEvent]:
+        return self._on_request_started
+
+    @property
+    def on_request_ended(self) -> IAsyncSignal[RequestEndedEvent]:
+        return self._on_request_ended
 
     async def _on_request_start(self, session, context, params):
         prefix = "performance-testing.%(hostname)s.%(method)s.%(host)s.%(path)s"
@@ -87,11 +126,12 @@ class RestSession(Observable, IRestSession):
             response_time=None,
         )
 
-        await self.anotify(
-            aspect='request_started',
-            session=self,
-            sender=context,
-            request_view=context._request_view,
+        await self._on_request_started.notify(
+            RequestStartedEvent(
+                session=self,
+                sender=context,
+                request_view=context._request_view,
+            )
         )
 
     async def _on_request_end(self, session, context, params):
@@ -102,27 +142,26 @@ class RestSession(Observable, IRestSession):
         request_view.status = params.response.status
         request_view.response_time = response_time
 
-        await self.anotify(
-            aspect='request_ended',
-            session=self,
-            sender=context,
-            request_view=request_view,
+        await self._on_request_ended.notify(
+            RequestEndedEvent(
+                session=self,
+                sender=context,
+                request_view=request_view,
+            )
         )
 
     @asynccontextmanager
     async def atomic(self) -> typing.AsyncIterator[ISession]:
         async with self._client_session as client_session:
-            session = self._make_nested_session(client_session)
-            await self.anotify(
-                aspect='transaction_started',
-                session=session
+            session = self._make_atomic_session(client_session)
+            await self._on_started.notify(
+                SessionScopeStartedEvent(session=session)
             )
             try:
                 yield session
             finally:
-                await self.anotify(
-                    aspect='transaction_ended',
-                    session=session
+                await self._on_ended.notify(
+                    SessionScopeEndedEvent(session=session)
                 )
 
     @property
@@ -130,31 +169,28 @@ class RestSession(Observable, IRestSession):
     def request(self) -> ClientSession:
         return self._client_session
 
-    def _make_nested_session(self, client_session: ClientSession) -> IRestSession:
-        return RestTransactionSession(client_session, self)
+    def _make_atomic_session(self, client_session: ClientSession) -> IRestSession:
+        return RestAtomicSession(client_session, self)
 
 
-class RestTransactionSession(RestSession):
+class RestAtomicSession(RestSession):
+
+    def __init__(self, client_session: ClientSession | None = None, parent: typing.Optional["RestSession"] = None):
+        super().__init__(client_session, parent)
 
     @asynccontextmanager
     async def atomic(self) -> typing.AsyncIterator[ISession]:
         async with self._client_session as client_session:
-            session = self._make_nested_session(client_session)
-            await self.anotify(
-                aspect='savepoint_started',
-                session=session
+            session = self._make_atomic_session(client_session)
+            await self._on_started.notify(
+                SessionScopeStartedEvent(session=session)
             )
             try:
                 yield session
             finally:
-                await self.anotify(
-                    aspect='savepoint_ended',
-                    session=session
+                await self._on_ended.notify(
+                    SessionScopeEndedEvent(session=session)
                 )
 
-    def _make_nested_session(self, client_session: ClientSession) -> IRestSession:
-        return RestSavepointSession(client_session, self)
-
-
-class RestSavepointSession(RestTransactionSession):
-    pass
+    def _make_atomic_session(self, client_session: ClientSession) -> IRestSession:
+        return RestAtomicSession(client_session, self)

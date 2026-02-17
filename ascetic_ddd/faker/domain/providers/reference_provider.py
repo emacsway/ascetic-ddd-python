@@ -147,7 +147,7 @@ class ReferenceProvider(
             self._input = empty
             self._output = empty
             self._propagate_to_aggregate(new_criteria)
-            self._on_criteria_required.notify(CriteriaRequiredEvent(new_criteria))
+            self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
     def _propagate_to_aggregate(self, criteria: IQueryOperator) -> None:
         """
@@ -222,7 +222,7 @@ class SubscriptionAggregateProviderAccessor(
                 # For Pg distributor with external_source — this is a no-op (append checks _external_source).
                 await self._reference_provider.append(event.session, event.agg)
 
-            aggregate_provider.repository.on_aggregate_inserted.attach(
+            aggregate_provider.repository.on_inserted.attach(
                 _observer, self._reference_provider.provider_name
             )
 

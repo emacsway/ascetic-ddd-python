@@ -52,8 +52,8 @@ class NullableDistributor(IM2ODistributor[T], typing.Generic[T]):
         return random.random() < self._null_weight
 
     @property
-    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._delegate.on_value_appended
+    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+        return self._delegate.on_appended
 
     async def append(self, session: ISession, value: T):
         await self._delegate.append(session, value)

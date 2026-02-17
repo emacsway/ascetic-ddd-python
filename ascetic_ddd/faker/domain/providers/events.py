@@ -29,5 +29,5 @@ class CriteriaRequiredEvent:
 
 
 @dataclasses.dataclass(frozen=True)
-class InputSetEvent(typing.Generic[T]):
+class InputPopulatedEvent(typing.Generic[T]):
     input: T

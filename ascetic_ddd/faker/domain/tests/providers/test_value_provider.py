@@ -7,6 +7,8 @@ from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty
+from ascetic_ddd.signals.signal import AsyncSignal
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 
 
 class MockDistributor(IM2ODistributor):
@@ -18,6 +20,7 @@ class MockDistributor(IM2ODistributor):
         self._raise_cursor_at = raise_cursor_at
         self._appended = []
         self._provider_name = None
+        self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session: ISession, specification=None):
         if self._raise_cursor_at is not None and self._index >= self._raise_cursor_at:
@@ -34,6 +37,11 @@ class MockDistributor(IM2ODistributor):
 
     async def append(self, session: ISession, value):
         await self._append(session, value, None)
+
+    # Signal properties
+    @property
+    def on_appended(self):
+        return self._on_appended
 
     @property
     def provider_name(self):
@@ -54,18 +62,6 @@ class MockDistributor(IM2ODistributor):
 
     def __deepcopy__(self, memodict={}):
         return self
-
-    def attach(self, aspect, observer, id_=None):
-        pass
-
-    def detach(self, aspect, observer, id_=None):
-        pass
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
 
     def bind_external_source(self, external_source: typing.Any) -> None:
         pass

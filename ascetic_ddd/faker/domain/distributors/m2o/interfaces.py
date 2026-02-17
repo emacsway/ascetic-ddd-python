@@ -26,7 +26,7 @@ class IM2ODistributor(typing.Generic[T], metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
         raise NotImplementedError
 
     @abstractmethod

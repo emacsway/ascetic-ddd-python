@@ -114,7 +114,7 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
             await acursor.execute(sql, (self._encode(value), self._serialize(value)))
         # logging.debug("Append: %s", value)
         # Prevent double notification, self._delegate._append() will be called from Cursor.
-        # await self.on_value_appended.notify(ValueAppendedEvent(session, value, position))
+        # await self.on_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
         await self._append(session, value, None)
@@ -132,8 +132,8 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
                 self._values_table = escape("values_for_%s" % value[-(63 - 11):])
 
     @property
-    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._delegate.on_value_appended
+    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+        return self._delegate.on_appended
 
     async def setup(self, session: ISession):
         if not self._initialized:  # Fixes diamond problem

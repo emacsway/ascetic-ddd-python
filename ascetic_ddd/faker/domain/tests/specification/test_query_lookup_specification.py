@@ -17,6 +17,9 @@ from ascetic_ddd.faker.domain.specification.query_lookup_specification import (
 )
 from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
+from ascetic_ddd.signals.signal import AsyncSignal, SyncSignal
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
+from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, InputPopulatedEvent
 
 
 # =============================================================================
@@ -72,7 +75,7 @@ class StubDistributor(IM2ODistributor):
         self._raise_cursor = raise_cursor
         self._appended = []
         self._provider_name = None
-        self._observers = []
+        self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session: ISession, specification: ISpecification = None):
         if self._raise_cursor or self._index >= len(self._values):
@@ -86,6 +89,11 @@ class StubDistributor(IM2ODistributor):
 
     async def append(self, session: ISession, value):
         self._appended.append(value)
+
+    # Signal properties
+    @property
+    def on_appended(self):
+        return self._on_appended
 
     @property
     def provider_name(self):
@@ -102,19 +110,6 @@ class StubDistributor(IM2ODistributor):
         pass
 
     def bind_external_source(self, external_source: typing.Any) -> None:
-        pass
-
-    def attach(self, aspect, observer, id_=None):
-        self._observers.append((aspect, observer))
-        return lambda: self._observers.remove((aspect, observer))
-
-    def detach(self, aspect, observer, id_=None):
-        self._observers = [(a, o) for a, o in self._observers if o != observer]
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
         pass
 
     def __copy__(self):
@@ -154,6 +149,17 @@ class MockReferenceProvider(IReferenceProvider):
         self._query = empty
         self._output = empty
         self._provider_name = None
+        self._on_required = SyncSignal[CriteriaRequiredEvent]()
+        self._on_populated = SyncSignal[InputPopulatedEvent]()
+
+    # Signal properties
+    @property
+    def on_required(self):
+        return self._on_required
+
+    @property
+    def on_populated(self):
+        return self._on_populated
 
     @property
     def aggregate_provider(self):
@@ -199,25 +205,13 @@ class MockReferenceProvider(IReferenceProvider):
     def clone(self, shunt=None):
         return MockReferenceProvider(self._repository, self._aggregate_provider)
 
-    def on_clone(self, clone, shunt):
+    def do_clone(self, clone, shunt):
         pass
 
     async def setup(self, session):
         pass
 
     async def cleanup(self, session):
-        pass
-
-    def attach(self, aspect, observer, id_=None):
-        return lambda: None
-
-    def detach(self, aspect, observer, id_=None):
-        pass
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
         pass
 
 

@@ -12,18 +12,22 @@ from ascetic_ddd.faker.infrastructure.specification.pg_specification_visitor imp
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
-from ascetic_ddd.observable.observable import Observable
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.signals.signal import AsyncSignal
+from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 
 __all__ = ('InternalPgRepository',)
 
 T = typing.TypeVar("T")
 
 
-class InternalPgRepository(Observable, typing.Generic[T]):
+class InternalPgRepository(typing.Generic[T]):
     _extract_connection = staticmethod(extract_internal_connection)
     _table: str
     _id_attr: str | None
     _agg_exporter: typing.Callable[[T], dict]
+    _on_inserted: IAsyncSignal[AggregateInsertedEvent[T]]
+    _on_updated: IAsyncSignal[AggregateUpdatedEvent[T]]
     _initialized: bool
 
     @staticmethod
@@ -44,11 +48,20 @@ class InternalPgRepository(Observable, typing.Generic[T]):
             id_attr: str = None,
             initialized: bool = False
     ):
-        super().__init__()
+        self._on_inserted = AsyncSignal[AggregateInsertedEvent[T]]()
+        self._on_updated = AsyncSignal[AggregateUpdatedEvent[T]]()
         self._table = escape(table)
         self._agg_exporter = agg_exporter
         self._id_attr = id_attr
         self._initialized = initialized
+
+    @property
+    def on_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[T]]:
+        return self._on_inserted
+
+    @property
+    def on_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[T]]:
+        return self._on_updated
 
     @property
     def table(self) -> str:
@@ -75,7 +88,7 @@ class InternalPgRepository(Observable, typing.Generic[T]):
             except Exception:
                 raise
 
-        await self.anotify('inserted', session, agg)
+        await self._on_inserted.notify(AggregateInsertedEvent(session, agg))
 
     @check_init
     async def get(self, session: ISession, id_: IAccessible[typing.Any] | typing.Any) -> T | None:
@@ -112,7 +125,7 @@ class InternalPgRepository(Observable, typing.Generic[T]):
             except Exception:
                 raise
 
-        await self.anotify('updated', session, agg)
+        await self._on_updated.notify(AggregateUpdatedEvent(session, agg))
 
     @check_init
     async def find(self, session: ISession, specification: ISpecification) -> typing.Iterable[T]:

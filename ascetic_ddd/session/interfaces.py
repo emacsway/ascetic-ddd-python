@@ -7,7 +7,10 @@ from types import TracebackType
 from aiohttp import ClientSession
 from typing_extensions import TypeVar
 
-from ascetic_ddd.observable.interfaces import IObservable
+from ascetic_ddd.session.events import SessionScopeStartedEvent, SessionScopeEndedEvent, QueryStartedEvent, \
+    QueryEndedEvent
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+
 
 __all__ = (
     "Query",
@@ -31,18 +34,18 @@ __all__ = (
 # Domain layer interfaces:
 
 
-class ISession(IObservable, typing.Protocol, metaclass=ABCMeta):
-    response_time: float
+class ISession(typing.Protocol):
+    on_started: IAsyncSignal[SessionScopeStartedEvent]
+    on_ended: IAsyncSignal[SessionScopeEndedEvent]
 
-    @abstractmethod
-    async def atomic(self) -> typing.AsyncContextManager["ISession"]:
-        raise NotImplementedError
+    def atomic(self) -> typing.AsyncContextManager["ISession"]:
+        ...
 
 
-class ISessionPool(IObservable, typing.Protocol, metaclass=ABCMeta):
-    response_time: float
+class ISessionPool(typing.Protocol):
+    on_session_started: IAsyncSignal[SessionScopeStartedEvent]
+    on_session_ended: IAsyncSignal[SessionScopeEndedEvent]
 
-    @abstractmethod
     def session(self) -> typing.AsyncContextManager[ISession]:
         raise NotImplementedError
 
@@ -92,9 +95,7 @@ class IAsyncCursor(typing.Protocol[Row]):
 
 @typing.runtime_checkable
 class IAsyncTransaction(typing.Protocol[Row]):
-    @property
-    def connection(self) -> "IAsyncConnection[Row]":
-        ...
+    connection: "IAsyncConnection[Row]"
 
     async def __aenter__(self) -> "IAsyncTransaction[Row]":
         ...
@@ -145,7 +146,7 @@ class IAsyncConnection(typing.Protocol[Row]):
 
 
 class IAsyncConnectionPool(typing.Protocol[Row]):
-    async def connection(self, timeout: float | None = None) -> typing.AsyncContextManager["IAsyncConnection[Row]"]:
+    def connection(self, timeout: float | None = None) -> typing.AsyncContextManager["IAsyncConnection[Row]"]:
         ...
 
 
@@ -177,23 +178,12 @@ class IIdentityMap(metaclass=ABCMeta):
 
 @typing.runtime_checkable
 class IPgSession(ISession, typing.Protocol):
-    @property
-    @abstractmethod
-    def identity_map(self) -> IIdentityMap:
-        ...
-
-    @property
-    @abstractmethod
-    def connection(self) -> IAsyncConnection[tuple[typing.Any, ...]]:
-        """For ReadModels (Queries)."""
-        ...
+    identity_map: IIdentityMap
+    connection: IAsyncConnection[tuple[typing.Any, ...]]
+    on_query_started: IAsyncSignal[QueryStartedEvent]
+    on_query_ended: IAsyncSignal[QueryEndedEvent]
 
 
 @typing.runtime_checkable
 class IRestSession(ISession, typing.Protocol):
-
-    @property
-    @abstractmethod
-    def request(self) -> ClientSession:
-        """For ReadModels (Queries)."""
-        ...
+    request: ClientSession

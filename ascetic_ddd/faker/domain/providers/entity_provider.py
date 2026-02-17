@@ -54,9 +54,9 @@ class EntityProvider(
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
             return
-        await self.on_populate(session)
+        await self.do_populate(session)
         for attr, provider in self.providers.items():
             await provider.populate(session)
 
-    async def on_populate(self, session: ISession) -> None:
+    async def do_populate(self, session: ISession) -> None:
         pass

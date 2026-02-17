@@ -26,7 +26,7 @@ class PgSequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
     _provider_name: str | None = None
     _table: str | None = None
     _default_spec: ISpecification
-    _on_value_appended: IAsyncSignal[ValueAppendedEvent[T]]
+    _on_appended: IAsyncSignal[ValueAppendedEvent[T]]
 
     def __init__(
             self,
@@ -34,11 +34,11 @@ class PgSequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
     ):
         self._initialized = initialized
         self._default_spec = EmptySpecification()
-        self._on_value_appended = AsyncSignal[ValueAppendedEvent[T]]()
+        self._on_appended = AsyncSignal[ValueAppendedEvent[T]]()
 
     @property
-    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._on_value_appended
+    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+        return self._on_appended
 
     async def next(
             self,
@@ -81,7 +81,7 @@ class PgSequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
         )
 
     async def _append(self, session: ISession, value: T, position: int | None):
-        await self._on_value_appended.notify(ValueAppendedEvent(session, value, position))
+        await self._on_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
         await self._append(session, value, None)

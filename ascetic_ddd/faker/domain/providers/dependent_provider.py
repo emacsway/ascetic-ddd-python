@@ -5,8 +5,11 @@ from collections.abc import Callable
 from ascetic_ddd.faker.domain.distributors.o2m.interfaces import IO2MDistributor
 from ascetic_ddd.faker.domain.distributors.o2m.weighted_range_distributor import WeightedRangeDistributor
 from ascetic_ddd.faker.domain.providers._mixins import (
-    ObservableMixin, NameableMixin, CloneableMixin
+    NameableMixin, CloneableMixin
 )
+from ascetic_ddd.signals.interfaces import ISyncSignal
+from ascetic_ddd.signals.signal import SyncSignal
+from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, InputPopulatedEvent
 from ascetic_ddd.faker.domain.providers.interfaces import (
     IDependentProvider, IEntityProvider, ICloningShunt, ISetupable
 )
@@ -46,7 +49,6 @@ class IAggregateProvidersAccessor(ISetupable, typing.Generic[AggProviderT], meta
 
 class DependentProvider(
     NameableMixin,
-    ObservableMixin,
     CloneableMixin,
     IDependentProvider[InputT, OutputT, AggProviderT],
     typing.Generic[InputT, OutputT, AggProviderT]
@@ -86,6 +88,20 @@ class DependentProvider(
     _value_selector: WeightedRangeDistributor | None = None
     _dependency_field: str | None = None
     _dependency_id: typing.Any = None
+
+    def _do_init(self):
+        self._on_required = SyncSignal[CriteriaRequiredEvent]()
+        self._on_populated = SyncSignal[InputPopulatedEvent]()
+        super()._do_init()
+
+    @property
+    def on_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+        return self._on_required
+
+    @property
+    def on_populated(self) -> ISyncSignal[InputPopulatedEvent]:
+        # DependentProvider doesn't use input signal, but interface requires it
+        return self._on_populated
 
     def __init__(
             self,
@@ -216,7 +232,7 @@ class DependentProvider(
                 self._value_selector = None
                 self._count = len(criteria) if criteria else None
 
-            self.notify('criteria', self._criteria)
+            self._on_required.notify(CriteriaRequiredEvent(self._criteria))
 
     def state(self) -> list[InputT]:
         """

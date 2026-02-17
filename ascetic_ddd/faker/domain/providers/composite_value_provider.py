@@ -93,7 +93,7 @@ class CompositeValueProvider(
                     await provider.populate(session)
             self._output = output
         except ICursor as cursor:
-            await self.on_populate(session)
+            await self.do_populate(session)
             for attr, provider in self.providers.items():
                 await provider.populate(session)
             output = await self._default_factory(session, cursor.position)
@@ -101,5 +101,5 @@ class CompositeValueProvider(
             if not self.is_transient():
                 await cursor.append(session, self._output)
 
-    async def on_populate(self, session: ISession) -> None:
+    async def do_populate(self, session: ISession) -> None:
         pass

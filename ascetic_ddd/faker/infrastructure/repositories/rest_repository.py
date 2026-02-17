@@ -12,7 +12,9 @@ from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
 from ascetic_ddd.faker.infrastructure.utils.dataclasses import IDataclass
-from ascetic_ddd.observable.observable import Observable
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.signals.signal import AsyncSignal
+from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 
 __all__ = ('RestRepository',)
 
@@ -20,17 +22,28 @@ __all__ = ('RestRepository',)
 T = typing.TypeVar("T", bound=IDataclass)
 
 
-class RestRepository(Observable, typing.Generic[T]):
+class RestRepository(typing.Generic[T]):
     _extract_request = staticmethod(extract_request)
     _base_url: str
     _path: str
     _id_attr: str | None
+    _on_inserted: IAsyncSignal[AggregateInsertedEvent[T]]
+    _on_updated: IAsyncSignal[AggregateUpdatedEvent[T]]
 
     def __init__(self, base_url: str, path: str | None = None):
-        super().__init__()
+        self._on_inserted = AsyncSignal[AggregateInsertedEvent[T]]()
+        self._on_updated = AsyncSignal[AggregateUpdatedEvent[T]]()
         self._base_url = base_url
         if path is not None:
             self._path = path
+
+    @property
+    def on_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[T]]:
+        return self._on_inserted
+
+    @property
+    def on_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[T]]:
+        return self._on_updated
 
     async def do_prepare_request(self, session: ISession, url: str):
         pass
@@ -44,7 +57,7 @@ class RestRepository(Observable, typing.Generic[T]):
         response = await self._extract_request(session).post(url, data=params)
         await self.do_handle_insert_response(agg, session, response)
         await self._set_pk(agg, response)
-        await self.anotify('inserted', session, agg)
+        await self._on_inserted.notify(AggregateInsertedEvent(session, agg))
 
     async def do_handle_insert_response(self, session: ISession, agg: T, response):
         pass

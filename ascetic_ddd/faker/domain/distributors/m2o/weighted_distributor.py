@@ -236,7 +236,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
         if value not in self._indexes[self._default_spec]:
             self._indexes[self._default_spec].append(value)
             # Prevent double notification, self._delegate._append() will be called from Cursor.
-            # await self.on_value_appended.notify(ValueAppendedEvent(session, value, position))
+            # await self.on_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
         await self._append(session, value, None)
@@ -252,8 +252,8 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
             self._provider_name = value
 
     @property
-    def on_value_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._delegate.on_value_appended
+    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
+        return self._delegate.on_appended
 
     async def setup(self, session: ISession):
         pass

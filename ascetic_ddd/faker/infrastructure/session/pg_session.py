@@ -3,20 +3,17 @@ import typing
 from ascetic_ddd.faker.infrastructure.session import IInternalPgSession, IExternalPgSession
 from ascetic_ddd.session.interfaces import IAsyncConnection, ISession
 from ascetic_ddd.session.identity_map import IdentityMap
-from ascetic_ddd.session.pg_session import PgSession, PgSessionPool, PgSavepointSession, extract_connection
-from ascetic_ddd.session.pg_session import PgTransactionSession
+from ascetic_ddd.session.pg_session import PgSession, PgSessionPool, PgAtomicSession, extract_connection
 
 __all__ = (
     'extract_internal_connection',
     'extract_external_connection',
     'InternalPgSessionPool',
     'InternalPgSession',
-    'InternalPgTransactionSession',
-    'InternalPgSavepointSession',
+    'InternalPgAtomicSession',
     'ExternalPgSessionPool',
     'ExternalPgSession',
-    'ExternalPgTransactionSession',
-    'ExternalPgSavepointSession',
+    'ExternalPgAtomicSession',
 )
 
 
@@ -43,19 +40,15 @@ class InternalPgSessionPool(PgSessionPool):
 class InternalPgSession(PgSession):
     internal_connection = PgSession.connection
 
-    def _make_transaction_session(self, connection):
-        return InternalPgTransactionSession(connection, IdentityMap(), self)
+    def _make_atomic_session(self, connection):
+        return InternalPgAtomicSession(connection, IdentityMap(), self)
 
 
-class InternalPgTransactionSession(PgTransactionSession):
+class InternalPgAtomicSession(PgAtomicSession):
     internal_connection = PgSession.connection
 
-    def _make_savepoint_session(self, connection):
-        return InternalPgSavepointSession(connection, self._identity_map, self)
-
-
-class InternalPgSavepointSession(PgSavepointSession):
-    internal_connection = PgSession.connection
+    def _make_atomic_session(self, connection):
+        return InternalPgAtomicSession(connection, self._identity_map, self)
 
 
 class ExternalPgSessionPool(PgSessionPool):
@@ -67,16 +60,12 @@ class ExternalPgSessionPool(PgSessionPool):
 class ExternalPgSession(PgSession):
     external_connection = PgSession.connection
 
-    def _make_transaction_session(self, connection):
-        return ExternalPgTransactionSession(connection, IdentityMap(), self)
+    def _make_atomic_session(self, connection):
+        return ExternalPgAtomicSession(connection, IdentityMap(), self)
 
 
-class ExternalPgTransactionSession(PgTransactionSession):
+class ExternalPgAtomicSession(PgAtomicSession):
     external_connection = PgSession.connection
 
-    def _make_savepoint_session(self, connection):
-        return ExternalPgTransactionSession(connection, self._identity_map, self)
-
-
-class ExternalPgSavepointSession(PgSavepointSession):
-    external_connection = PgSession.connection
+    def _make_atomic_session(self, connection):
+        return ExternalPgAtomicSession(connection, self._identity_map, self)

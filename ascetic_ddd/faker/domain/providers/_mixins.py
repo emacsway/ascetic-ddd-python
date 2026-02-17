@@ -17,7 +17,7 @@ from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty, Empty
 from ascetic_ddd.signals.interfaces import ISyncSignal
 from ascetic_ddd.signals.signal import SyncSignal
-from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, InputSetEvent
+from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, InputPopulatedEvent
 
 __all__ = (
     'NameableMixin',
@@ -66,10 +66,10 @@ class CloneableMixin(ICloneable):
 
     def __init__(self):
         super().__init__()
-        self.on_init()
+        self.do_init()
         self._do_init()
 
-    def on_init(self):
+    def do_init(self):
         """User defined hook method."""
         pass
 
@@ -77,7 +77,7 @@ class CloneableMixin(ICloneable):
         """
         Library purpose template method.
 
-        Do not force the user to call the super().on_init().
+        Do not force the user to call the super().do_init().
         """
         pass
 
@@ -87,14 +87,14 @@ class CloneableMixin(ICloneable):
         if self in shunt:
             return shunt[self]
         c = copy.copy(self)
-        self.on_clone(c, shunt)
+        self.do_clone(c, shunt)
         self._do_clone(c, shunt)
-        c.on_init()
+        c.do_init()
         c._do_init()
         shunt[self] = c
         return c
 
-    def on_clone(self, clone: typing.Self, shunt: ICloningShunt):
+    def do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         """User defined hook method."""
         pass
 
@@ -102,7 +102,7 @@ class CloneableMixin(ICloneable):
         """
         Library purpose template method.
 
-        Do not force the user to call the super().on_clone().
+        Do not force the user to call the super().do_clone().
         """
         pass
 
@@ -118,21 +118,21 @@ class BaseProvider(
     _input: InputT | Empty = empty
     _output: OutputT | Empty = empty
     _is_transient: bool = False
-    _on_criteria_required: ISyncSignal[CriteriaRequiredEvent]
-    _on_input_set: ISyncSignal[InputSetEvent[InputT]]
+    _on_required: ISyncSignal[CriteriaRequiredEvent]
+    _on_populated: ISyncSignal[InputPopulatedEvent[InputT]]
 
     def _do_init(self):
-        self._on_criteria_required = SyncSignal[CriteriaRequiredEvent]()
-        self._on_input_set = SyncSignal[InputSetEvent[InputT]]()
+        self._on_required = SyncSignal[CriteriaRequiredEvent]()
+        self._on_populated = SyncSignal[InputPopulatedEvent[InputT]]()
         super()._do_init()
 
     @property
-    def on_criteria_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
-        return self._on_criteria_required
+    def on_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+        return self._on_required
 
     @property
-    def on_input_set(self) -> ISyncSignal[InputSetEvent[InputT]]:
-        return self._on_input_set
+    def on_populated(self) -> ISyncSignal[InputPopulatedEvent[InputT]]:
+        return self._on_populated
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
@@ -158,7 +158,7 @@ class BaseProvider(
         if self._criteria != old_criteria:
             self._input = empty
             self._output = empty
-            self._on_criteria_required.notify(CriteriaRequiredEvent(new_criteria))
+            self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
     def state(self) -> InputT:
         """Return current query as dict format."""
@@ -174,7 +174,7 @@ class BaseProvider(
         self._input = input_
         if input_ is not None:
             self._is_transient = False
-        self._on_input_set.notify(InputSetEvent(self._input))
+        self._on_populated.notify(InputPopulatedEvent(self._input))
 
     def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         clone._criteria = None
@@ -239,21 +239,21 @@ class BaseCompositeProvider(
     _output: OutputT | Empty = empty
     _output_factory: typing.Callable[..., OutputT] = None  # OutputT of each nested Provider.
     _provider_name: str | None = None
-    _on_criteria_required: ISyncSignal[CriteriaRequiredEvent]
-    _on_input_set: ISyncSignal[InputSetEvent]
+    _on_required: ISyncSignal[CriteriaRequiredEvent]
+    _on_populated: ISyncSignal[InputPopulatedEvent]
 
     def _do_init(self):
-        self._on_criteria_required = SyncSignal[CriteriaRequiredEvent]()
-        self._on_input_set = SyncSignal[InputSetEvent]()
+        self._on_required = SyncSignal[CriteriaRequiredEvent]()
+        self._on_populated = SyncSignal[InputPopulatedEvent]()
         super()._do_init()
 
     @property
-    def on_criteria_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
-        return self._on_criteria_required
+    def on_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+        return self._on_required
 
     @property
-    def on_input_set(self) -> ISyncSignal[InputSetEvent]:
-        return self._on_input_set
+    def on_populated(self) -> ISyncSignal[InputPopulatedEvent]:
+        return self._on_populated
 
     def __init__(
             self,
@@ -292,7 +292,7 @@ class BaseCompositeProvider(
         if self._criteria != old_criteria:
             self._output = empty
             self._distribute_criteria(new_criteria)
-            self._on_criteria_required.notify(CriteriaRequiredEvent(new_criteria))
+            self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
     def _distribute_criteria(self, query: IQueryOperator) -> None:
         """
@@ -320,7 +320,7 @@ class BaseCompositeProvider(
                     f"Provider '{self.provider_name}': has no nested provider '{attr}'"
                 )
             provider.require({'$eq': val})
-        self._on_input_set.notify(InputSetEvent(input_))
+        self._on_populated.notify(InputPopulatedEvent(input_))
 
     def state(self) -> InputT:
         """Return current query as dict format, composed from nested providers."""

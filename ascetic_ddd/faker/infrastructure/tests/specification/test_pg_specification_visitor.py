@@ -78,7 +78,7 @@ class StubDistributor(IM2ODistributor):
         self._appended = []
         self._provider_name = None
         from ascetic_ddd.signals.signal import AsyncSignal
-        self._on_value_appended = AsyncSignal[ValueAppendedEvent]()
+        self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session: ISession, specification: ISpecification = None):
         if self._raise_cursor or self._index >= len(self._values):
@@ -111,8 +111,8 @@ class StubDistributor(IM2ODistributor):
         pass
 
     @property
-    def on_value_appended(self):
-        return self._on_value_appended
+    def on_appended(self):
+        return self._on_appended
 
     def __copy__(self):
         return self
@@ -128,8 +128,8 @@ class StubRepository(IAggregateRepository):
         from ascetic_ddd.signals.signal import AsyncSignal
         self._table = table
         self._storage = {}
-        self._on_aggregate_inserted = AsyncSignal[AggregateInsertedEvent]()
-        self._on_aggregate_updated = AsyncSignal[AggregateUpdatedEvent]()
+        self._on_inserted = AsyncSignal[AggregateInsertedEvent]()
+        self._on_updated = AsyncSignal[AggregateUpdatedEvent]()
 
     @property
     def table(self) -> str:
@@ -154,12 +154,12 @@ class StubRepository(IAggregateRepository):
         pass
 
     @property
-    def on_aggregate_inserted(self):
-        return self._on_aggregate_inserted
+    def on_inserted(self):
+        return self._on_inserted
 
     @property
-    def on_aggregate_updated(self):
-        return self._on_aggregate_updated
+    def on_updated(self):
+        return self._on_updated
 
 
 # =============================================================================
