@@ -36,7 +36,7 @@ class IAggregateProviderAccessor(ISetupable, typing.Generic[AggProviderT], metac
         raise NotImplementedError
 
     @abstractmethod
-    def reset(self):
+    def reset(self, visited: set | None = None):
         raise NotImplementedError
 
     @abstractmethod
@@ -180,9 +180,9 @@ class ReferenceProvider(
         clone._aggregate_provider_accessor = self._aggregate_provider_accessor.clone(shunt)
         super()._do_clone(clone, shunt)
 
-    def reset(self) -> None:
-        super().reset()
-        self._aggregate_provider_accessor.reset()
+    def _do_reset(self, visited: set) -> None:
+        self._aggregate_provider_accessor.reset(visited)
+        super()._do_reset(visited)
 
     async def setup(self, session: ISession):
         await super().setup(session)
@@ -230,13 +230,13 @@ class SubscriptionAggregateProviderAccessor(
 
         return aggregate_provider
 
+    def reset(self, visited: set | None = None):
+        self._delegate.reset(visited)
+
     def clone(self, shunt: ICloningShunt | None = None):
         # We do not it for recursion tree
         # Subscription between distributors is one-time, since they are not cloned.
         return self._delegate.clone(shunt)
-
-    def reset(self):
-        self._delegate.reset()
 
     async def setup(self, session: ISession):
         await self._delegate.setup(session)
@@ -255,11 +255,11 @@ class AggregateProviderAccessor(IAggregateProviderAccessor[AggProviderT], typing
     def __call__(self) -> AggProviderT:
         return self._aggregate_provider
 
+    def reset(self, visited: set | None = None):
+        self._aggregate_provider.reset(visited)
+
     def clone(self, shunt: ICloningShunt | None = None):
         return AggregateProviderAccessor(self._aggregate_provider.clone(shunt))
-
-    def reset(self):
-        self._aggregate_provider.reset()
 
     async def setup(self, session: ISession):
         await self._aggregate_provider.setup(session)
@@ -280,11 +280,11 @@ class LazyAggregateProviderAccessor(IAggregateProviderAccessor[AggProviderT], ty
             self._aggregate_provider = self._aggregate_provider_factory()
         return self._aggregate_provider
 
+    def reset(self, visited: set | None = None):
+        self._aggregate_provider = None
+
     def clone(self, shunt: ICloningShunt | None = None):
         return LazyAggregateProviderAccessor(self._aggregate_provider_factory)
-
-    def reset(self):
-        self._aggregate_provider = None
 
     async def setup(self, session: ISession):
         if self._aggregate_provider is not None:

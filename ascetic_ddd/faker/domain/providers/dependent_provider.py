@@ -5,13 +5,13 @@ from collections.abc import Callable
 from ascetic_ddd.faker.domain.distributors.o2m.interfaces import IO2MDistributor
 from ascetic_ddd.faker.domain.distributors.o2m.weighted_range_distributor import WeightedRangeDistributor
 from ascetic_ddd.faker.domain.providers._mixins import (
-    NameableMixin, CloneableMixin
+    NameableMixin, LifecycleAbleMixin
 )
 from ascetic_ddd.signals.interfaces import ISyncSignal
 from ascetic_ddd.signals.signal import SyncSignal
 from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, InputPopulatedEvent
 from ascetic_ddd.faker.domain.providers.interfaces import (
-    IDependentProvider, IEntityProvider, ICloningShunt, ISetupable
+    IDependentProvider, ICloningShunt, ISetupable
 )
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty, Empty
@@ -39,7 +39,7 @@ class IAggregateProvidersAccessor(ISetupable, typing.Generic[AggProviderT], meta
         raise NotImplementedError
 
     @abstractmethod
-    def reset(self):
+    def reset(self, visited: set | None = None):
         raise NotImplementedError
 
     @abstractmethod
@@ -49,7 +49,7 @@ class IAggregateProvidersAccessor(ISetupable, typing.Generic[AggProviderT], meta
 
 class DependentProvider(
     NameableMixin,
-    CloneableMixin,
+    LifecycleAbleMixin,
     IDependentProvider[InputT, OutputT, AggProviderT],
     typing.Generic[InputT, OutputT, AggProviderT]
 ):
@@ -89,20 +89,6 @@ class DependentProvider(
     _dependency_field: str | None = None
     _dependency_id: typing.Any = None
 
-    def _do_init(self):
-        self._on_required = SyncSignal[CriteriaRequiredEvent]()
-        self._on_populated = SyncSignal[InputPopulatedEvent]()
-        super()._do_init()
-
-    @property
-    def on_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
-        return self._on_required
-
-    @property
-    def on_populated(self) -> ISyncSignal[InputPopulatedEvent]:
-        # DependentProvider doesn't use input signal, but interface requires it
-        return self._on_populated
-
     def __init__(
             self,
             distributor: IO2MDistributor,
@@ -120,6 +106,26 @@ class DependentProvider(
         self._distributor = distributor
         self._dependency_field = dependency_field
         self.aggregate_providers = aggregate_provider
+
+    def _do_init(self):
+        self._criteria = None
+        self._outputs = empty
+        self._count = None
+        self._weights = None
+        self._value_selector = None
+        self._dependency_id = None
+        self._on_required = SyncSignal[CriteriaRequiredEvent]()
+        self._on_populated = SyncSignal[InputPopulatedEvent]()
+        super()._do_init()
+
+    @property
+    def on_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+        return self._on_required
+
+    @property
+    def on_populated(self) -> ISyncSignal[InputPopulatedEvent]:
+        # DependentProvider doesn't use input signal, but interface requires it
+        return self._on_populated
 
     def set_dependency_id(self, dependency_id: typing.Any) -> None:
         """Set dependency's ID to be used for related_field in dependents."""
@@ -280,23 +286,12 @@ class DependentProvider(
         self._aggregate_providers_accessor = accessor
 
     def _do_clone(self, clone: typing.Self, shunt: ICloningShunt | None = None):
-        clone._criteria = None
-        clone._outputs = empty
-        clone._count = None
-        clone._weights = None
-        clone._value_selector = None
-        clone._dependency_id = None
         clone._aggregate_providers_accessor = self._aggregate_providers_accessor.clone(shunt)
         super()._do_clone(clone, shunt)
 
-    def reset(self) -> None:
-        self._criteria = None
-        self._outputs = empty
-        self._count = None
-        self._weights = None
-        self._value_selector = None
-        self._dependency_id = None
-        self._aggregate_providers_accessor.reset()
+    def _do_reset(self, visited: set) -> None:
+        self._aggregate_providers_accessor.reset(visited)
+        super()._do_reset(visited)
 
     async def setup(self, session: ISession):
         await self._aggregate_providers_accessor.setup(session)
@@ -327,7 +322,7 @@ class EagerAggregateProvidersAccessor(IAggregateProvidersAccessor[AggProviderT],
     def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
         return EagerAggregateProvidersAccessor(self._template_provider.clone(shunt))
 
-    def reset(self):
+    def reset(self, visited: set | None = None):
         self._providers = []
 
     async def setup(self, session: ISession):
@@ -369,7 +364,7 @@ class LazyAggregateProvidersAccessor(IAggregateProvidersAccessor[AggProviderT], 
     def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
         return LazyAggregateProvidersAccessor(self._template_provider_factory)
 
-    def reset(self):
+    def reset(self, visited: set | None = None):
         self._template_provider = None
         self._providers = []
 

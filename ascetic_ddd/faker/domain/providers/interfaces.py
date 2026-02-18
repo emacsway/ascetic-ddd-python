@@ -16,7 +16,7 @@ from ascetic_ddd.faker.domain.providers.events import (
 __all__ = (
     'INameable',
     'ICloningShunt',
-    'ICloneable',
+    'ILifecycleAble',
     'ISetupable',
     'IProvidable',
     'IInputOutput',
@@ -65,7 +65,11 @@ class ICloningShunt(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-class ICloneable(metaclass=ABCMeta):
+class ILifecycleAble(metaclass=ABCMeta):
+
+    @abstractmethod
+    def reset(self, visited: set | None = None) -> None:
+        raise NotImplementedError
 
     @abstractmethod
     def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
@@ -85,10 +89,6 @@ class ISetupable(metaclass=ABCMeta):
 
 
 class IProvidable(metaclass=ABCMeta):
-
-    @abstractmethod
-    def reset(self) -> None:
-        raise NotImplementedError
 
     @abstractmethod
     async def populate(self, session: ISession) -> None:
@@ -132,7 +132,7 @@ class IInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
 
 class IValueProvider(
-    IInputOutput[InputT, OutputT], IProvidable, INameable, ICloneable,
+    IInputOutput[InputT, OutputT], IProvidable, INameable, ILifecycleAble,
     ISetupable, typing.Generic[InputT, OutputT], metaclass=ABCMeta
 ):
     pass
@@ -254,7 +254,7 @@ class IDependentInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
 
 class IDependentProvider(
-    IDependentInputOutput[InputT, OutputT], IProvidable, INameable, ICloneable,
+    IDependentInputOutput[InputT, OutputT], IProvidable, INameable, ILifecycleAble,
     ISetupable, typing.Generic[InputT, OutputT, AggProviderT], metaclass=ABCMeta
 ):
 

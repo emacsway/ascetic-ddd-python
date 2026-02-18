@@ -119,10 +119,6 @@ class DistributionDistributor(IO2MDistributor):
         # Return a non-negative integer
         return max(0, round(normalized))
 
-    def reset(self) -> None:
-        """For compatibility. Stateless -- does nothing."""
-        pass
-
     @classmethod
     def exponential(cls, target_mean: float = 50.0) -> 'DistributionDistributor':
         """

@@ -18,12 +18,12 @@ class RelativeValueProvider(
 ):
     _scope: typing.Hashable = frozenset()
 
+    def _do_init(self) -> None:
+        self._scope = frozenset()
+        super()._do_init()
+
     def set_scope(self, scope: typing.Hashable) -> None:
         self._scope = scope
-
-    def reset(self) -> None:
-        self._scope = frozenset()
-        super().reset()
 
     def _make_specification(self) -> ISpecification | None:
         return ScopeSpecification(self._scope)
