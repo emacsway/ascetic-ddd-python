@@ -7,6 +7,8 @@ allowing PgQueryCompiler to resolve field names to SQL table info.
 import typing
 from abc import ABCMeta, abstractmethod
 
+from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
+
 __all__ = ('IRelationResolver', 'ProviderRelationResolver')
 
 
@@ -40,8 +42,6 @@ class ProviderRelationResolver(IRelationResolver):
         self._aggregate_provider_accessor = aggregate_provider_accessor
 
     def resolve(self, field: str) -> RelationInfo | None:
-        from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
-
         aggregate_provider = self._aggregate_provider_accessor()
         provider = aggregate_provider.providers.get(field)
 

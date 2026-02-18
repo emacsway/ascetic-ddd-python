@@ -6,6 +6,7 @@ import typing
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, EqOperator, RelOperator, CompositeQuery
 )
+from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecificationVisitor, ISpecification
 from ascetic_ddd.session.interfaces import ISession
 
@@ -127,7 +128,6 @@ class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
             provider: typing.Any
     ) -> bool:
         """Match a single field, doing nested lookup if provider is IReferenceProvider."""
-        from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
 
         if isinstance(field_op, EqOperator):
             return field_value == field_op.value

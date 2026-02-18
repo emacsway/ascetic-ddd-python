@@ -7,7 +7,7 @@ from ascetic_ddd.faker.domain.providers.interfaces import IValueProvider
 from ascetic_ddd.faker.domain.query.operators import EqOperator
 from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
-from ascetic_ddd.faker.domain.specification import QueryLookupSpecification
+from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification

@@ -1,16 +1,19 @@
 import functools
 import logging
+import math
+import random
 import uuid
 import dataclasses
 from collections import Counter
 from unittest import IsolatedAsyncioTestCase
 
-from ascetic_ddd.faker.infrastructure.tests.db import make_internal_pg_session_pool
-from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factory
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
+from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factory
+from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import estimate_skew, weights_to_skew
 from ascetic_ddd.faker.domain.query.parser import QueryParser
 from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
 from ascetic_ddd.faker.domain.values.empty import Empty, empty
+from ascetic_ddd.faker.infrastructure.tests.db import make_internal_pg_session_pool
 from ascetic_ddd.session.interfaces import ISession
 
 # logging.basicConfig(level="DEBUG")
@@ -234,7 +237,7 @@ class SkewIndexSelectIdxTestCase(IsolatedAsyncioTestCase):
 
     def _simulate_select_idx(self, n: int, skew: float, samples: int = 100000) -> list[int]:
         """Simulates SkewIndex._select_idx()"""
-        import random
+
         results = []
         for _ in range(samples):
             idx = int(n * (1 - random.random()) ** skew)
@@ -322,7 +325,7 @@ class EstimateSkewTestCase(IsolatedAsyncioTestCase):
 
     def _generate_skew_data(self, n: int, skew: float, samples: int) -> dict[int, int]:
         """Generates data with known skew for verifying estimate_skew."""
-        import random
+
         counter = Counter()
         for _ in range(samples):
             u = random.random()
@@ -341,7 +344,7 @@ class EstimateSkewTestCase(IsolatedAsyncioTestCase):
         - Zipf: freq(rank) ∝ rank^(-alpha)
         - Comparing: -alpha = 1/skew - 1 -> skew = 1/(1-alpha)
         """
-        from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import estimate_skew
+
 
         test_cases = [
             # (skew, allowed error)
@@ -367,7 +370,7 @@ class EstimateSkewTestCase(IsolatedAsyncioTestCase):
 
     async def test_estimate_skew_uniform(self):
         """For a uniform distribution skew is approximately 1.0."""
-        from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import estimate_skew
+
 
         data = self._generate_skew_data(1000, 1.0, 100000)
         estimated_skew, _ = estimate_skew(data)
@@ -376,7 +379,7 @@ class EstimateSkewTestCase(IsolatedAsyncioTestCase):
 
     async def test_estimate_skew_edge_cases(self):
         """Edge cases."""
-        from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import estimate_skew
+
 
         # Empty dict
         skew, r2 = estimate_skew({})
@@ -402,7 +405,7 @@ class WeightsToSkewTestCase(IsolatedAsyncioTestCase):
 
     def _simulate_weights(self, n_partitions: int, skew: float, samples: int = 100000) -> list[float]:
         """Simulates SkewDistributor and returns partition weights."""
-        import random
+
         partition_size = 1.0 / n_partitions
         counts = [0] * n_partitions
 
@@ -421,7 +424,7 @@ class WeightsToSkewTestCase(IsolatedAsyncioTestCase):
         Formula: P(first partition) = (1/k)^(1/skew) = weights[0]
         Solving: skew = log(1/k) / log(weights[0])
         """
-        from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import weights_to_skew
+
 
         test_weights = [
             [0.7, 0.2, 0.07, 0.03],
@@ -442,7 +445,7 @@ class WeightsToSkewTestCase(IsolatedAsyncioTestCase):
 
     async def test_weights_to_skew_uniform(self):
         """Uniform weights lead to skew = 1.0."""
-        from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import weights_to_skew
+
 
         skew = weights_to_skew([0.25, 0.25, 0.25, 0.25])
         self.assertAlmostEqual(skew, 1.0, delta=0.01)
@@ -453,7 +456,7 @@ class WeightsToSkewTestCase(IsolatedAsyncioTestCase):
 
     async def test_weights_to_skew_edge_cases(self):
         """Edge cases."""
-        from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import weights_to_skew
+
 
         # Empty list
         self.assertEqual(weights_to_skew([]), 1.0)
@@ -467,8 +470,8 @@ class WeightsToSkewTestCase(IsolatedAsyncioTestCase):
 
     async def test_weights_to_skew_known_values(self):
         """Verification of known skew values."""
-        from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import weights_to_skew
-        import math
+
+
 
         # For 4 partitions: P(first) = (1/4)^(1/skew)
         # skew=2: P = 0.25^0.5 = 0.5

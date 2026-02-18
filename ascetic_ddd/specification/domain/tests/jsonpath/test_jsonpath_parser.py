@@ -12,7 +12,7 @@ from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import (
     JSONPathTypeError,
 )
 from ascetic_ddd.specification.domain.evaluate_visitor import CollectionContext
-from ascetic_ddd.specification.domain.nodes import And, Or, Equal, Not, GreaterThan
+from ascetic_ddd.specification.domain.nodes import And, Or, Equal, Not, GreaterThan, GlobalScope, Object
 
 
 class DictContext:
@@ -923,7 +923,7 @@ class TestHelperMethods(unittest.TestCase):
 
     def test_build_object_chain_empty(self):
         """Test building object chain with empty list."""
-        from ascetic_ddd.specification.domain.nodes import GlobalScope
+
 
         spec = NativeParametrizedSpecification("$[?@.x > 1]")
         parent = GlobalScope()
@@ -934,7 +934,7 @@ class TestHelperMethods(unittest.TestCase):
 
     def test_build_object_chain_single(self):
         """Test building object chain with single name."""
-        from ascetic_ddd.specification.domain.nodes import GlobalScope, Object
+
 
         spec = NativeParametrizedSpecification("$[?@.x > 1]")
         parent = GlobalScope()
@@ -945,7 +945,7 @@ class TestHelperMethods(unittest.TestCase):
 
     def test_build_object_chain_multiple(self):
         """Test building object chain with multiple names."""
-        from ascetic_ddd.specification.domain.nodes import GlobalScope, Object
+
 
         spec = NativeParametrizedSpecification("$[?@.x > 1]")
         parent = GlobalScope()

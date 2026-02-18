@@ -6,6 +6,7 @@ similar to ProviderRelationResolver in relation_resolver.py.
 """
 import typing
 
+from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
 from ascetic_ddd.faker.domain.query.evaluate_visitor import IObjectResolver
 
 __all__ = ('ProviderObjectResolver',)
@@ -25,8 +26,6 @@ class ProviderObjectResolver(IObjectResolver):
             field: str,
             fk_value: typing.Any
     ) -> tuple[dict | None, 'IObjectResolver | None']:
-        from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
-
         aggregate_provider = self._aggregate_provider_accessor()
         provider = aggregate_provider.providers.get(field)
 

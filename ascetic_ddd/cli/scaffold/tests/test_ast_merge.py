@@ -1,12 +1,13 @@
 import ast
 import unittest
 
+from ascetic_ddd.cli.scaffold.ast_merge import merge_modules
+
 
 class TestMergeModules(unittest.TestCase):
     """Tests for ast_merge.merge_modules."""
 
     def _merge(self, existing_src, generated_src):
-        from ascetic_ddd.cli.scaffold.ast_merge import merge_modules
         existing = ast.parse(existing_src)
         generated = ast.parse(generated_src)
         merge_modules(existing, generated)

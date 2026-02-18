@@ -13,6 +13,7 @@ from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.infrastructure.specification.pg_specification_visitor import PgSpecificationVisitor
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
+from ascetic_ddd.signals.signal import AsyncSignal
 
 
 # =============================================================================
@@ -77,7 +78,7 @@ class StubDistributor(IM2ODistributor):
         self._raise_cursor = raise_cursor
         self._appended = []
         self._provider_name = None
-        from ascetic_ddd.signals.signal import AsyncSignal
+
         self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session: ISession, specification: ISpecification = None):
@@ -125,7 +126,7 @@ class StubRepository(IAggregateRepository):
     """Stub repository with table property for testing."""
 
     def __init__(self, table: str = "test_table"):
-        from ascetic_ddd.signals.signal import AsyncSignal
+
         self._table = table
         self._storage = {}
         self._on_inserted = AsyncSignal[AggregateInsertedEvent]()

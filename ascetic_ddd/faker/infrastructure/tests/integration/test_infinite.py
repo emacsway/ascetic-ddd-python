@@ -35,6 +35,7 @@ from ascetic_ddd.faker.infrastructure.repositories import (
     CompositeAutoPkRepository as CompositeRepository
 )
 from ascetic_ddd.session.composite_session import CompositeSessionPool
+from ascetic_ddd.faker.domain.utils.stats import Collector
 from ascetic_ddd.session.events import SessionScopeStartedEvent, SessionScopeEndedEvent
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.signals.signal import AsyncSignal
@@ -71,7 +72,7 @@ class StubSession:
 
     @property
     def stats(self):
-        from ascetic_ddd.faker.domain.utils.stats import Collector
+
         return Collector()
 
 
@@ -110,7 +111,7 @@ class StubSessionPool:
 
     @property
     def stats(self):
-        from ascetic_ddd.faker.domain.utils.stats import Collector
+
         return Collector()
 
 

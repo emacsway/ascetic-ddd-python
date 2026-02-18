@@ -5,9 +5,12 @@ import threading
 import unittest
 from typing import Any
 
+from jsonpath2.path import Path
+
 from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import (
     parse,
     ParametrizedSpecificationJsonPath2,
+    _ConvertContext,
 )
 from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import (
     JSONPathTypeError,
@@ -634,8 +637,7 @@ class TestOperatorAssociativity(unittest.TestCase):
 
     def _get_ast(self, spec, data, params):
         """Helper to get the AST from a spec by triggering match()."""
-        from jsonpath2.path import Path
-        from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import _ConvertContext
+
 
         path = Path.parse_str(spec._processed_template)
         ctx = _ConvertContext(
@@ -717,8 +719,7 @@ class TestOperatorPrecedence(unittest.TestCase):
 
     def _get_ast(self, spec, params):
         """Helper to get the AST from a spec."""
-        from jsonpath2.path import Path
-        from ascetic_ddd.specification.domain.jsonpath.jsonpath2_parser import _ConvertContext
+
 
         path = Path.parse_str(spec._processed_template)
         ctx = _ConvertContext(

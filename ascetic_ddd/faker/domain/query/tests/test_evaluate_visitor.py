@@ -1,8 +1,15 @@
 """Tests for EvaluateWalker."""
 import dataclasses
 import typing
+import unittest
 from unittest import IsolatedAsyncioTestCase
 
+from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
+from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
+from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
+from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.faker.domain.query.evaluate_visitor import (
     EvaluateWalker, EvaluateVisitor, IObjectResolver
 )
@@ -11,7 +18,10 @@ from ascetic_ddd.faker.domain.query.operators import (
     OrOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.domain.query.parser import QueryParser
-from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
+from ascetic_ddd.faker.infrastructure.query.object_resolver import ProviderObjectResolver
+from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
+from ascetic_ddd.session.interfaces import ISession
+from ascetic_ddd.signals.signal import AsyncSignal
 
 
 # =============================================================================
@@ -594,14 +604,6 @@ class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
     """
 
     def setUp(self):
-        from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
-        from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
-        from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
-        from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
-        from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
-        from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
-        from ascetic_ddd.faker.infrastructure.query.object_resolver import ProviderObjectResolver
-        from ascetic_ddd.session.interfaces import ISession
 
         class StubDistributor(IM2ODistributor):
             def __init__(self, values=None, raise_cursor=False):
@@ -610,7 +612,7 @@ class EvaluateWalkerSociableTestCase(IsolatedAsyncioTestCase):
                 self._raise_cursor = raise_cursor
                 self._appended = []
                 self._provider_name = None
-                from ascetic_ddd.signals.signal import AsyncSignal
+
                 self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
             async def next(self, session, specification=None):
@@ -1225,14 +1227,6 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
     """
 
     def setUp(self):
-        from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
-        from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
-        from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
-        from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
-        from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
-        from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
-        from ascetic_ddd.faker.infrastructure.query.object_resolver import ProviderObjectResolver
-        from ascetic_ddd.session.interfaces import ISession
 
         class StubDistributor(IM2ODistributor):
             def __init__(self, values=None, raise_cursor=False):
@@ -1241,7 +1235,7 @@ class EvaluateVisitorSociableTestCase(IsolatedAsyncioTestCase):
                 self._raise_cursor = raise_cursor
                 self._appended = []
                 self._provider_name = None
-                from ascetic_ddd.signals.signal import AsyncSignal
+
                 self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
             async def next(self, session, specification=None):
@@ -1663,5 +1657,4 @@ class EvaluateWalkerSyncBasicTestCase(IsolatedAsyncioTestCase):
 
 
 if __name__ == '__main__':
-    import unittest
     unittest.main()
