@@ -6,6 +6,7 @@ except ImportError:
     class Client:  # type: ignore[no-redef]
         pass
 
+from ascetic_ddd.session.events import RequestEndedEvent, SessionScopeEndedEvent
 
 __all__ = ("RestStatsdObserver", "make_statsd_client")
 
@@ -23,16 +24,16 @@ class RestStatsdObserver:
     def __init__(self, client: Client):
         self._client = client
 
-    async def request_ended(self, aspect, request_view, **kwargs):
+    async def request_ended(self, event: RequestEndedEvent):
         """
         https://gr1n.github.io/aiodogstatsd/usage/
         """
-        self._client.timing(request_view.label, value=request_view.response_time.total_seconds())
+        self._client.timing(event.request_view.label, value=event.request_view.response_time.total_seconds())
         self._client.increment(
-            request_view.label + "." + str(request_view.status)
+            event.request_view.label + "." + str(event.request_view.status)
         )
 
-    async def session_ended(self, aspect, session, **kwargs):
+    async def session_ended(self, event: SessionScopeEndedEvent):
         pass
         # client = self._client
         # await client.close()

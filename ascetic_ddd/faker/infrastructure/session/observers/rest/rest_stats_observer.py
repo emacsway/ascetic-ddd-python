@@ -1,5 +1,6 @@
 
 from ascetic_ddd.faker.domain.utils.stats import Collector
+from ascetic_ddd.session.events import RequestEndedEvent
 
 __all__ = ("RestStatsObserver",)
 
@@ -14,5 +15,5 @@ class RestStatsObserver:
     def stats(self) -> Collector:
         return self._stats
 
-    async def request_ended(self, aspect, request_view, **kwargs):
-        self.stats.append("%s.%s" % (request_view.label, str(request_view.status)), request_view.response_time)
+    async def request_ended(self, event: RequestEndedEvent):
+        self.stats.append("%s.%s" % (event.request_view.label, str(event.request_view.status)), event.request_view.response_time)
