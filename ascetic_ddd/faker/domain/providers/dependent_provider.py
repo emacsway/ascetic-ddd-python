@@ -9,7 +9,7 @@ from ascetic_ddd.faker.domain.providers._mixins import (
 )
 from ascetic_ddd.signals.interfaces import ISyncSignal
 from ascetic_ddd.signals.signal import SyncSignal
-from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, InputPopulatedEvent
+from ascetic_ddd.faker.domain.providers.events import DependentCriteriaRequiredEvent, InputPopulatedEvent
 from ascetic_ddd.faker.domain.providers.interfaces import (
     IDependentProvider, ICloningShunt, ISetupable
 )
@@ -114,12 +114,12 @@ class DependentProvider(
         self._weights = None
         self._value_selector = None
         self._dependency_id = None
-        self._on_required = SyncSignal[CriteriaRequiredEvent]()
+        self._on_required = SyncSignal[DependentCriteriaRequiredEvent]()
         self._on_populated = SyncSignal[InputPopulatedEvent]()
         super()._do_init()
 
     @property
-    def on_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+    def on_required(self) -> ISyncSignal[DependentCriteriaRequiredEvent]:
         return self._on_required
 
     @property
@@ -238,7 +238,7 @@ class DependentProvider(
                 self._value_selector = None
                 self._count = len(criteria) if criteria else None
 
-            self._on_required.notify(CriteriaRequiredEvent(self._criteria))
+            self._on_required.notify(DependentCriteriaRequiredEvent(self._criteria, self._weights))
 
     def state(self) -> list[InputT]:
         """

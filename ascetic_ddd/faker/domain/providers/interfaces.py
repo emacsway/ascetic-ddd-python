@@ -8,6 +8,7 @@ from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.signals.interfaces import ISyncSignal, IAsyncSignal
 from ascetic_ddd.faker.domain.providers.events import (
     CriteriaRequiredEvent,
+    DependentCriteriaRequiredEvent,
     InputPopulatedEvent,
     AggregateInsertedEvent,
     AggregateUpdatedEvent,
@@ -240,7 +241,7 @@ class IDependentInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def on_required(self) -> ISyncSignal[CriteriaRequiredEvent]:
+    def on_required(self) -> ISyncSignal[DependentCriteriaRequiredEvent]:
         raise NotImplementedError
 
     @property

@@ -29,5 +29,11 @@ class CriteriaRequiredEvent:
 
 
 @dataclasses.dataclass(frozen=True)
+class DependentCriteriaRequiredEvent:
+    criteria: list[dict]
+    weights: list[float] | None = None
+
+
+@dataclasses.dataclass(frozen=True)
 class InputPopulatedEvent(typing.Generic[T]):
     input: T
