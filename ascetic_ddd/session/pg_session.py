@@ -173,23 +173,24 @@ class AsyncCursorStatsDecorator:
         prepare: bool | None = None,
         binary: bool | None = None,
     ):
-        await self._session().on_query_started.notify(
+        session = self._session()
+        await session.on_query_started.notify(
             QueryStartedEvent(
                 query=query,
                 params=params,
                 sender=self,
-                session=self._session,
+                session=session,
             )
         )
         time_start = perf_counter()
         await self._delegate.execute(query, params, prepare=prepare, binary=binary)
         response_time = perf_counter() - time_start
-        await self._session().on_query_ended.notify(
+        await session.on_query_ended.notify(
             QueryEndedEvent(
                 query=query,
                 params=params,
                 sender=self,
-                session=self._session,
+                session=session,
                 response_time=response_time,
             )
         )

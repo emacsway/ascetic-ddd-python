@@ -1,4 +1,3 @@
-import dataclasses
 import typing
 import socket
 import aiohttp
@@ -14,6 +13,7 @@ from ascetic_ddd.session.events import (
     SessionScopeEndedEvent,
     RequestStartedEvent,
     RequestEndedEvent,
+    RequestViewModel,
 )
 from ascetic_ddd.session.interfaces import ISession, IRestSession
 
@@ -73,16 +73,6 @@ class RestSession:
     _on_request_started: IAsyncSignal[RequestStartedEvent]
     _on_request_ended: IAsyncSignal[RequestEndedEvent]
 
-    @dataclasses.dataclass(kw_only=True)
-    class RequestViewModel:
-        time_start: float
-        label: str
-        status: int | None
-        response_time: float | None
-
-        def __str__(self):
-            return self.label + "." + str(self.status)
-
     def __init__(self, client_session: ClientSession | None = None, parent: typing.Optional["RestSession"] = None):
         self._parent = parent
         self._on_started = AsyncSignal[SessionScopeStartedEvent]()
@@ -119,7 +109,7 @@ class RestSession:
             "host": params.url.host,
             "path": params.url.path,
         }
-        context._request_view = self.RequestViewModel(
+        context._request_view = RequestViewModel(
             time_start=perf_counter(),  # asyncio.get_event_loop().time()
             label=prefix % data,
             status=None,
