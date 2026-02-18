@@ -35,6 +35,9 @@ from ascetic_ddd.faker.infrastructure.repositories import (
     CompositeAutoPkRepository as CompositeRepository
 )
 from ascetic_ddd.session.composite_session import CompositeSessionPool
+from ascetic_ddd.session.events import SessionScopeStartedEvent, SessionScopeEndedEvent
+from ascetic_ddd.signals.interfaces import IAsyncSignal
+from ascetic_ddd.signals.signal import AsyncSignal
 from ascetic_ddd.utils.tests.mock_server import get_free_port, start_mock_server
 
 # logging.basicConfig(level="INFO")
@@ -48,6 +51,16 @@ class StubSession:
 
     def __init__(self, parent=None):
         self._parent = parent
+        self._on_started = AsyncSignal[SessionScopeStartedEvent]()
+        self._on_ended = AsyncSignal[SessionScopeEndedEvent]()
+
+    @property
+    def on_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
+        return self._on_started
+
+    @property
+    def on_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
+        return self._on_ended
 
     def atomic(self):
         return StubTransactionContext(self)
@@ -76,6 +89,18 @@ class StubTransactionContext:
 class StubSessionPool:
     """Simple stub session pool for in-memory testing."""
 
+    def __init__(self):
+        self._on_session_started = AsyncSignal[SessionScopeStartedEvent]()
+        self._on_session_ended = AsyncSignal[SessionScopeEndedEvent]()
+
+    @property
+    def on_session_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
+        return self._on_session_started
+
+    @property
+    def on_session_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
+        return self._on_session_ended
+
     def session(self):
         return StubSessionContext()
 
@@ -87,18 +112,6 @@ class StubSessionPool:
     def stats(self):
         from ascetic_ddd.faker.domain.utils.stats import Collector
         return Collector()
-
-    def attach(self, aspect, observer, id_=None):
-        pass
-
-    def detach(self, aspect, observer, id_=None):
-        pass
-
-    def notify(self, aspect, *args, **kwargs):
-        pass
-
-    async def anotify(self, aspect, *args, **kwargs):
-        pass
 
 
 class StubSessionContext:
