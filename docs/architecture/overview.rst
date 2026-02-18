@@ -12,7 +12,7 @@ The ``ascetic_ddd.seedwork`` package provides foundational abstractions:
 
 - **Domain primitives**: :term:`Aggregate`, :term:`Entity`, :term:`Value Object`, identity
 - **Session management**: Unit of Work pattern with PostgreSQL support
-- **Observable**: Observer pattern for domain events
+- **Signals**: Typed Signal pattern (``ISyncSignal``/``IAsyncSignal``) for domain events
 - **Repository**: Base repository interfaces and PostgreSQL implementation
 
 Application Modules
@@ -43,7 +43,7 @@ Package Structure
    +-- saga/              # Saga orchestration
    +-- event_bus/         # In-process event bus
    +-- mediator/          # Command/query mediator
-   +-- observable/        # Observer pattern
+   +-- signals/           # Typed Signal pattern
    +-- session/           # Session/UoW management
    +-- batch/             # Batch processing utilities
    +-- faker/             # Test data generation framework

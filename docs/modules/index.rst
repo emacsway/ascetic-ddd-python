@@ -16,7 +16,7 @@ Detailed documentation for each module in the ascetic-ddd package.
    inbox/index
    saga/index
    session/index
-   observable/index
+   signals/index
    mediator/index
    event-bus/index
    batch/index
