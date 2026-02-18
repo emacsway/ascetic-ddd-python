@@ -40,7 +40,7 @@ class SyncCompositeSignal(ISyncSignal[EventT], typing.Generic[EventT]):
 
     def __copy__(self):
         c = copy.copy(super())
-        c._delegates = tuple()
+        c._delegates = tuple(copy.copy(i) for i in self._delegates)
         return c
 
 
@@ -71,5 +71,5 @@ class AsyncCompositeSignal(IAsyncSignal[EventT], typing.Generic[EventT]):
 
     def __copy__(self):
         c = copy.copy(super())
-        c._delegates = tuple()
+        c._delegates = tuple(copy.copy(i) for i in self._delegates)
         return c
