@@ -26,6 +26,16 @@ __all__ = (
 T = typing.TypeVar("T")
 
 
+class _SupportsRangeOps(typing.Protocol):
+    def __sub__(self, __other: typing.Any) -> typing.Any: ...
+    def __add__(self, __other: typing.Any) -> typing.Any: ...
+    def __le__(self, __other: typing.Any) -> bool: ...
+    def __lt__(self, __other: typing.Any) -> bool: ...
+
+
+_RangeT = typing.TypeVar("_RangeT", bound=_SupportsRangeOps)
+
+
 def prepare_input_generator(input_generator):
     if input_generator is not None:
         if isinstance(input_generator, strategies.SearchStrategy):
@@ -121,14 +131,15 @@ class SequenceGenerator(typing.Generic[T]):
         return self._op(self._lower, self._delta * position)
 
 
-class RangeGenerator(typing.Generic[T]):
+class RangeGenerator(typing.Generic[_RangeT]):
 
-    def __init__(self, lower: T, upper: T):
+    def __init__(self, lower: _RangeT, upper: _RangeT):
         self._lower = lower
         self._upper = upper
         self._range = upper - lower
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> T:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> _RangeT:
+        assert position is not None
         degree = 1 if position < 2 else math.ceil(math.log2(position))
         base = 2 ** degree
         value = self._lower + self._range * (position % base) / base
@@ -147,12 +158,12 @@ class RequiredGenerator(typing.Generic[T]):
         return await self._delegate(session, query, position)
 
 
-class TemplateGenerator(typing.Generic[T]):
+class TemplateGenerator:
 
-    def __init__(self, delegate: IInputGenerator[typing.Any], template: T):
-        assert isinstance(template, str) and "%s" in template
+    def __init__(self, delegate: IInputGenerator[typing.Any], template: str):
+        assert "%s" in template
         self._template = template
         self._delegate = delegate
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> T:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> str:
         return self._template % (await self._delegate(session, query, position),)
