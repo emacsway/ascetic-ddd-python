@@ -19,7 +19,7 @@ class IInputGenerator(typing.Protocol[InputT]):
     Accepts session, query (the current provider query) and an optional position (sequence number).
     """
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int | None = None) -> InputT:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> InputT:
         ...
 
 

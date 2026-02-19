@@ -38,7 +38,7 @@ class IM2ODistributor(typing.Generic[T], metaclass=ABCMeta):
         """
         Returns next value from distribution.
         Raises ICursor(num) when mean is reached, signaling caller to create new value.
-        num is sequence position (for SequenceDistributor) or None.
+        num is sequence position (for SequenceDistributor) or -1 (not set).
         """
         raise NotImplementedError
 

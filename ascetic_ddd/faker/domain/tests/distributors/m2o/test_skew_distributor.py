@@ -127,7 +127,7 @@ class DefaultKeySkewDistributorTestCase(_BaseSkewDistributorTestCase):
     async def test_default_key(self):
         val = 0
 
-        async def factory(_session: ISession, _position: int | None = None):
+        async def factory(_session: ISession, _position: int = -1):
             nonlocal val
             res = val
             val += 1

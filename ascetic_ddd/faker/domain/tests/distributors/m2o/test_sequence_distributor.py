@@ -15,7 +15,7 @@ class SequenceDistributorTestCase(IsolatedAsyncioTestCase):
     distributor_factory = staticmethod(distributor_factory)
 
     @staticmethod
-    async def value_factory(session: ISession, position: int | None = None):
+    async def value_factory(session: ISession, position: int = -1):
         return datetime.datetime(2025, 4, 15, tzinfo=tz.tzutc()) + datetime.timedelta(hours=1) * position
 
     async def _make_session_pool(self):

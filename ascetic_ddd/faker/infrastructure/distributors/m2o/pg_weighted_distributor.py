@@ -90,7 +90,7 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
                 value = await self._delegate.next(session)
             except Cursor as cursor:
                 raise Cursor(
-                    position=None,
+                    position=-1,
                     callback=self._append,
                     delegate=cursor
                 )
@@ -100,7 +100,7 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
     async def _get_next_value(self, session: ISession, specification: ISpecification[T]) -> tuple[T | None, bool]:
         raise NotImplementedError
 
-    async def _append(self, session: ISession, value: T, position: int | None):
+    async def _append(self, session: ISession, value: T, position: int):
         if self._external_source:
             return
         sql = """
@@ -117,7 +117,7 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
         # await self.on_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
-        await self._append(session, value, None)
+        await self._append(session, value, -1)
         await self._delegate.append(session, value)
 
     @property

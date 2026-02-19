@@ -88,11 +88,11 @@ class StubDistributor(IM2ODistributor):
             return value
         raise Cursor(position=self._index, callback=self._append)
 
-    async def _append(self, session, value, position=None):
+    async def _append(self, session, value, position=-1):
         self._values.append(value)
 
     async def append(self, session, value):
-        await self._append(session, value, None)
+        await self._append(session, value, -1)
 
     # Signal properties
     @property

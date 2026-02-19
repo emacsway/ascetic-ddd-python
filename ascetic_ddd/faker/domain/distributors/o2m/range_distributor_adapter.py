@@ -91,7 +91,7 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
 
         return value
 
-    async def _append(self, session: ISession, value: T, position: int | None = None):
+    async def _append(self, session: ISession, value: T, position: int):
         """
         Adds a value to the dictionary.
 
@@ -104,7 +104,7 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
         await self._on_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
-        await self._append(session, value, None)
+        await self._append(session, value, -1)
 
     @property
     def provider_name(self) -> str | None:

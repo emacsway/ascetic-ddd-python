@@ -80,11 +80,11 @@ class PgSequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
             callback=self._append,
         )
 
-    async def _append(self, session: ISession, value: T, position: int | None):
+    async def _append(self, session: ISession, value: T, position: int):
         await self._on_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
-        await self._append(session, value, None)
+        await self._append(session, value, -1)
 
     @property
     def provider_name(self):

@@ -12,4 +12,4 @@ T = typing.TypeVar("T")
 class ValueAppendedEvent(typing.Generic[T]):
     session: ISession
     value: T
-    position: int | None
+    position: int

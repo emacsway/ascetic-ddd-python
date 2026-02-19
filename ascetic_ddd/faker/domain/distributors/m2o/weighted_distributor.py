@@ -194,7 +194,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
                 value = await self._delegate.next(session)
             except Cursor as cursor:
                 raise Cursor(
-                    position=None,
+                    position=-1,
                     callback=self._append,
                     delegate=cursor
                 )
@@ -230,7 +230,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
             if await spec.is_satisfied_by(session, value):
                 index.insert_at_relative_position(value, relative_position)
 
-    async def _append(self, session: ISession, value: T, position: int | None):
+    async def _append(self, session: ISession, value: T, position: int):
         if self._external_source:
             return
         if value not in self._indexes[self._default_spec]:
@@ -239,7 +239,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
             # await self.on_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
-        await self._append(session, value, None)
+        await self._append(session, value, -1)
         await self._delegate.append(session, value)
 
     @property

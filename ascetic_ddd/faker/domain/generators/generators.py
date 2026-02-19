@@ -56,7 +56,7 @@ class IterableGenerator(typing.Generic[T]):
         self._source = values
         self._values = iter(self._source)
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> T:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> T:
         try:
             return next(self._values)
         except StopIteration as e:
@@ -74,7 +74,7 @@ class HypothesisStrategyGenerator(typing.Generic[T]):
     def __init__(self, strategy: strategies.SearchStrategy[T]):
         self._strategy = strategy
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> T:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> T:
         return self._strategy.example()
 
 
@@ -93,7 +93,7 @@ class CallableGenerator(typing.Generic[T]):
             asyncio.iscoroutinefunction(getattr(callable_, '__call__', None))
         )
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> T:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> T:
         if self._num_params == 0:
             result = self._callable()
         elif self._num_params == 1:
@@ -114,7 +114,7 @@ class CountableGenerator(typing.Generic[T]):
         self._pid = os.getpid()
         self._base = base
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> T:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> T:
         result = "%s_%s_%s" % (self._base, os.getpid(), ++self._count)
         self._count += 1
         return result
@@ -127,7 +127,7 @@ class SequenceGenerator(typing.Generic[T]):
         self._delta = delta
         self._op = operator.add
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> T:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> T:
         return self._op(self._lower, self._delta * position)
 
 
@@ -138,8 +138,8 @@ class RangeGenerator(typing.Generic[_RangeT]):
         self._upper = upper
         self._range = upper - lower
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> _RangeT:
-        assert position is not None
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> _RangeT:
+        assert position >= 0
         degree = 1 if position < 2 else math.ceil(math.log2(position))
         base = 2 ** degree
         value = self._lower + self._range * (position % base) / base
@@ -152,7 +152,7 @@ class RequiredGenerator(typing.Generic[T]):
     def __init__(self, delegate: IInputGenerator[T]):
         self._delegate = delegate
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> T:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> T:
         if isinstance(query, EqOperator):
             return query.value
         return await self._delegate(session, query, position)
@@ -165,5 +165,5 @@ class TemplateGenerator:
         self._template = template
         self._delegate = delegate
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: typing.Optional[int] = None) -> str:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> str:
         return self._template % (await self._delegate(session, query, position),)

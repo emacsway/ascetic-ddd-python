@@ -13,14 +13,14 @@ class Cursor(ICursor, typing.Generic[T]):
     Interested decorators should catch the Cursor and create their own if they need to add an object to themselves.
     For example, if WeightedDistributor is used as a decorator for SequenceDistributor.
     """
-    _position: int | None
-    _callback: typing.Callable[[ISession, T, int | None], typing.Awaitable[None]]
+    _position: int
+    _callback: typing.Callable[[ISession, T, int], typing.Awaitable[None]]
     _delegate: ICursor | None = None
 
     def __init__(
             self,
-            position: int | None,
-            callback: typing.Callable[[ISession, T, int | None], typing.Awaitable[None]],
+            position: int,
+            callback: typing.Callable[[ISession, T, int], typing.Awaitable[None]],
             delegate: ICursor | None = None
     ):
         self._position = position
@@ -28,12 +28,12 @@ class Cursor(ICursor, typing.Generic[T]):
         self._delegate = delegate
 
     @property
-    def position(self) -> int | None:
-        if self._position is not None:
+    def position(self) -> int:
+        if self._position >= 0:
             return self._position
         if self._delegate is not None:
             return self._delegate.position
-        return None
+        return -1
 
     async def append(self, session: ISession, value: T):
         await self._callback(session, value, self._position)

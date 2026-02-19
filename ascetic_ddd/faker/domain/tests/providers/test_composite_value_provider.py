@@ -72,12 +72,12 @@ class StubDistributor(IM2ODistributor):
             return value
         raise Cursor(position=self._index, callback=self._append)
 
-    async def _append(self, session: ISession, value, position: int | None):
+    async def _append(self, session: ISession, value, position: int):
         self._appended.append((value, position))
         self._values.append(value)
 
     async def append(self, session: ISession, value):
-        await self._append(session, value, None)
+        await self._append(session, value, -1)
 
     # Signal properties
     @property
@@ -117,15 +117,15 @@ class MockSession:
 # Value Generators
 # =============================================================================
 
-async def tenant_id_generator(session: ISession, query=None, position: int | None = None) -> int:
+async def tenant_id_generator(session: ISession, query=None, position: int = -1) -> int:
     return position if position is not None else 1
 
 
-async def internal_user_id_generator(session: ISession, query=None, position: int | None = None) -> int:
+async def internal_user_id_generator(session: ISession, query=None, position: int = -1) -> int:
     return (position if position is not None else 1) + 100
 
 
-async def internal_resume_id_generator(session: ISession, query=None, position: int | None = None) -> int:
+async def internal_resume_id_generator(session: ISession, query=None, position: int = -1) -> int:
     return (position if position is not None else 1) + 1000
 
 
