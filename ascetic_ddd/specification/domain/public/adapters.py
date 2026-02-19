@@ -50,6 +50,9 @@ class Logical(Delegating, ILogical):
     def __or__(self, other: ILogical) -> ILogical:
         return Logical(nodes.Or(self.delegate(), other.delegate()))
 
+    def __invert__(self) -> ILogical:
+        return Logical(nodes.Not(self.delegate()))
+
     def is_(self, other: ILogical) -> ILogical:
         return Logical(nodes.Is(self.delegate(), other.delegate()))
 

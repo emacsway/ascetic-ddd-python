@@ -34,6 +34,9 @@ class ILogical(IDelegating, typing.Protocol):
     def __or__(self, other: 'ILogical') -> 'ILogical':
         ...
 
+    def __invert__(self) -> 'ILogical':
+        ...
+
     def is_(self, other: 'ILogical') -> 'ILogical':
         ...
 
