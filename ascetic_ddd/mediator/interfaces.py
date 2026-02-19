@@ -67,7 +67,6 @@ class IMediator(typing.Generic[SessionT], metaclass=ABCMeta):
             self,
             event_type: type[EventT],
             handler: IEventHandler[SessionT, EventT],
-            weak: bool = False
     ) -> IDisposable:
         raise NotImplementedError
 

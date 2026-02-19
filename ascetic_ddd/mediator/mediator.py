@@ -1,6 +1,5 @@
 import collections
 import typing
-from weakref import WeakSet
 
 from ascetic_ddd.mediator.interfaces import IRequestHandler, IEventHandler, IMediator, IPipelineHandler, IRequest
 from ascetic_ddd.disposable.interfaces import IDisposable
@@ -15,8 +14,7 @@ ResultT = typing.TypeVar("ResultT")
 
 class Mediator(IMediator[SessionT], typing.Generic[SessionT]):
     def __init__(self) -> None:
-        self._subscribers: collections.defaultdict[type, WeakSet] = collections.defaultdict(WeakSet)
-        self._weak_cache: set = set()
+        self._subscribers: collections.defaultdict[type, set] = collections.defaultdict(set)
         self._handlers: dict[type, typing.Any] = {}
         self._broadcast_pipelines: list = []
         self._pipelines: collections.defaultdict[type, list] = collections.defaultdict(list)
@@ -49,11 +47,8 @@ class Mediator(IMediator[SessionT], typing.Generic[SessionT]):
             self,
             event_type: type[EventT],
             handler: IEventHandler[SessionT, EventT],
-            weak: bool = False
     ) -> IDisposable:
         self._subscribers[event_type].add(handler)
-        if not weak:
-            self._weak_cache.add(handler)
 
         async def callback():
             await self.unsubscribe(event_type, handler)
@@ -62,7 +57,6 @@ class Mediator(IMediator[SessionT], typing.Generic[SessionT]):
 
     async def unsubscribe(self, event_type: type[EventT], handler: IEventHandler[SessionT, EventT]) -> None:
         self._subscribers[event_type].discard(handler)
-        self._weak_cache.discard(handler)
 
     async def add_pipeline(
             self,
