@@ -9,6 +9,9 @@ class CausalDependencyExporter(ICausalDependencyExporter):
     def __init__(self) -> None:
         self.data = {}
 
+    def set_tenant_id(self, value: typing.Any) -> None:
+        self.data["tenant_id"] = value
+
     def set_stream_id(self, value: typing.Any) -> None:
         self.data["aggregate_id"] = value
 
