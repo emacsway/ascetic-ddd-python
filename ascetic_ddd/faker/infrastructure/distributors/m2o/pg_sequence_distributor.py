@@ -136,7 +136,8 @@ class PgSequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
                     LANGUAGE plpgsql
                     AS $$
                 begin
-                    execute format('CREATE SEQUENCE IF NOT EXISTS %%s MINVALUE 0', NEW.sequence_name);
+                    -- Must start with 0 to be consistent with SequenceDistributor
+                    execute format('CREATE SEQUENCE IF NOT EXISTS %%s MINVALUE 0 START WITH 0', NEW.sequence_name);
                     return NEW;
                 end
                 $$;
