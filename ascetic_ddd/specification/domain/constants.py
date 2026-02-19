@@ -1,4 +1,5 @@
 import operator
+import typing
 from enum import Enum
 
 __all__ = ('OPERATOR', 'ASSOCIATIVITY', 'OPERATOR_MAPPING',)
@@ -56,7 +57,7 @@ class ASSOCIATIVITY(str, Enum):
     NON_ASSOCIATIVE = "NON"
 
 
-OPERATOR_MAPPING = {
+OPERATOR_MAPPING: dict[OPERATOR, typing.Callable[..., typing.Any]] = {
     OPERATOR.EQ: operator.eq,
     OPERATOR.NE: operator.ne,
     OPERATOR.GT: operator.gt,
