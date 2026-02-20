@@ -1,4 +1,5 @@
 """PostgreSQL visitor for generating SQL from specification AST."""
+import inflection
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ascetic_ddd.specification.domain.nodes import (
@@ -334,20 +335,11 @@ class PostgresqlVisitor(Visitor):
         """
         Extract the collection name for alias generation.
 
-        e.g., "Items" -> "item", "Categories" -> "category"
+        e.g., "Items" -> "Item", "Categories" -> "Category"
         """
         parent = node.parent()
         if not parent.is_root():
-            name = parent.name()
-            # Simple singularization: remove trailing 's' if present
-            if len(name) > 1 and name.endswith(("s", "S")):
-                # Handle common cases: Items -> item, Categories -> category
-                if name.lower().endswith("ies"):
-                    # Categories -> category
-                    return name[:-3] + "y"
-                # Items -> item, Regions -> region
-                return name[:-1]
-            return name
+            return inflection.singularize(parent.name())
         return "item"  # fallback
 
     def _is_item_reference(self, obj: EmptiableObject) -> bool:
