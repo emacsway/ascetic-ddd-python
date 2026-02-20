@@ -139,7 +139,15 @@ class PgSession:
                 )
 
     def _make_atomic_session(self, connection: IAsyncConnection[tuple[typing.Any, ...]]) -> IPgSession:
-        return PgAtomicSession(connection, IdentityMap(), self)
+        identity_map = IdentityMap()
+        atomic_session = PgAtomicSession(connection, identity_map, self)
+
+        async def clear_identity_map(event: SessionScopeEndedEvent):
+            identity_map.clear()
+
+        atomic_session.on_ended.attach(clear_identity_map)
+
+        return atomic_session
 
 
 class PgAtomicSession(PgSession):
