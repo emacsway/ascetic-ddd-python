@@ -1,8 +1,9 @@
 import contextlib
+import typing
 import weakref
 
 from ascetic_ddd.session.exceptions import ObjectNotFound
-from ascetic_ddd.session.interfaces import IIdentityKey, IIdentityMap, IModel
+from ascetic_ddd.session.interfaces import IdentityKey, IIdentityMap
 
 __all__ = ("IdentityMap",)
 
@@ -16,18 +17,18 @@ class CacheLru:
         self._order = []
         self._size = size
 
-    def add(self, value: IModel) -> None:
+    def add(self, value: object) -> None:
         self._order.append(value)
         if len(self._order) > self._size:
             self._order.pop(0)
 
-    def touch(self, value: IModel) -> None:
+    def touch(self, value: object) -> None:
         obj = value
         with contextlib.suppress(ValueError, IndexError):
             obj = self._order.pop(self._order.index(obj))
         self._order.append(obj)
 
-    def remove(self, value: IModel) -> None:
+    def remove(self, value: object) -> None:
         with contextlib.suppress(IndexError):
             self._order.remove(value)
 
@@ -39,30 +40,29 @@ class CacheLru:
 
 
 class IStrategy:
-    def add(self, key: IIdentityKey, value=None) -> None:
+    def add(self, key: IdentityKey, value: object | None = None) -> None:
         raise NotImplementedError
 
-    def get(self, key: IIdentityKey) -> IModel | None:
+    def get(self, key: IdentityKey) -> object:
         raise NotImplementedError
 
-    def has(self, key: IIdentityKey) -> bool:
+    def has(self, key: IdentityKey) -> bool:
         raise NotImplementedError
 
 
 class BaseStrategy(IStrategy):
-    def __init__(self, identity_map) -> None:
-        """:type identity_map: IdentityMap"""
-        self._identity_map = weakref.ref(identity_map)
+    def __init__(self, identity_map: "IdentityMap") -> None:
+        self._identity_map: weakref.ref[IdentityMap] = weakref.ref(identity_map)
 
 
 class ReadUncommittedStrategy(BaseStrategy):
-    def add(self, key: IIdentityKey, value: IModel | None = None) -> None:
+    def add(self, key: IdentityKey, value: object | None = None) -> None:
         pass
 
-    def get(self, key: IIdentityKey) -> IModel | None:
+    def get(self, key: IdentityKey) -> object:
         raise KeyError
 
-    def has(self, key: IIdentityKey) -> bool:
+    def has(self, key: IdentityKey) -> bool:
         return False
 
 
@@ -71,17 +71,17 @@ class ReadCommittedStrategy(ReadUncommittedStrategy):
 
 
 class RepeatableReadsStrategy(BaseStrategy):
-    def add(self, key: IIdentityKey, value: IModel | None = None) -> None:
+    def add(self, key: IdentityKey, value: object | None = None) -> None:
         if value is not None:
             self._identity_map().do_add(key, value)
 
-    def get(self, key: IIdentityKey) -> IModel | None:
+    def get(self, key: IdentityKey) -> object:
         obj = self._identity_map().do_get(key)
         if isinstance(obj, NonexistentObject):
             raise KeyError
         return obj
 
-    def has(self, key: IIdentityKey) -> bool:
+    def has(self, key: IdentityKey) -> bool:
         try:
             obj = self._identity_map().do_get(key)
         except KeyError:
@@ -91,24 +91,27 @@ class RepeatableReadsStrategy(BaseStrategy):
 
 
 class SerializableStrategy(BaseStrategy):
-    def add(self, key: IIdentityKey, value: IModel | None = None) -> None:
+    def add(self, key: IdentityKey, value: object | None = None) -> None:
         if value is None:
             value = NonexistentObject()
         self._identity_map().do_add(key, value)
 
-    def get(self, key: IIdentityKey) -> IModel | None:
+    def get(self, key: IdentityKey) -> object:
         obj = self._identity_map().do_get(key)
         if isinstance(obj, NonexistentObject):
             raise ObjectNotFound
         return obj
 
-    def has(self, key: IIdentityKey) -> bool:
+    def has(self, key: IdentityKey) -> bool:
         try:
             self._identity_map().do_get(key)
         except KeyError:
             return False
         else:
             return True
+
+
+T = typing.TypeVar("T")
 
 
 class IdentityMap(IIdentityMap):
@@ -126,33 +129,33 @@ class IdentityMap(IIdentityMap):
         SERIALIZABLE: SerializableStrategy,
     }
 
-    def __init__(self, cache_size=100, isolation_level=SERIALIZABLE) -> None:
+    def __init__(self, cache_size: int = 100, isolation_level: int = SERIALIZABLE) -> None:
         self._cache = CacheLru(cache_size)
-        self._alive = weakref.WeakValueDictionary()
+        self._alive: weakref.WeakValueDictionary[IdentityKey, object] = weakref.WeakValueDictionary()
         self.set_isolation_level(isolation_level)
 
-    def add(self, key: IIdentityKey, value: IModel | None = None):
-        return self._strategy.add(key, value)
+    def add(self, key: IdentityKey[T], value: T | None = None) -> None:
+        self._strategy.add(key, value)
 
-    def get(self, key: IIdentityKey) -> IModel | None:
-        return self._strategy.get(key)
+    def get(self, key: IdentityKey[T]) -> T:
+        return typing.cast(T, self._strategy.get(key))
 
-    def has(self, key: IIdentityKey) -> bool:
+    def has(self, key: IdentityKey) -> bool:
         return self._strategy.has(key)
 
-    def do_add(self, key: IIdentityKey, value=None) -> None:
+    def do_add(self, key: IdentityKey, value: object | None = None) -> None:
         self._cache.add(value)
         self._alive[key] = value
 
-    def do_get(self, key: IIdentityKey):
+    def do_get(self, key: IdentityKey) -> object:
         value = self._alive[key]
         self._cache.touch(value)
         return value
 
-    def do_has(self, key: IIdentityKey) -> bool:
+    def do_has(self, key: IdentityKey) -> bool:
         return key in self._alive
 
-    def remove(self, key: IIdentityKey) -> None:
+    def remove(self, key: IdentityKey) -> None:
         try:
             obj = self._alive[key]
             self._cache.remove(obj)
@@ -165,5 +168,5 @@ class IdentityMap(IIdentityMap):
         self._cache.clear()
         self._alive.clear()
 
-    def set_isolation_level(self, level):
+    def set_isolation_level(self, level: int) -> None:
         self._strategy = self.STRATEGY_MAP[level](self)

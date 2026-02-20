@@ -2,6 +2,7 @@ import typing
 
 from abc import ABCMeta, abstractmethod
 from collections.abc import Hashable
+from dataclasses import dataclass
 from types import TracebackType
 
 from aiohttp import ClientSession
@@ -24,8 +25,7 @@ __all__ = (
     "ISession",
     "ISessionPool",
     "IIdentityMap",
-    "IIdentityKey",
-    "IModel",
+    "IdentityKey",
     "IPgSession",
     "IRestSession",
 )
@@ -150,25 +150,30 @@ class IAsyncConnectionPool(typing.Protocol[Row]):
         ...
 
 
-IIdentityKey: typing.TypeAlias = Hashable
-IModel: typing.TypeAlias = typing.Any
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class IdentityKey(typing.Generic[T]):
+    entity_type: type[T]
+    entity_id: Hashable
 
 
 class IIdentityMap(metaclass=ABCMeta):
     @abstractmethod
-    def get(self, key: IIdentityKey) -> IModel | None:
+    def get(self, key: IdentityKey[T]) -> T:
         raise NotImplementedError
 
     @abstractmethod
-    def has(self, key: IIdentityKey) -> bool:
+    def has(self, key: IdentityKey[typing.Any]) -> bool:
         raise NotImplementedError
 
     @abstractmethod
-    def add(self, key: IIdentityKey, obj: IModel):
+    def add(self, key: IdentityKey[T], value: T | None = None) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def remove(self, key: IIdentityKey) -> None:
+    def remove(self, key: IdentityKey[typing.Any]) -> None:
         raise NotImplementedError
 
     @abstractmethod
