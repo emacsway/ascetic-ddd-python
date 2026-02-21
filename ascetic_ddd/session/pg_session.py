@@ -88,12 +88,11 @@ class PgSession:
 
     def __init__(
             self,
-            connection: IAsyncConnection[tuple[typing.Any, ...]],
-            parent: typing.Optional["IPgSession"] = None
+            connection: IAsyncConnection[tuple[typing.Any, ...]]
     ):
         # self._connection = connection
         self._connection = AsyncConnectionStatsDecorator(connection, self)
-        self._parent = parent
+        self._parent = None
         self._identity_map = IdentityMap(isolation_level=IdentityMap.READ_UNCOMMITTED)
         self._on_started = AsyncSignal[SessionScopeStartedEvent]()
         self._on_ended = AsyncSignal[SessionScopeEndedEvent]()
@@ -134,20 +133,14 @@ class PgSession:
             try:
                 yield atomic_session
             finally:
+                if self._parent is None:
+                    atomic_session.identity_map.clear()
                 await self._on_ended.notify(
                     SessionScopeEndedEvent(session=atomic_session)
                 )
 
     def _make_atomic_session(self, connection: IAsyncConnection[tuple[typing.Any, ...]]) -> IPgSession:
-        identity_map = IdentityMap()
-        atomic_session = PgAtomicSession(connection, identity_map, self)
-
-        async def clear_identity_map(event: SessionScopeEndedEvent):
-            identity_map.clear()
-
-        atomic_session.on_ended.attach(clear_identity_map)
-
-        return atomic_session
+        return PgAtomicSession(connection, IdentityMap(), self)
 
 
 class PgAtomicSession(PgSession):
@@ -156,10 +149,11 @@ class PgAtomicSession(PgSession):
             self,
             connection: IAsyncConnection[tuple[typing.Any, ...]],
             identity_map: IIdentityMap,
-            parent: typing.Optional["IPgSession"] = None
+            parent: "IPgSession"
     ):
-        super().__init__(connection, parent)
+        super().__init__(connection)
         self._identity_map = identity_map
+        self._parent = parent
 
     def _make_atomic_session(self, connection: IAsyncConnection[tuple[typing.Any, ...]]) -> IPgSession:
         return PgAtomicSession(connection, self._identity_map, self)
