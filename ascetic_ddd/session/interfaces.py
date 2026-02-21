@@ -8,8 +8,14 @@ from types import TracebackType
 from aiohttp import ClientSession
 from typing_extensions import TypeVar
 
-from ascetic_ddd.session.events import SessionScopeStartedEvent, SessionScopeEndedEvent, QueryStartedEvent, \
-    QueryEndedEvent
+from ascetic_ddd.session.events import (
+    SessionScopeStartedEvent,
+    SessionScopeEndedEvent,
+    QueryStartedEvent,
+    QueryEndedEvent,
+    RequestStartedEvent,
+    RequestEndedEvent,
+)
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 
 
@@ -191,4 +197,7 @@ class IPgSession(ISession, typing.Protocol):
 
 @typing.runtime_checkable
 class IRestSession(ISession, typing.Protocol):
+    identity_map: IIdentityMap
     request: ClientSession
+    on_request_started: IAsyncSignal[RequestStartedEvent]
+    on_request_ended: IAsyncSignal[RequestEndedEvent]
