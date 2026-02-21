@@ -74,7 +74,7 @@ class PgSessionPool:
 
     @staticmethod
     def _make_session(connection: IAsyncConnection[tuple[typing.Any, ...]]) -> 'ISession':
-        return PgSession(connection)
+        return PgSession(connection, IdentityMap(isolation_level=IdentityMap.READ_UNCOMMITTED))
 
 
 class PgSession:
@@ -88,12 +88,13 @@ class PgSession:
 
     def __init__(
             self,
-            connection: IAsyncConnection[tuple[typing.Any, ...]]
+            connection: IAsyncConnection[tuple[typing.Any, ...]],
+            identity_map: IIdentityMap
     ):
         # self._connection = connection
         self._connection = AsyncConnectionStatsDecorator(connection, self)
         self._parent = None
-        self._identity_map = IdentityMap(isolation_level=IdentityMap.READ_UNCOMMITTED)
+        self._identity_map = identity_map
         self._on_started = AsyncSignal[SessionScopeStartedEvent]()
         self._on_ended = AsyncSignal[SessionScopeEndedEvent]()
         self._on_query_started = AsyncSignal[QueryStartedEvent]()
@@ -151,8 +152,7 @@ class PgAtomicSession(PgSession):
             identity_map: IIdentityMap,
             parent: "IPgSession"
     ):
-        super().__init__(connection)
-        self._identity_map = identity_map
+        super().__init__(connection, identity_map)
         self._parent = parent
 
     def _make_atomic_session(self, connection: IAsyncConnection[tuple[typing.Any, ...]]) -> IPgSession:
