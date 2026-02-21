@@ -63,13 +63,14 @@ class TortoiseSessionPool:
             try:
                 yield session
             finally:
+                session.identity_map.clear()
                 await self._on_session_ended.notify(
                     SessionScopeEndedEvent(session=session)
                 )
 
     @staticmethod
     def _make_session(client: BaseDBAsyncClient):
-        return TortoiseSession(client)
+        return TortoiseSession(client, IdentityMap())
 
 
 class TortoiseSession:
@@ -82,11 +83,11 @@ class TortoiseSession:
     def __init__(
             self,
             client: BaseDBAsyncClient,
-            parent: typing.Optional["TortoiseSession"] = None
+            identity_map: IIdentityMap
     ):
         self._client = client
-        self._parent = parent
-        self._identity_map = IdentityMap()
+        self._parent = None
+        self._identity_map = identity_map
         self._on_started = AsyncSignal[SessionScopeStartedEvent]()
         self._on_ended = AsyncSignal[SessionScopeEndedEvent]()
         self._on_query_started = AsyncSignal[QueryStartedEvent]()
@@ -144,10 +145,10 @@ class TortoiseAtomicSession(TortoiseSession):
             self,
             client: BaseDBAsyncClient,
             identity_map: IIdentityMap,
-            parent: typing.Optional["TortoiseSession"] = None
+            parent: typing.Optional["TortoiseSession"]
     ):
-        super().__init__(client, parent)
-        self._identity_map = identity_map
+        super().__init__(client, identity_map)
+        self._parent = parent
 
     def _make_atomic_session(self, client):
         return TortoiseAtomicSession(client, self._identity_map, self)
