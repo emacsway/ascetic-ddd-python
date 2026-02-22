@@ -30,8 +30,8 @@ __all__ = (
     "PgSessionPool",
     "PgAtomicSession",
     "extract_connection",
-    "AsyncCursorStatsDecorator",
-    "AsyncConnectionStatsDecorator",
+    "AsyncCursorDecorator",
+    "AsyncConnectionDecorator",
 )
 
 
@@ -92,7 +92,7 @@ class PgSession:
             identity_map: IIdentityMap
     ):
         # self._connection = connection
-        self._connection = AsyncConnectionStatsDecorator(connection, self)
+        self._connection = AsyncConnectionDecorator(connection, self)
         self._parent = None
         self._identity_map = identity_map
         self._on_started = AsyncSignal[SessionScopeStartedEvent]()
@@ -159,7 +159,7 @@ class PgAtomicSession(PgSession):
         return PgAtomicSession(connection, self._identity_map, self)
 
 
-class AsyncCursorStatsDecorator:
+class AsyncCursorDecorator:
     _delegate: IAsyncCursor
     _session: weakref.ReferenceType[IPgSession]
 
@@ -213,7 +213,7 @@ class AsyncCursorStatsDecorator:
         return getattr(self._delegate, name)
 
 
-class AsyncConnectionStatsDecorator:
+class AsyncConnectionDecorator:
     _delegate: IAsyncConnection
     _session: weakref.ReferenceType[IPgSession]
 
@@ -222,7 +222,7 @@ class AsyncConnectionStatsDecorator:
         self._session = weakref.ref(session)
 
     def cursor(self, *a, **kw):
-        return AsyncCursorStatsDecorator(self._delegate.cursor(*a, **kw), self._session())
+        return AsyncCursorDecorator(self._delegate.cursor(*a, **kw), self._session())
 
     async def __aenter__(self):
         return self

@@ -12,7 +12,7 @@ from ascetic_ddd.session.interfaces import (
     IAsyncConnection
 )
 from ascetic_ddd.session.identity_map import IdentityMap
-from ascetic_ddd.session.pg_session import AsyncConnectionStatsDecorator
+from ascetic_ddd.session.pg_session import AsyncConnectionDecorator
 from tortoise.transactions import in_transaction
 from tortoise import BaseDBAsyncClient
 
@@ -95,7 +95,7 @@ class TortoiseSession:
 
     @property
     def connection(self) -> IAsyncConnection[typing.Any]:
-        return AsyncConnectionStatsDecorator(self._client._connection, self)
+        return AsyncConnectionDecorator(self._client._connection, self)
 
     @property
     def client(self) -> BaseDBAsyncClient:
