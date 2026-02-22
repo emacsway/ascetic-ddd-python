@@ -140,7 +140,7 @@ class InternalPgRepository(typing.Generic[T]):
         params = tuple(self._encode(i) if isinstance(i, (list, tuple, dict)) else i for i in visitor.params)
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(sql, params)
-            return [self._deserialize(row[0]) for row in await acursor.fetchone()]
+            return [self._deserialize(row[0]) for row in await acursor.fetchall()]
 
     def _id(self, state: dict) -> typing.Any:
         if self._id_attr is not None:

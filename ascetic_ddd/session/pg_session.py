@@ -161,11 +161,16 @@ class PgAtomicSession(PgSession):
 
 class AsyncCursorDecorator:
     _delegate: IAsyncCursor
-    _session: weakref.ReferenceType[IPgSession]
+    _session_ref: weakref.ReferenceType[IPgSession]
 
     def __init__(self, delegate: IAsyncCursor, session: IPgSession):
         self._delegate = delegate
-        self._session = weakref.ref(session)
+        self._session_ref = weakref.ref(session)
+
+    def _session(self) -> IPgSession:
+        session = self._session_ref()
+        assert session is not None
+        return session
 
     async def execute(
         self,
@@ -215,11 +220,16 @@ class AsyncCursorDecorator:
 
 class AsyncConnectionDecorator:
     _delegate: IAsyncConnection
-    _session: weakref.ReferenceType[IPgSession]
+    _session_ref: weakref.ReferenceType[IPgSession]
 
     def __init__(self, delegate: IAsyncConnection, session: IPgSession):
         self._delegate = delegate
-        self._session = weakref.ref(session)
+        self._session_ref = weakref.ref(session)
+
+    def _session(self) -> IPgSession:
+        session = self._session_ref()
+        assert session is not None
+        return session
 
     def cursor(self, *a, **kw):
         return AsyncCursorDecorator(self._delegate.cursor(*a, **kw), self._session())

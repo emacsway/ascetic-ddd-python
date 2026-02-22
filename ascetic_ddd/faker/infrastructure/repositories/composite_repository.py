@@ -17,7 +17,7 @@ T = typing.TypeVar("T")
 
 class CompositeRepository(typing.Generic[T]):
     _external_repository: IAggregateRepository[T]
-    _internal_repository: IAggregateRepository[T] | IPgExternalSource
+    _internal_repository: IAggregateRepository[T]
 
     def __init__(
             self,

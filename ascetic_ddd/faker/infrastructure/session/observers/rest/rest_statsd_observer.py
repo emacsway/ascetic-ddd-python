@@ -28,7 +28,8 @@ class RestStatsdObserver:
         """
         https://gr1n.github.io/aiodogstatsd/usage/
         """
-        self._client.timing(event.request_view.label, value=event.request_view.response_time.total_seconds())
+        assert event.request_view.response_time is not None
+        self._client.timing(event.request_view.label, value=event.request_view.response_time)
         self._client.increment(
             event.request_view.label + "." + str(event.request_view.status)
         )

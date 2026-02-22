@@ -81,6 +81,17 @@ class PostgresqlVisitor(Visitor):
     - Infix operators (AND, OR, =, <, >, etc.)
     - Collection/Wildcard operators with embedded (unnest) and relational (EXISTS) modes
     """
+    _sql: str
+    _parameters: List[Any]
+    _placeholder_index: int
+    _precedence: int
+    _precedence_mapping: Dict[str, int]
+    # Wildcard context tracking
+    _in_wildcard: bool
+    _wildcard_alias: str
+    _wildcard_counter: int
+    # Schema registry for relational collections
+    _schema: Optional[SchemaRegistry]
 
     def __init__(
         self,
@@ -89,9 +100,9 @@ class PostgresqlVisitor(Visitor):
     ):
         self._sql = ""
         self._placeholder_index = placeholder_index
-        self._parameters: List[Any] = []
+        self._parameters = []
         self._precedence = 0
-        self._precedence_mapping: Dict[str, int] = {}
+        self._precedence_mapping = {}
         self._setup_precedence()
         # Wildcard context tracking
         self._in_wildcard = False
@@ -230,6 +241,7 @@ class PostgresqlVisitor(Visitor):
         collection_name: str
     ) -> None:
         """Generate SQL for collections in separate tables."""
+        assert self._schema is not None
         mapping = self._schema.get(field_name)
         if mapping is None:
             # Fallback to embedded if no mapping found

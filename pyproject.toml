@@ -71,7 +71,6 @@ disable_error_code = [
     "misc",
     "override",
     "return-value",
-    "union-attr",
 ]
 
 [build-system]

@@ -53,8 +53,15 @@ class IStrategy:
 
 
 class BaseStrategy(IStrategy):
+    _identity_map_ref: weakref.ref["IdentityMap"]
+
     def __init__(self, identity_map: "IdentityMap") -> None:
-        self._identity_map: weakref.ref[IdentityMap] = weakref.ref(identity_map)
+        self._identity_map_ref = weakref.ref(identity_map)
+
+    def _identity_map(self) -> "IdentityMap":
+        im = self._identity_map_ref()
+        assert im is not None
+        return im
 
 
 class ReadUncommittedStrategy(BaseStrategy):
@@ -118,6 +125,8 @@ T = typing.TypeVar("T")
 
 class IdentityMap(IIdentityMap):
     _strategy: IStrategy
+    _cache: CacheLru
+    _alive: weakref.WeakValueDictionary[IdentityKey, object]
 
     READ_UNCOMMITTED = 0  # IdentityMap is disabled
     READ_COMMITTED = 1  # IdentityMap is disabled
@@ -133,7 +142,7 @@ class IdentityMap(IIdentityMap):
 
     def __init__(self, cache_size: int = 100, isolation_level: int = SERIALIZABLE) -> None:
         self._cache = CacheLru(cache_size)
-        self._alive: weakref.WeakValueDictionary[IdentityKey, object] = weakref.WeakValueDictionary()
+        self._alive = weakref.WeakValueDictionary()
         self.set_isolation_level(isolation_level)
 
     def add(self, key: IdentityKey[T], value: T | None = None) -> None:
