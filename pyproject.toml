@@ -72,7 +72,6 @@ disable_error_code = [
     "override",
     "return-value",
     "union-attr",
-    "var-annotated",
 ]
 
 [build-system]

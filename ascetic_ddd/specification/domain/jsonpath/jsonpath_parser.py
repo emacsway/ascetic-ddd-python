@@ -152,6 +152,8 @@ class Lexer:
         ("WHITESPACE", re.compile(r"\s+")),
     ]
 
+    tokens: list[Token]
+
     def __init__(self, text: str):
         self.text = text
         self.position = 0

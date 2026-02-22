@@ -28,6 +28,9 @@ class EventInsertQuery(IEventInsertQuery, metaclass=ABCMeta):
         (%s, %s, %s, %s, %s, %s, %s)
     """
 
+    data: dict[str, typing.Any]
+    _metadata: dict[str, typing.Any]
+
     def __init__(self) -> None:
         self.data = {}
         self._params: list[typing.Any] = [None] * 8

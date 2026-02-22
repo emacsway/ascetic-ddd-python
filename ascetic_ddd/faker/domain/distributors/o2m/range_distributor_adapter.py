@@ -216,7 +216,7 @@ class RangeDistributorFactory(IM2ODistributorFactory[T], typing.Generic[T]):
                 self._max_val,
             )
 
-        adapter = RangeDistributorAdapter(range_dist)
+        adapter = RangeDistributorAdapter[T](range_dist)
 
         if null_weight > 0:
             return NullableDistributor(adapter, null_weight=null_weight)

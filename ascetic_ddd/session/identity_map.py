@@ -13,6 +13,8 @@ class NonexistentObject:
 
 
 class CacheLru:
+    _order: list[object]
+
     def __init__(self, size=1000) -> None:
         self._order = []
         self._size = size

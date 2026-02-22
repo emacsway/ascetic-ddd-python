@@ -6,6 +6,8 @@ __all__ = ("TimeRangeExporter",)
 
 
 class TimeRangeExporter(ITimeRangeExporter):
+    data: dict[str, datetime.datetime]
+
     def __init__(self) -> None:
         self.data = {}
 

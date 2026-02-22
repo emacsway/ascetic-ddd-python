@@ -9,6 +9,8 @@ DomainEventT = typing.TypeVar("DomainEventT")
 
 
 class EventiveEntity(IEventiveEntity[DomainEventT], typing.Generic[DomainEventT], metaclass=ABCMeta):
+    __pending_domain_events: list[DomainEventT]
+
     def __init__(self, **kwargs) -> None:
         self.__pending_domain_events = []
         super().__init__(**kwargs)

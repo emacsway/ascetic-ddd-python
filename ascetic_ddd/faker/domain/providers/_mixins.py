@@ -385,7 +385,7 @@ class BaseCompositeProvider(
     @functools.cache
     def _dependent_provider_attrs(cls) -> list[str]:
         """Returns attribute names that are IDependentProvider."""
-        attrs = list()
+        attrs: list[str] = []
         for cls_ in cls.mro():
             if hasattr(cls_, '__annotations__'):
                 for key, type_hint in cls_.__annotations__.items():

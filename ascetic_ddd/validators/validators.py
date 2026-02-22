@@ -17,7 +17,7 @@ class Validator:
 
 
 class Required(Validator):
-    empty_values = (None, '', [])
+    empty_values: tuple[None, str, list[typing.Any]] = (None, '', [])
     msg = "The value is required"
 
     # TODO: accept Session obj and make it async?

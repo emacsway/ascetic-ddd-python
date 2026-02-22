@@ -1,3 +1,5 @@
+import typing
+
 from ascetic_ddd.seedwork.domain.aggregate.event_meta import EventMeta
 from ascetic_ddd.seedwork.domain.aggregate.event_meta_exporter import EventMetaExporter
 from ascetic_ddd.seedwork.domain.aggregate.persistent_domain_event import IPersistentDomainEventExporter
@@ -6,6 +8,8 @@ __all__ = ("PersistentDomainEventExporter",)
 
 
 class PersistentDomainEventExporter(IPersistentDomainEventExporter):
+    data: dict[str, typing.Any]
+
     def __init__(self) -> None:
         self.data = {}
 

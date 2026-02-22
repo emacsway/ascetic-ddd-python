@@ -6,6 +6,8 @@ __all__ = ("GeolocationCoordinatesExporter",)
 
 
 class GeolocationCoordinatesExporter(IGeolocationCoordinatesExporter):
+    data: dict[str, Decimal | None]
+
     def __init__(self) -> None:
         self.data = {}
 

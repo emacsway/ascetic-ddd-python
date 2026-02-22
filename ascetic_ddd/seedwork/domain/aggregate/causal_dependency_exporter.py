@@ -6,6 +6,8 @@ __all__ = ("CausalDependencyExporter",)
 
 
 class CausalDependencyExporter(ICausalDependencyExporter):
+    data: dict[str, typing.Any]
+
     def __init__(self) -> None:
         self.data = {}
 

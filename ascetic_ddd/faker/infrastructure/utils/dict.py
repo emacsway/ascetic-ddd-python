@@ -1,10 +1,11 @@
+import typing
 from collections.abc import MutableMapping
 
 __all__ = ('flatten_dict', 'flatten_dict_gen',)
 
 
 def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str | None = '.') -> MutableMapping:
-    items = []
+    items: list[tuple[str, typing.Any]] = []
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key and sep is not None else k
         if isinstance(v, MutableMapping):
