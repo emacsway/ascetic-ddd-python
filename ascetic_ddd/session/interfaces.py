@@ -41,8 +41,8 @@ __all__ = (
 
 
 class ISession(typing.Protocol):
-    on_started: IAsyncSignal[SessionScopeStartedEvent]
-    on_ended: IAsyncSignal[SessionScopeEndedEvent]
+    on_atomic_started: IAsyncSignal[SessionScopeStartedEvent]
+    on_atomic_ended: IAsyncSignal[SessionScopeEndedEvent]
 
     def atomic(self) -> typing.AsyncContextManager["ISession"]:
         ...

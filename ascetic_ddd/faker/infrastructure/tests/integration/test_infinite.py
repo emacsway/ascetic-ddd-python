@@ -52,16 +52,16 @@ class StubSession:
 
     def __init__(self, parent=None):
         self._parent = parent
-        self._on_started = AsyncSignal[SessionScopeStartedEvent]()
-        self._on_ended = AsyncSignal[SessionScopeEndedEvent]()
+        self._on_atomic_started = AsyncSignal[SessionScopeStartedEvent]()
+        self._on_atomic_ended = AsyncSignal[SessionScopeEndedEvent]()
 
     @property
-    def on_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
-        return self._on_started
+    def on_atomic_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
+        return self._on_atomic_started
 
     @property
-    def on_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
-        return self._on_ended
+    def on_atomic_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
+        return self._on_atomic_ended
 
     def atomic(self):
         return StubTransactionContext(self)

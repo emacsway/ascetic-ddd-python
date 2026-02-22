@@ -49,12 +49,12 @@ class CompositeSession:
         self._parent = parent
 
     @property
-    def on_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
-        return AsyncCompositeSignal(*(i.on_started for i in self._delegates))
+    def on_atomic_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
+        return AsyncCompositeSignal(*(i.on_atomic_started for i in self._delegates))
 
     @property
-    def on_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
-        return AsyncCompositeSignal(*(i.on_ended for i in self._delegates))
+    def on_atomic_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
+        return AsyncCompositeSignal(*(i.on_atomic_ended for i in self._delegates))
 
     @asynccontextmanager
     async def atomic(self):

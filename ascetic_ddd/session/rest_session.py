@@ -72,8 +72,8 @@ class RestSession:
     _client_session: ClientSession
     _parent: typing.Optional["RestSession"]
     _identity_map: IIdentityMap
-    _on_started: IAsyncSignal[SessionScopeStartedEvent]
-    _on_ended: IAsyncSignal[SessionScopeEndedEvent]
+    _on_atomic_started: IAsyncSignal[SessionScopeStartedEvent]
+    _on_atomic_ended: IAsyncSignal[SessionScopeEndedEvent]
     _on_request_started: IAsyncSignal[RequestStartedEvent]
     _on_request_ended: IAsyncSignal[RequestEndedEvent]
 
@@ -86,8 +86,8 @@ class RestSession:
         self._client_session = client_session
         self._parent = None
         self._identity_map = identity_map
-        self._on_started = AsyncSignal[SessionScopeStartedEvent]()
-        self._on_ended = AsyncSignal[SessionScopeEndedEvent]()
+        self._on_atomic_started = AsyncSignal[SessionScopeStartedEvent]()
+        self._on_atomic_ended = AsyncSignal[SessionScopeEndedEvent]()
         self._on_request_started = AsyncSignal[RequestStartedEvent]()
         self._on_request_ended = AsyncSignal[RequestEndedEvent]()
 
@@ -103,12 +103,12 @@ class RestSession:
         return self._identity_map
 
     @property
-    def on_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
-        return self._on_started
+    def on_atomic_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
+        return self._on_atomic_started
 
     @property
-    def on_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
-        return self._on_ended
+    def on_atomic_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
+        return self._on_atomic_ended
 
     @property
     def on_request_started(self) -> IAsyncSignal[RequestStartedEvent]:
@@ -161,7 +161,7 @@ class RestSession:
     async def atomic(self) -> typing.AsyncIterator[ISession]:
         trace_config = self._client_session.trace_configs.pop()
         atomic_session = self._make_atomic_session(self._client_session)
-        await self._on_started.notify(
+        await self._on_atomic_started.notify(
             SessionScopeStartedEvent(session=atomic_session)
         )
         try:
@@ -169,7 +169,7 @@ class RestSession:
         finally:
             if self._parent is None:
                 atomic_session.identity_map.clear()
-            await self._on_ended.notify(
+            await self._on_atomic_ended.notify(
                 SessionScopeEndedEvent(session=atomic_session)
             )
             _ = self._client_session.trace_configs.pop()

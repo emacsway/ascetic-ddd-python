@@ -81,8 +81,8 @@ class PgSession:
     _connection: IAsyncConnection[tuple[typing.Any, ...]]
     _parent: typing.Optional["IPgSession"]
     _identity_map: IIdentityMap
-    _on_started: IAsyncSignal[SessionScopeStartedEvent]
-    _on_ended: IAsyncSignal[SessionScopeEndedEvent]
+    _on_atomic_started: IAsyncSignal[SessionScopeStartedEvent]
+    _on_atomic_ended: IAsyncSignal[SessionScopeEndedEvent]
     _on_query_started: IAsyncSignal[QueryStartedEvent]
     _on_query_ended: IAsyncSignal[QueryEndedEvent]
 
@@ -95,8 +95,8 @@ class PgSession:
         self._connection = AsyncConnectionDecorator(connection, self)
         self._parent = None
         self._identity_map = identity_map
-        self._on_started = AsyncSignal[SessionScopeStartedEvent]()
-        self._on_ended = AsyncSignal[SessionScopeEndedEvent]()
+        self._on_atomic_started = AsyncSignal[SessionScopeStartedEvent]()
+        self._on_atomic_ended = AsyncSignal[SessionScopeEndedEvent]()
         self._on_query_started = AsyncSignal[QueryStartedEvent]()
         self._on_query_ended = AsyncSignal[QueryEndedEvent]()
 
@@ -109,12 +109,12 @@ class PgSession:
         return self._identity_map
 
     @property
-    def on_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
-        return self._on_started
+    def on_atomic_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
+        return self._on_atomic_started
 
     @property
-    def on_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
-        return self._on_ended
+    def on_atomic_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
+        return self._on_atomic_ended
 
     @property
     def on_query_started(self) -> IAsyncSignal[QueryStartedEvent]:
@@ -128,7 +128,7 @@ class PgSession:
     async def atomic(self) -> typing.AsyncIterator[ISession]:
         async with self.connection.transaction() as transaction:
             atomic_session = self._make_atomic_session(transaction.connection)
-            await self._on_started.notify(
+            await self._on_atomic_started.notify(
                 SessionScopeStartedEvent(session=atomic_session)
             )
             try:
@@ -136,7 +136,7 @@ class PgSession:
             finally:
                 if self._parent is None:
                     atomic_session.identity_map.clear()
-                await self._on_ended.notify(
+                await self._on_atomic_ended.notify(
                     SessionScopeEndedEvent(session=atomic_session)
                 )
 
