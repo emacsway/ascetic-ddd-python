@@ -49,20 +49,22 @@ class RestSessionPool:
 
     @asynccontextmanager
     async def session(self) -> typing.AsyncIterator[ISession]:
-        session = self._make_session()
-        await self._on_session_started.notify(
-            SessionScopeStartedEvent(session=session)
-        )
-        try:
-            yield session
-        finally:
-            await self._on_session_ended.notify(
-                SessionScopeEndedEvent(session=session)
+        _client_session = ClientSession()
+        async with _client_session as client_session:
+            session = self._make_session(client_session)
+            await self._on_session_started.notify(
+                SessionScopeStartedEvent(session=session)
             )
+            try:
+                yield session
+            finally:
+                await self._on_session_ended.notify(
+                    SessionScopeEndedEvent(session=session)
+                )
 
     @staticmethod
-    def _make_session():
-        return RestSession()
+    def _make_session(client_session: ClientSession):
+        return RestSession(client_session, IdentityMap(isolation_level=IdentityMap.READ_UNCOMMITTED))
 
 
 class RestSession:
@@ -77,19 +79,24 @@ class RestSession:
 
     def __init__(
             self,
-            client_session: ClientSession | None = None
+            client_session: ClientSession,
+            identity_map: IIdentityMap
     ):
+        self._attach_observers_to_client(client_session)
+        self._client_session = client_session
         self._parent = None
-        self._identity_map = IdentityMap(isolation_level=IdentityMap.READ_UNCOMMITTED)
+        self._identity_map = identity_map
         self._on_started = AsyncSignal[SessionScopeStartedEvent]()
         self._on_ended = AsyncSignal[SessionScopeEndedEvent]()
         self._on_request_started = AsyncSignal[RequestStartedEvent]()
         self._on_request_ended = AsyncSignal[RequestEndedEvent]()
 
+    def _attach_observers_to_client(self, client: ClientSession):
         trace_config = aiohttp.TraceConfig()
         trace_config.on_request_start.append(self._on_request_start)
         trace_config.on_request_end.append(self._on_request_end)
-        self._client_session = client_session or ClientSession(trace_configs=[trace_config])
+        trace_config.freeze()
+        client.trace_configs.append(trace_config)
 
     @property
     def identity_map(self) -> IIdentityMap:
@@ -112,7 +119,7 @@ class RestSession:
         return self._on_request_ended
 
     async def _on_request_start(self, session, context, params):
-        prefix = "performance-testing.%(hostname)s.%(method)s.%(host)s.%(path)s"
+        prefix = "ascetic-ddd.%(hostname)s.%(method)s.%(host)s.%(path)s"
         data = {
             "method": params.method,
             "hostname": _HOST,
@@ -152,19 +159,21 @@ class RestSession:
 
     @asynccontextmanager
     async def atomic(self) -> typing.AsyncIterator[ISession]:
-        async with self._client_session as client_session:
-            atomic_session = self._make_atomic_session(client_session)
-            await self._on_started.notify(
-                SessionScopeStartedEvent(session=atomic_session)
+        trace_config = self._client_session.trace_configs.pop()
+        atomic_session = self._make_atomic_session(self._client_session)
+        await self._on_started.notify(
+            SessionScopeStartedEvent(session=atomic_session)
+        )
+        try:
+            yield atomic_session
+        finally:
+            if self._parent is None:
+                atomic_session.identity_map.clear()
+            await self._on_ended.notify(
+                SessionScopeEndedEvent(session=atomic_session)
             )
-            try:
-                yield atomic_session
-            finally:
-                if self._parent is None:
-                    atomic_session.identity_map.clear()
-                await self._on_ended.notify(
-                    SessionScopeEndedEvent(session=atomic_session)
-                )
+            _ = self._client_session.trace_configs.pop()
+            self._client_session.trace_configs.append(trace_config)
 
     @property
     # def request(self) -> httpx.AsyncClient:
@@ -183,8 +192,7 @@ class RestAtomicSession(RestSession):
             identity_map: IIdentityMap,
             parent: typing.Optional["RestSession"]
     ):
-        super().__init__(client_session)
-        self._identity_map = identity_map
+        super().__init__(client_session, identity_map)
         self._parent = parent
 
     def _make_atomic_session(self, client_session: ClientSession) -> IRestSession:
