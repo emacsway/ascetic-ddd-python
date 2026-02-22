@@ -187,19 +187,5 @@ class RestAtomicSession(RestSession):
         self._identity_map = identity_map
         self._parent = parent
 
-    @asynccontextmanager
-    async def atomic(self) -> typing.AsyncIterator[ISession]:
-        async with self._client_session as client_session:
-            session = self._make_atomic_session(client_session)
-            await self._on_started.notify(
-                SessionScopeStartedEvent(session=session)
-            )
-            try:
-                yield session
-            finally:
-                await self._on_ended.notify(
-                    SessionScopeEndedEvent(session=session)
-                )
-
     def _make_atomic_session(self, client_session: ClientSession) -> IRestSession:
         return RestAtomicSession(client_session, self._identity_map, self)
