@@ -5,11 +5,12 @@ Simplified version of:
 - https://github.com/emacsway/store/blob/devel/polyfill.js#L199
 - https://github.com/emacsway/go-promise
 """
-from typing import Any, Generic, TypeVar
+from typing import Any, Callable, Generic, Iterable, TypeVar
 
-from ascetic_ddd.deferred.interfaces import IDeferred, DeferredCallback
+from ascetic_ddd.deferred.interfaces import IDeferred
 
 T = TypeVar("T")
+R = TypeVar("R")
 
 
 def noop(_: T) -> None:
@@ -17,14 +18,14 @@ def noop(_: T) -> None:
     return None
 
 
-class _Handler(Generic[T]):
+class _Handler(Generic[T, R]):
     """Internal handler for deferred callbacks."""
 
     def __init__(
         self,
-        on_success: DeferredCallback[T],
-        on_error: DeferredCallback[Exception],
-        next_deferred: "Deferred[Any]",
+        on_success: Callable[[T], R],
+        on_error: Callable[[Exception], R],
+        next_deferred: "Deferred[R]",
     ):
         self.on_success = on_success
         self.on_error = on_error
@@ -45,7 +46,7 @@ class Deferred(Generic[T]):
         self._occurred_errors: list[Exception] = []
         self._is_resolved = False
         self._is_rejected = False
-        self._handlers: list[_Handler[T]] = []
+        self._handlers: list[_Handler[T, Any]] = []
 
     def resolve(self, value: T) -> None:
         """
@@ -77,20 +78,22 @@ class Deferred(Generic[T]):
 
     def then(
         self,
-        on_success: DeferredCallback[T],
-        on_error: DeferredCallback[Exception],
-    ) -> IDeferred[Any]:
+        on_success: Callable[[T], R],
+        on_error: Callable[[Exception], R],
+    ) -> "IDeferred[R]":
         """
         Register callbacks for success and error cases.
 
-        Args:
-            on_success: Callback to execute on successful resolution
-            on_error: Callback to execute on rejection
+        Per Promises/A+ 2.2.7:
+        - If on_success returns a value, next deferred is resolved with it.
+        - If on_success raises an exception, next deferred is rejected with it.
+        - If on_error returns a value, next deferred is resolved with it (recovery).
+        - If on_error raises an exception, next deferred is rejected with it.
 
         Returns:
             New Deferred for chaining
         """
-        next_deferred = Deferred[Any]()
+        next_deferred: Deferred[R] = Deferred()
         handler = _Handler(on_success, on_error, next_deferred)
         self._handlers.append(handler)
 
@@ -101,36 +104,33 @@ class Deferred(Generic[T]):
 
         return next_deferred
 
-    def _resolve_handler(self, handler: _Handler[T]) -> None:
+    def _resolve_handler(self, handler: _Handler[T, Any]) -> None:
         """
-        Execute success handler.
+        Execute success handler (Promises/A+ 2.2.7.1-2).
 
-        If handler returns an error, reject the next deferred.
-        Otherwise, resolve the next deferred.
-
-        Args:
-            handler: The handler to execute
+        If handler returns a value, resolve the next deferred with it.
+        If handler raises an exception, reject the next deferred with it.
         """
-        err = handler.on_success(self._value)
-        if err is None:
-            handler.next.resolve(True)
-        else:
-            self._occurred_errors.append(err)
-            handler.next.reject(err)
+        try:
+            result = handler.on_success(self._value)
+            handler.next.resolve(result)
+        except Exception as e:
+            self._occurred_errors.append(e)
+            handler.next.reject(e)
 
-    def _reject_handler(self, handler: _Handler[T]) -> None:
+    def _reject_handler(self, handler: _Handler[T, Any]) -> None:
         """
-        Execute error handler.
+        Execute error handler (Promises/A+ 2.2.7.3-4).
 
-        If handler returns an error, propagate it to the next deferred.
-
-        Args:
-            handler: The handler to execute
+        If handler returns a value, resolve the next deferred with it (recovery).
+        If handler raises an exception, reject the next deferred with it.
         """
-        err = handler.on_error(self._err)
-        if err is not None:
-            self._occurred_errors.append(err)
-            handler.next.reject(err)
+        try:
+            result = handler.on_error(self._err)
+            handler.next.resolve(result)
+        except Exception as e:
+            self._occurred_errors.append(e)
+            handler.next.reject(e)
 
     def occurred_err(self) -> list[Exception]:
         """
@@ -147,3 +147,49 @@ class Deferred(Generic[T]):
             if nested_errors:
                 errors.extend(nested_errors)
         return errors
+
+    @staticmethod
+    def all(deferreds: Iterable['IDeferred[T]']) -> 'Deferred[list[T]]':
+        """
+        Return a Deferred that resolves when all input deferreds resolve.
+
+        Similar to Promise.all in ES6:
+        - Resolves with a list of values (preserving order) when all resolve.
+        - Rejects with the first error when any deferred rejects.
+
+        :param deferreds: iterable of deferreds to wait for
+        :type deferreds: Iterable[IDeferred[T]]
+        :returns: a Deferred that resolves with list[T]
+        :rtype: Deferred[list[T]]
+        """
+        deferreds_list = list(deferreds)
+        result: 'Deferred[list[T]]' = Deferred()
+
+        if not deferreds_list:
+            result.resolve([])
+            return result
+
+        count = len(deferreds_list)
+        values: list[T | None] = [None] * count
+        resolved_count = [0]
+        rejected = [False]
+
+        for i, d in enumerate(deferreds_list):
+            def on_success(value: T, idx: int = i) -> None:
+                if rejected[0]:
+                    return None
+                values[idx] = value
+                resolved_count[0] += 1
+                if resolved_count[0] == count:
+                    result.resolve(list(values))  # type: ignore[arg-type]
+                return None
+
+            def on_error(err: Exception, idx: int = i) -> None:
+                if not rejected[0]:
+                    rejected[0] = True
+                    result.reject(err)
+                return None
+
+            d.then(on_success, on_error)
+
+        return result

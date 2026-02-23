@@ -22,9 +22,9 @@ class TestDeferredBasics(unittest.TestCase):
         deferred = Deferred[int]()
         result = []
 
-        def on_success(value: int) -> None:
+        def on_success(value: int) -> int:
             result.append(value)
-            return None
+            return value
 
         deferred.then(on_success, noop)
         deferred.resolve(42)
@@ -53,9 +53,9 @@ class TestDeferredBasics(unittest.TestCase):
 
         deferred.resolve(42)
 
-        def on_success(value: int) -> None:
+        def on_success(value: int) -> int:
             result.append(value)
-            return None
+            return value
 
         deferred.then(on_success, noop)
 
@@ -86,18 +86,20 @@ class TestDeferredChaining(unittest.TestCase):
         deferred = Deferred[int]()
         results = []
 
-        def handler1(value: int) -> None:
-            results.append(f"handler1: {value}")
-            return None
+        def handler1(value: int) -> str:
+            results.append("handler1: %s" % value)
+            return "transformed_%s" % value
 
-        def handler2(_: bool) -> None:
-            results.append("handler2")
-            return None
+        def handler2(value: str) -> str:
+            results.append("handler2: %s" % value)
+            return value
 
         deferred.then(handler1, noop).then(handler2, noop)
         deferred.resolve(42)
 
-        self.assertEqual(["handler1: 42", "handler2"], results)
+        self.assertEqual(
+            ["handler1: 42", "handler2: transformed_42"], results
+        )
 
     def test_chain_with_error_propagation(self):
         """Test error propagation through chain."""
@@ -106,35 +108,37 @@ class TestDeferredChaining(unittest.TestCase):
 
         test_error = ValueError("test error")
 
-        def handler1(value: int) -> Exception:
-            results.append(f"handler1: {value}")
-            return test_error
+        def handler1(value: int) -> str:
+            results.append("handler1: %s" % value)
+            raise test_error
 
-        def handler2(_: bool) -> None:
+        def handler2(value: str) -> str:
             results.append("handler2: should not be called")
-            return None
+            return value
 
         def error_handler(err: Exception) -> None:
-            results.append(f"error: {err}")
+            results.append("error: %s" % err)
             return None
 
         deferred.then(handler1, noop).then(handler2, error_handler)
         deferred.resolve(42)
 
-        self.assertEqual(["handler1: 42", f"error: {test_error}"], results)
+        self.assertEqual(
+            ["handler1: 42", "error: %s" % test_error], results
+        )
 
     def test_multiple_handlers_on_same_deferred(self):
         """Test registering multiple handlers on the same deferred."""
         deferred = Deferred[int]()
         results = []
 
-        def handler1(value: int) -> None:
-            results.append(f"handler1: {value}")
-            return None
+        def handler1(value: int) -> int:
+            results.append("handler1: %s" % value)
+            return value
 
-        def handler2(value: int) -> None:
-            results.append(f"handler2: {value}")
-            return None
+        def handler2(value: int) -> int:
+            results.append("handler2: %s" % value)
+            return value
 
         deferred.then(handler1, noop)
         deferred.then(handler2, noop)
@@ -152,7 +156,11 @@ class TestErrorCollection(unittest.TestCase):
     def test_occurred_err_empty_when_no_errors(self):
         """Test that occurred_err returns empty list when no errors."""
         deferred = Deferred[int]()
-        deferred.then(noop, noop)
+
+        def on_success(value: int) -> int:
+            return value
+
+        deferred.then(on_success, noop)
         deferred.resolve(42)
 
         errors = deferred.occurred_err()
@@ -163,8 +171,8 @@ class TestErrorCollection(unittest.TestCase):
         deferred = Deferred[int]()
         error1 = ValueError("error 1")
 
-        def failing_handler(_: int) -> Exception:
-            return error1
+        def failing_handler(_: int) -> int:
+            raise error1
 
         deferred.then(failing_handler, noop)
         deferred.resolve(42)
@@ -178,11 +186,11 @@ class TestErrorCollection(unittest.TestCase):
         error1 = ValueError("error 1")
         error2 = RuntimeError("error 2")
 
-        def failing_handler1(_: int) -> Exception:
-            return error1
+        def failing_handler1(_: int) -> int:
+            raise error1
 
-        def failing_error_handler(err: Exception) -> Exception:
-            return error2
+        def failing_error_handler(err: Exception) -> None:
+            raise error2
 
         deferred.then(failing_handler1, noop).then(noop, failing_error_handler)
         deferred.resolve(42)
@@ -196,11 +204,11 @@ class TestErrorCollection(unittest.TestCase):
         error1 = ValueError("error 1")
         error2 = RuntimeError("error 2")
 
-        def failing_handler1(_: int) -> Exception:
-            return error1
+        def failing_handler1(_: int) -> int:
+            raise error1
 
-        def failing_handler2(_: int) -> Exception:
-            return error2
+        def failing_handler2(_: int) -> int:
+            raise error2
 
         deferred.then(failing_handler1, noop)
         deferred.then(failing_handler2, noop)
@@ -230,8 +238,30 @@ class TestEdgeCases(unittest.TestCase):
 
         self.assertEqual([None], result)
 
-    def test_error_handler_returning_none(self):
-        """Test error handler that returns None (no error)."""
+    def test_error_handler_recovers_with_value(self):
+        """Test error handler that returns a value (recovery)."""
+        deferred = Deferred[int]()
+        results = []
+
+        test_error = ValueError("test error")
+
+        def on_error(err: Exception) -> str:
+            results.append("error handled")
+            return "recovered"
+
+        def next_handler(value: str) -> str:
+            results.append("next handler: %s" % value)
+            return value
+
+        deferred.then(noop, on_error).then(next_handler, noop)
+        deferred.reject(test_error)
+
+        # Error handler recovers, so next handler should be called
+        # with the recovered value
+        self.assertEqual(["error handled", "next handler: recovered"], results)
+
+    def test_error_handler_returning_none_recovers(self):
+        """Test error handler that returns None resolves next deferred with None."""
         deferred = Deferred[int]()
         results = []
 
@@ -239,27 +269,26 @@ class TestEdgeCases(unittest.TestCase):
 
         def on_error(err: Exception) -> None:
             results.append("error handled")
-            return None  # No error
+            return None
 
-        def next_handler(_: bool) -> None:
-            results.append("next handler should not be called")
+        def next_handler(value: None) -> None:
+            results.append("next handler called")
             return None
 
         deferred.then(noop, on_error).then(next_handler, noop)
         deferred.reject(test_error)
 
-        # Error handler should be called, but next handler should not
-        # because error handler returned None (no propagation)
-        self.assertEqual(["error handled"], results)
+        # Error handler returns None (recovery), so next handler should be called
+        self.assertEqual(["error handled", "next handler called"], results)
 
     def test_multiple_resolves_triggers_handlers_multiple_times(self):
         """Test that multiple resolves trigger handlers each time."""
         deferred = Deferred[int]()
         results = []
 
-        def on_success(value: int) -> None:
+        def on_success(value: int) -> int:
             results.append(value)
-            return None
+            return value
 
         deferred.then(on_success, noop)
         deferred.resolve(42)
@@ -277,23 +306,52 @@ class TestComplexScenarios(unittest.TestCase):
         deferred = Deferred[str]()
         cleanup_log = []
 
-        def cleanup1(resource: str) -> None:
-            cleanup_log.append(f"cleanup1: {resource}")
-            return None
+        def cleanup1(resource: str) -> str:
+            cleanup_log.append("cleanup1: %s" % resource)
+            return resource
 
-        def cleanup2(_: bool) -> None:
-            cleanup_log.append("cleanup2")
-            return None
+        def cleanup2(value: str) -> str:
+            cleanup_log.append("cleanup2: %s" % value)
+            return value
 
-        def cleanup3(_: bool) -> None:
-            cleanup_log.append("cleanup3")
-            return None
+        def cleanup3(value: str) -> str:
+            cleanup_log.append("cleanup3: %s" % value)
+            return value
 
         deferred.then(cleanup1, noop).then(cleanup2, noop).then(cleanup3, noop)
         deferred.resolve("database_connection")
 
         self.assertEqual(
-            ["cleanup1: database_connection", "cleanup2", "cleanup3"], cleanup_log
+            [
+                "cleanup1: database_connection",
+                "cleanup2: database_connection",
+                "cleanup3: database_connection",
+            ],
+            cleanup_log,
+        )
+
+    def test_value_transformation_chain(self):
+        """Test chain where each step transforms the value."""
+        deferred = Deferred[int]()
+        results = []
+
+        def double(value: int) -> int:
+            results.append("double: %s" % value)
+            return value * 2
+
+        def add_ten(value: int) -> int:
+            results.append("add_ten: %s" % value)
+            return value + 10
+
+        def to_string(value: int) -> str:
+            results.append("to_string: %s" % value)
+            return "result_%s" % value
+
+        deferred.then(double, noop).then(add_ten, noop).then(to_string, noop)
+        deferred.resolve(5)
+
+        self.assertEqual(
+            ["double: 5", "add_ten: 10", "to_string: 20"], results
         )
 
     def test_partial_failure_chain(self):
@@ -303,20 +361,20 @@ class TestComplexScenarios(unittest.TestCase):
 
         error = ValueError("step 2 failed")
 
-        def step1(value: int) -> None:
-            results.append(f"step1: {value}")
-            return None
+        def step1(value: int) -> int:
+            results.append("step1: %s" % value)
+            return value
 
-        def step2(_: bool) -> Exception:
+        def step2(value: int) -> int:
             results.append("step2: failing")
-            return error
+            raise error
 
-        def step3(_: bool) -> None:
+        def step3(value: int) -> int:
             results.append("step3: should not execute")
-            return None
+            return value
 
         def handle_error(err: Exception) -> None:
-            results.append(f"error handler: {err}")
+            results.append("error handler: %s" % err)
             return None
 
         (
@@ -328,8 +386,107 @@ class TestComplexScenarios(unittest.TestCase):
         deferred.resolve(42)
 
         self.assertEqual(
-            ["step1: 42", "step2: failing", f"error handler: {error}"], results
+            ["step1: 42", "step2: failing", "error handler: %s" % error],
+            results,
         )
+
+
+class TestDeferredAll(unittest.TestCase):
+    """Test Deferred.all() static method."""
+
+    def test_all_resolves_when_all_resolved(self):
+        """Test that all() resolves with list of values when all deferreds resolve."""
+        d1 = Deferred[int]()
+        d2 = Deferred[int]()
+        d3 = Deferred[int]()
+
+        combined = Deferred.all([d1, d2, d3])
+        result = []
+
+        def on_success(values: list) -> None:
+            result.extend(values)
+            return None
+
+        combined.then(on_success, noop)
+
+        d1.resolve(1)
+        d2.resolve(2)
+        d3.resolve(3)
+
+        self.assertEqual([1, 2, 3], result)
+
+    def test_all_rejects_on_first_error(self):
+        """Test that all() rejects with the first error when any deferred rejects."""
+        d1 = Deferred[int]()
+        d2 = Deferred[int]()
+        d3 = Deferred[int]()
+
+        combined = Deferred.all([d1, d2, d3])
+        errors = []
+
+        def on_error(err: Exception) -> None:
+            errors.append(err)
+            return None
+
+        combined.then(noop, on_error)
+
+        test_error = ValueError("fail")
+        d1.resolve(1)
+        d2.reject(test_error)
+
+        self.assertEqual([test_error], errors)
+
+    def test_all_empty_list(self):
+        """Test that all() with empty list resolves immediately with []."""
+        combined = Deferred.all([])
+        result = []
+
+        def on_success(values: list) -> None:
+            result.append(values)
+            return None
+
+        combined.then(on_success, noop)
+
+        self.assertEqual([[]], result)
+
+    def test_all_preserves_order(self):
+        """Test that all() preserves order regardless of resolution order."""
+        d1 = Deferred[str]()
+        d2 = Deferred[str]()
+        d3 = Deferred[str]()
+
+        combined = Deferred.all([d1, d2, d3])
+        result = []
+
+        def on_success(values: list) -> None:
+            result.extend(values)
+            return None
+
+        combined.then(on_success, noop)
+
+        # Resolve in reverse order
+        d3.resolve("third")
+        d1.resolve("first")
+        d2.resolve("second")
+
+        self.assertEqual(["first", "second", "third"], result)
+
+    def test_all_single_deferred(self):
+        """Test that all() works with a single deferred."""
+        d = Deferred[int]()
+
+        combined = Deferred.all([d])
+        result = []
+
+        def on_success(values: list) -> None:
+            result.extend(values)
+            return None
+
+        combined.then(on_success, noop)
+
+        d.resolve(42)
+
+        self.assertEqual([42], result)
 
 
 if __name__ == "__main__":
