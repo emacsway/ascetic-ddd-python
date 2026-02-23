@@ -249,7 +249,7 @@ class MultiQueryTestCase(TestCase):
         d1 = mq.execute(query, (1,))
 
         def on_success(value):
-            return ValueError("callback error")
+            raise ValueError("callback error")
 
         d1.then(on_success, lambda e: None)
 
@@ -269,10 +269,10 @@ class MultiQueryTestCase(TestCase):
         d2 = mq.execute(query, (2,))
 
         def on_success_error1(value):
-            return ValueError("error 1")
+            raise ValueError("error 1")
 
         def on_success_error2(value):
-            return TypeError("error 2")
+            raise TypeError("error 2")
 
         d1.then(on_success_error1, lambda e: None)
         d2.then(on_success_error2, lambda e: None)
@@ -364,7 +364,7 @@ class AutoincrementMultiInsertQueryTestCase(TestCase):
         d1 = mq.execute(query, ("x",))
 
         def on_success(row):
-            return ValueError("callback error")
+            raise ValueError("callback error")
 
         d1.then(on_success, lambda e: None)
 
@@ -386,10 +386,10 @@ class AutoincrementMultiInsertQueryTestCase(TestCase):
         d2 = mq.execute(query, ("y",))
 
         def on_success_error1(row):
-            return ValueError("error 1")
+            raise ValueError("error 1")
 
         def on_success_error2(row):
-            return TypeError("error 2")
+            raise TypeError("error 2")
 
         d1.then(on_success_error1, lambda e: None)
         d2.then(on_success_error2, lambda e: None)

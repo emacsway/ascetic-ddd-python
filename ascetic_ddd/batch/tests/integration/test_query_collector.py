@@ -186,7 +186,7 @@ class QueryCollectorIntegrationTestCase(IsolatedAsyncioTestCase):
         d1 = await collector.connection.execute(query, ("item1", 100))
 
         def failing_callback(row):
-            return ValueError("Callback failed!")
+            raise ValueError("Callback failed!")
 
         d1._last_result.then(failing_callback, lambda e: None)
 

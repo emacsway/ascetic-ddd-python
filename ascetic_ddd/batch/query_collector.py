@@ -70,9 +70,8 @@ class CursorCollector(typing.Generic[Row]):
         """
         result: Deferred[list[Row]] = Deferred()
         if self._last_result is not None:
-            def on_resolve(row: Row) -> Exception | None:
+            def on_resolve(row: Row) -> None:
                 result.resolve([row] if row is not None else [])
-                return None
             self._last_result.then(on_resolve, lambda e: None)
         else:
             result.resolve([])
