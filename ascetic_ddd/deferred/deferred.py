@@ -157,10 +157,11 @@ class Deferred(Generic[T]):
         - Resolves with a list of values (preserving order) when all resolve.
         - Rejects with the first error when any deferred rejects.
 
-        :param deferreds: iterable of deferreds to wait for
-        :type deferreds: Iterable[IDeferred[T]]
-        :returns: a Deferred that resolves with list[T]
-        :rtype: Deferred[list[T]]
+        Args:
+            deferreds: Iterable of deferreds to wait for.
+
+        Returns:
+            A Deferred that resolves with list[T].
         """
         deferreds_list = list(deferreds)
         result: 'Deferred[list[T]]' = Deferred()
