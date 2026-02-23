@@ -140,6 +140,7 @@ class QueryResolvableSpecification(IResolvableSpecification[T], typing.Generic[T
         if isinstance(query, EqOperator):
             return query
 
+        assert self._aggregate_provider_accessor is not None
         aggregate_provider = self._aggregate_provider_accessor()
         providers = aggregate_provider.providers if aggregate_provider else {}
 

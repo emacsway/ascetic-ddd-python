@@ -11,6 +11,7 @@ __all__ = (
 )
 
 T = typing.TypeVar("T")
+T_contra = typing.TypeVar("T_contra", contravariant=True)
 
 
 class ISpecificationVisitor(typing.Protocol):
@@ -29,13 +30,13 @@ class ISpecificationVisitor(typing.Protocol):
         ...
 
 
-class ISpecificationVisitable(typing.Protocol[T]):
+class ISpecificationVisitable(typing.Protocol):
 
     def accept(self, visitor: ISpecificationVisitor):
         ...
 
 
-class ISpecification(ISpecificationVisitable[T], typing.Protocol[T]):
+class ISpecification(ISpecificationVisitable, typing.Protocol[T_contra]):
 
     def __str__(self) -> str:
         ...
@@ -46,11 +47,11 @@ class ISpecification(ISpecificationVisitable[T], typing.Protocol[T]):
     def __eq__(self, other: object) -> bool:
         ...
 
-    async def is_satisfied_by(self, session: ISession, obj: T) -> bool:
+    async def is_satisfied_by(self, session: ISession, obj: T_contra) -> bool:
         ...
 
 
-class IResolvableSpecification(ISpecification[T], typing.Protocol[T]):
+class IResolvableSpecification(ISpecification[T_contra], typing.Protocol[T_contra]):
     """Interface for a specification that requires pre-resolve."""
 
     async def resolve_nested(self, session: ISession) -> None:

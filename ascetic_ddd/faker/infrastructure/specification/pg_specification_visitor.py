@@ -99,7 +99,7 @@ class PgSpecificationVisitor(ISpecificationVisitor):
                             key,
                             related_table,
                             nested_pattern,
-                            lambda rap=related_agg_provider: rap
+                            lambda: related_agg_provider
                         )
                         conditions.append(subquery_sql)
                         self._params += subquery_params

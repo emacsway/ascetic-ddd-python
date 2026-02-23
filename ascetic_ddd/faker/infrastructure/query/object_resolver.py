@@ -42,5 +42,5 @@ class ProviderObjectResolver(IObjectResolver):
             return None, None
 
         state = related_provider._output_exporter(obj)
-        nested = ProviderObjectResolver(lambda rp=related_provider: rp)
+        nested = ProviderObjectResolver(lambda: related_provider)
         return state, nested

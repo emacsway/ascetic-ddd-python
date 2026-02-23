@@ -365,7 +365,6 @@ class BaseCompositeProvider(
             await provider.cleanup(session)
 
     @classmethod
-    @property
     @functools.cache
     def _provider_attrs(cls) -> list[str]:
         attrs = list()
@@ -381,7 +380,6 @@ class BaseCompositeProvider(
         return attrs
 
     @classmethod
-    @property
     @functools.cache
     def _dependent_provider_attrs(cls) -> list[str]:
         """Returns attribute names that are IDependentProvider."""
@@ -397,11 +395,11 @@ class BaseCompositeProvider(
 
     @property
     def providers(self) -> dict[str, IValueProvider[typing.Any, typing.Any]]:
-        return {i: getattr(self, i) for i in self._provider_attrs}
+        return {i: getattr(self, i) for i in self._provider_attrs()}
 
     @property
     def dependent_providers(self) -> dict[str, IDependentProvider[typing.Any, typing.Any, typing.Any]]:
-        return {i: getattr(self, i) for i in self._dependent_provider_attrs}
+        return {i: getattr(self, i) for i in self._dependent_provider_attrs()}
 
     @property
     def provider_name(self):

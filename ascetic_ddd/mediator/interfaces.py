@@ -16,25 +16,30 @@ RequestT = typing.TypeVar("RequestT")
 EventT = typing.TypeVar("EventT")
 ResultT = typing.TypeVar("ResultT")
 
+SessionT_contra = typing.TypeVar("SessionT_contra", contravariant=True)
+RequestT_contra = typing.TypeVar("RequestT_contra", contravariant=True)
+EventT_contra = typing.TypeVar("EventT_contra", contravariant=True)
+ResultT_co = typing.TypeVar("ResultT_co", covariant=True)
+
 
 class IRequest(typing.Generic[ResultT]):
     pass
 
 
-class IRequestHandler(typing.Protocol[SessionT, RequestT, ResultT]):
-    def __call__(self, session: SessionT, request: RequestT) -> ResultT:
+class IRequestHandler(typing.Protocol[SessionT_contra, RequestT_contra, ResultT_co]):
+    def __call__(self, session: SessionT_contra, request: RequestT_contra) -> ResultT_co:
         ...
 
 
-class IEventHandler(typing.Protocol[SessionT, EventT]):
-    def __call__(self, session: SessionT, event: EventT):
+class IEventHandler(typing.Protocol[SessionT_contra, EventT_contra]):
+    def __call__(self, session: SessionT_contra, event: EventT_contra):
         ...
 
 
-class IPipelineHandler(typing.Protocol[SessionT, RequestT, ResultT]):
+class IPipelineHandler(typing.Protocol[SessionT_contra, RequestT_contra, ResultT]):
     @abstractmethod
     async def __call__(
-            self, session: SessionT, request: RequestT,
+            self, session: SessionT_contra, request: RequestT_contra,
             next_: typing.Callable[..., typing.Awaitable[ResultT]]
     ) -> ResultT:
         ...

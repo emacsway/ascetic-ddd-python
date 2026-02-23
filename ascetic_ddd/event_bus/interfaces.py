@@ -11,9 +11,12 @@ __all__ = (
 SessionT = typing.TypeVar("SessionT")
 EventT = typing.TypeVar("EventT")
 
+SessionT_contra = typing.TypeVar("SessionT_contra", contravariant=True)
+EventT_contra = typing.TypeVar("EventT_contra", contravariant=True)
 
-class IEventHandler(typing.Protocol[SessionT, EventT]):
-    def __call__(self, session: SessionT, uri: str, event: EventT):
+
+class IEventHandler(typing.Protocol[SessionT_contra, EventT_contra]):
+    def __call__(self, session: SessionT_contra, uri: str, event: EventT_contra):
         ...
 
 

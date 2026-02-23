@@ -50,7 +50,7 @@ class CompositeValueProvider(
     def __init__(
             self,
             distributor: IM2ODistributor[InputT] | None = None,
-            output_factory: typing.Callable[[...], OutputT] | None = None,  # OutputT of each nested Provider.
+            output_factory: typing.Callable[..., OutputT] | None = None,  # OutputT of each nested Provider.
             output_exporter: typing.Callable[[OutputT], InputT] | None = None,
             specification_factory: typing.Callable[..., ISpecification] = QueryLookupSpecification,
     ):

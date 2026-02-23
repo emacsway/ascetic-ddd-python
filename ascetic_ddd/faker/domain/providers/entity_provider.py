@@ -28,7 +28,7 @@ class EntityProvider(
 
     def __init__(
             self,
-            output_factory: typing.Callable[[...], OutputT] | None = None,  # OutputT of each nested Provider.
+            output_factory: typing.Callable[..., OutputT] | None = None,  # OutputT of each nested Provider.
             output_exporter: typing.Callable[[OutputT], InputT] | None = None,
     ):
 

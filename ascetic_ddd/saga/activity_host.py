@@ -49,13 +49,13 @@ class ActivityHost(Generic[T]):
                 # Success - continue forward
                 if routing_slip.progress_uri:
                     result = self._send(routing_slip.progress_uri, routing_slip)
-                    if hasattr(result, '__await__'):
+                    if result is not None:
                         await result
             else:
                 # Failure - start compensation
                 if routing_slip.compensation_uri:
                     result = self._send(routing_slip.compensation_uri, routing_slip)
-                    if hasattr(result, '__await__'):
+                    if result is not None:
                         await result
 
     async def process_backward_message(self, routing_slip: RoutingSlip) -> None:
@@ -72,13 +72,13 @@ class ActivityHost(Generic[T]):
                 # Continue backward
                 if routing_slip.compensation_uri:
                     result = self._send(routing_slip.compensation_uri, routing_slip)
-                    if hasattr(result, '__await__'):
+                    if result is not None:
                         await result
             else:
                 # Resume forward (compensation added new work)
                 if routing_slip.progress_uri:
                     result = self._send(routing_slip.progress_uri, routing_slip)
-                    if hasattr(result, '__await__'):
+                    if result is not None:
                         await result
 
     async def accept_message(self, uri: str, routing_slip: RoutingSlip) -> bool:

@@ -32,7 +32,7 @@ class AggregateProvider(
             self,
             repository: IAggregateRepository,
             # distributor_factory: IM2ODistributorFactory,
-            output_factory: typing.Callable[[...], OutputT] | None = None,  # OutputT of each nested Provider.
+            output_factory: typing.Callable[..., OutputT] | None = None,  # OutputT of each nested Provider.
             output_exporter: typing.Callable[[OutputT], InputT] | None = None,
     ):
         self._repository = repository

@@ -11,15 +11,16 @@ __all__ = (
 )
 
 InputT = typing.TypeVar("InputT")
+InputT_co = typing.TypeVar("InputT_co", covariant=True)
 
 
-class IInputGenerator(typing.Protocol[InputT]):
+class IInputGenerator(typing.Protocol[InputT_co]):
     """
     Value generator.
     Accepts session, query (the current provider query) and an optional position (sequence number).
     """
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> InputT:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> InputT_co:
         ...
 
 

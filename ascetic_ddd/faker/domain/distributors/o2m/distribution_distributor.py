@@ -108,6 +108,7 @@ class DistributionDistributor(IO2MDistributor):
         if self._distribution is not None:
             raw_value = float(self._distribution.rvs())
         else:
+            assert self._sampler is not None
             raw_value = self._sampler()
 
         # Normalize: raw_value / dist_mean * target_mean

@@ -15,10 +15,11 @@ __all__ = (
 
 
 T = typing.TypeVar("T")
+T_co = typing.TypeVar("T_co", covariant=True)
 
 
 @typing.runtime_checkable
-class IExternalSource(typing.Protocol[T]):
+class IExternalSource(typing.Protocol[T_co]):
     pass
 
 

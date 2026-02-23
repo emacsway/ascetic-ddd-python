@@ -56,7 +56,7 @@ class ProviderRelationResolver(IRelationResolver):
         related_table = related_provider._repository.table
         pk_field = 'value_id'
 
-        nested_resolver = ProviderRelationResolver(lambda rp=related_provider: rp)
+        nested_resolver = ProviderRelationResolver(lambda: related_provider)
 
         return RelationInfo(
             table=related_table,
