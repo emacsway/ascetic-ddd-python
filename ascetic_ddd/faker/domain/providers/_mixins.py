@@ -4,8 +4,12 @@ import typing
 import abc
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.faker.domain.providers.interfaces import (
-    IValueProvider, INameable, ICloningShunt, ILifecycleAble,
-    ICompositeValueProvider, IDependentProvider
+    IValueProvider,
+    INameable,
+    ICloningShunt,
+    ILifecycleAble,
+    ICompositeValueProvider,
+    IDependentProvider,
 )
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, CompositeQuery, MergeConflict
@@ -31,6 +35,8 @@ __all__ = (
 
 InputT = typing.TypeVar("InputT")
 OutputT = typing.TypeVar("OutputT")
+CompositeInputT = typing.TypeVar("CompositeInputT", bound=dict)
+CompositeOutputT = typing.TypeVar("CompositeOutputT", bound=object)
 CloneableT = typing.TypeVar("CloneableT")
 
 
@@ -219,14 +225,14 @@ class BaseDistributionProvider(BaseProvider[InputT, OutputT], typing.Generic[Inp
 
 class BaseCompositeProvider(
     LifecycleAbleMixin,
-    ICompositeValueProvider[InputT, OutputT],
-    typing.Generic[InputT, OutputT],
+    ICompositeValueProvider[CompositeInputT, CompositeOutputT],
+    typing.Generic[CompositeInputT, CompositeOutputT],
     metaclass=abc.ABCMeta
 ):
 
     _criteria: IQueryOperator | None = None
-    _output: OutputT | Empty = empty
-    _output_factory: typing.Callable[..., OutputT] = None  # OutputT of each nested Provider.
+    _output: CompositeOutputT | Empty = empty
+    _output_factory: typing.Callable[..., CompositeOutputT] = None  # CompositeOutputT of each nested Provider.
     _provider_name: str | None = None
     _on_required: ISyncSignal[CriteriaRequiredEvent]
     _on_populated: ISyncSignal[InputPopulatedEvent]
@@ -300,7 +306,7 @@ class BaseCompositeProvider(
                     )
                 provider.require(query_to_dict(field_query))
 
-    def _set_input(self, input_: InputT) -> None:
+    def _set_input(self, input_: CompositeInputT) -> None:
         """
         Unidirectional flow only. Don't call self.require()
         """
@@ -313,7 +319,7 @@ class BaseCompositeProvider(
             provider.require({'$eq': val})
         self._on_populated.notify(InputPopulatedEvent(input_))
 
-    def state(self) -> InputT:
+    def state(self) -> CompositeInputT:
         """Return current query as dict format, composed from nested providers."""
         value = dict()
         for attr, provider in self.providers.items():
@@ -398,7 +404,7 @@ class BaseCompositeProvider(
         return {i: getattr(self, i) for i in self._provider_attrs()}
 
     @property
-    def dependent_providers(self) -> dict[str, IDependentProvider[typing.Any, typing.Any, typing.Any]]:
+    def dependent_providers(self) -> dict[str, IDependentProvider[typing.Any, typing.Any, typing.Any, typing.Any]]:
         return {i: getattr(self, i) for i in self._dependent_provider_attrs()}
 
     @property
@@ -415,25 +421,25 @@ class BaseCompositeProvider(
 
 
 class BaseCompositeDistributionProvider(
-    BaseCompositeProvider[InputT, OutputT],
-    typing.Generic[InputT, OutputT],
+    BaseCompositeProvider[CompositeInputT, CompositeOutputT],
+    typing.Generic[CompositeInputT, CompositeOutputT],
     metaclass=abc.ABCMeta
 ):
 
     _criteria: IQueryOperator | None = None
-    _output: OutputT | Empty = empty
+    _output: CompositeOutputT | Empty = empty
     _provider_name: str | None = None
-    _distributor: IM2ODistributor[InputT]
+    _distributor: IM2ODistributor[CompositeOutputT]
 
     def __init__(
             self,
-            distributor: IM2ODistributor[InputT],
-            output_factory: typing.Callable[..., OutputT] | None = None,
+            distributor: IM2ODistributor[CompositeOutputT],
+            output_factory: typing.Callable[..., CompositeOutputT] | None = None,
     ):
         self._distributor = distributor
         super().__init__(output_factory=output_factory)
 
-    async def append(self, session: ISession, value: OutputT):
+    async def append(self, session: ISession, value: CompositeOutputT):
         await self._distributor.append(session, value)
         await super().append(session, value)
 

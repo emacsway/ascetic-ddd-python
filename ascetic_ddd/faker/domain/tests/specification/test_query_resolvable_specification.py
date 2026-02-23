@@ -169,7 +169,7 @@ class StubRepository(IAggregateRepository):
 # Providers
 # =============================================================================
 
-class StatusFaker(AggregateProvider[dict, Status]):
+class StatusFaker(AggregateProvider[dict, Status, str, StatusId]):
     _id_attr = 'id'
 
     id: ValueProvider[str, StatusId]
@@ -199,7 +199,7 @@ class StatusFaker(AggregateProvider[dict, Status]):
         }
 
 
-class UserFaker(AggregateProvider[dict, User]):
+class UserFaker(AggregateProvider[dict, User, int, UserId]):
     _id_attr = 'id'
 
     id: ValueProvider[int, UserId]

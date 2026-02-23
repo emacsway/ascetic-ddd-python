@@ -11,7 +11,8 @@ from ascetic_ddd.signals.interfaces import ISyncSignal
 from ascetic_ddd.signals.signal import SyncSignal
 from ascetic_ddd.faker.domain.providers.events import DependentCriteriaRequiredEvent, InputPopulatedEvent
 from ascetic_ddd.faker.domain.providers.interfaces import (
-    IDependentProvider, ICloningShunt, ISetupable
+    IDependentProvider, ICloningShunt, ISetupable,
+    IAggregateProvider,
 )
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty, Empty
@@ -19,19 +20,24 @@ from ascetic_ddd.faker.domain.values.empty import empty, Empty
 __all__ = ('DependentProvider',)
 
 
-InputT = typing.TypeVar("InputT")
-OutputT = typing.TypeVar("OutputT")
-AggProviderT = typing.TypeVar("AggProviderT")
+IdInputT = typing.TypeVar("IdInputT")
+IdOutputT = typing.TypeVar("IdOutputT")
+AggInputT = typing.TypeVar("AggInputT", bound=dict)
+AggOutputT = typing.TypeVar("AggOutputT", bound=object)
 
 
-class IAggregateProvidersAccessor(ISetupable, typing.Generic[AggProviderT], metaclass=ABCMeta):
+class IAggregateProvidersAccessor(
+    ISetupable,
+    typing.Generic[AggInputT, AggOutputT, IdInputT, IdOutputT],
+    metaclass=ABCMeta
+):
     """
     Accessor for managing list of aggregate providers.
     Supports lazy resolution and cloning.
     """
 
     @abstractmethod
-    def __call__(self, count: int) -> list[AggProviderT]:
+    def __call__(self, count: int) -> list[IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]:
         """
         Returns list of aggregate providers for creating N children.
         Creates/clones providers if needed to match the requested count.
@@ -50,8 +56,8 @@ class IAggregateProvidersAccessor(ISetupable, typing.Generic[AggProviderT], meta
 class DependentProvider(
     NameableMixin,
     LifecycleAbleMixin,
-    IDependentProvider[InputT, OutputT, AggProviderT],
-    typing.Generic[InputT, OutputT, AggProviderT]
+    IDependentProvider[IdInputT, IdOutputT, AggInputT, AggOutputT],
+    typing.Generic[IdInputT, IdOutputT, AggInputT, AggOutputT]
 ):
     """
     Provider for 1:M relationships (one parent to many children).
@@ -67,7 +73,7 @@ class DependentProvider(
             id: ValueProvider[int, int]
             name: ValueProvider[str, str]
             # 1:M - company has many employees
-            employees: DependentProvider[dict, Employee, int]
+            employees: DependentProvider[int, int, dict, Employee]
 
             def __init__(self, repository, employee_provider, o2m_distributor):
                 self.id = ValueProvider(...)
@@ -80,9 +86,9 @@ class DependentProvider(
     """
 
     _distributor: IO2MDistributor
-    _aggregate_providers_accessor: IAggregateProvidersAccessor[AggProviderT]
+    _aggregate_providers_accessor: IAggregateProvidersAccessor[AggInputT, AggOutputT, IdInputT, IdOutputT]
     _criteria: list[dict] | None = None
-    _outputs: list[OutputT] | Empty = empty
+    _outputs: list[IdOutputT] | Empty = empty
     _count: int | None = None
     _weights: list[float] | None = None
     _value_selector: WeightedRangeDistributor | None = None
@@ -92,7 +98,8 @@ class DependentProvider(
     def __init__(
             self,
             distributor: IO2MDistributor,
-            aggregate_provider: AggProviderT | Callable[[], AggProviderT],
+            aggregate_provider: (IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT] |
+                                 Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]),
             dependency_field: str | None = None,
     ):
         """
@@ -131,7 +138,7 @@ class DependentProvider(
         """Set dependency's ID to be used for related_field in dependents."""
         self._dependency_id = dependency_id
 
-    async def create(self, session: ISession) -> list[OutputT]:
+    async def create(self, session: ISession) -> list[IdOutputT]:
         """
         Returns list of IDs of created children.
         """
@@ -140,7 +147,7 @@ class DependentProvider(
 
         results = []
         for provider in self.aggregate_providers:
-            if provider._output is not empty:
+            if provider._output is not empty:  # type: ignore[attr-defined]
                 id_result = await provider.id_provider.create(session)
                 results.append(id_result)
         return results
@@ -240,7 +247,7 @@ class DependentProvider(
 
             self._on_required.notify(DependentCriteriaRequiredEvent(self._criteria, self._weights))
 
-    def state(self) -> list[InputT]:
+    def state(self) -> list[IdInputT]:
         """
         Get input values from all children providers.
         """
@@ -254,12 +261,12 @@ class DependentProvider(
     def is_transient(self) -> bool:
         return False
 
-    async def append(self, session: ISession, value: AggProviderT):
+    async def append(self, session: ISession, value: IdOutputT):
         """Not used for O2M - children are created, not appended to distributor."""
         pass
 
     @property
-    def aggregate_providers(self) -> list[AggProviderT]:
+    def aggregate_providers(self) -> list[IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]:
         """
         Returns list of aggregate providers for creating children.
         Count is determined by distributor or pre-set values.
@@ -270,7 +277,8 @@ class DependentProvider(
     @aggregate_providers.setter
     def aggregate_providers(
             self,
-            aggregate_provider: AggProviderT | Callable[[], AggProviderT]
+            aggregate_provider: (IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT] |
+                                 Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]])
     ) -> None:
         """
         Sets the template aggregate provider.
@@ -279,10 +287,14 @@ class DependentProvider(
         # Check if it's a provider object (has 'clone' method) or a factory callable
         if hasattr(aggregate_provider, 'clone'):
             # It's already a provider object
-            accessor = EagerAggregateProvidersAccessor[AggProviderT](aggregate_provider)
+            accessor = EagerAggregateProvidersAccessor[
+                AggInputT, AggOutputT, IdInputT, IdOutputT
+            ](aggregate_provider)
         else:
             # It's a factory callable
-            accessor = LazyAggregateProvidersAccessor[AggProviderT](aggregate_provider)
+            accessor = LazyAggregateProvidersAccessor[
+                AggInputT, AggOutputT, IdInputT, IdOutputT
+            ](aggregate_provider)
         self._aggregate_providers_accessor = accessor
 
     def _do_clone(self, clone: typing.Self, shunt: ICloningShunt | None = None):
@@ -300,19 +312,25 @@ class DependentProvider(
         await self._aggregate_providers_accessor.cleanup(session)
 
 
-class EagerAggregateProvidersAccessor(IAggregateProvidersAccessor[AggProviderT], typing.Generic[AggProviderT]):
+class EagerAggregateProvidersAccessor(
+    IAggregateProvidersAccessor[AggInputT, AggOutputT, IdInputT, IdOutputT],
+    typing.Generic[AggInputT, AggOutputT, IdInputT, IdOutputT]
+):
     """
     Accessor that holds a direct reference to template provider.
     Clones the provider to create multiple children.
     """
-    _template_provider: AggProviderT
-    _providers: list[AggProviderT]
+    _template_provider: IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]
+    _providers: list[IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]
 
-    def __init__(self, template_provider: AggProviderT):
+    def __init__(
+            self,
+            template_provider: IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]
+    ):
         self._template_provider = template_provider
         self._providers = []
 
-    def __call__(self, count: int) -> list[AggProviderT]:
+    def __call__(self, count: int) -> list[IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]:
         # Extend list if needed by cloning template
         while len(self._providers) < count:
             cloned = self._template_provider.clone()
@@ -320,7 +338,9 @@ class EagerAggregateProvidersAccessor(IAggregateProvidersAccessor[AggProviderT],
         return self._providers[:count]
 
     def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
-        return EagerAggregateProvidersAccessor(self._template_provider.clone(shunt))
+        return EagerAggregateProvidersAccessor[
+            AggInputT, AggOutputT, IdInputT, IdOutputT
+        ](self._template_provider.clone(shunt))
 
     def reset(self, visited: set | None = None):
         self._providers = []
@@ -336,25 +356,31 @@ class EagerAggregateProvidersAccessor(IAggregateProvidersAccessor[AggProviderT],
             await provider.cleanup(session)
 
 
-class LazyAggregateProvidersAccessor(IAggregateProvidersAccessor[AggProviderT], typing.Generic[AggProviderT]):
+class LazyAggregateProvidersAccessor(
+    IAggregateProvidersAccessor[AggInputT, AggOutputT, IdInputT, IdOutputT],
+    typing.Generic[AggInputT, AggOutputT, IdInputT, IdOutputT]
+):
     """
     Accessor with lazy resolution of template provider.
     Useful for cyclic dependencies.
     """
-    _template_provider: AggProviderT | None = None
-    _template_provider_factory: Callable[[], AggProviderT]
-    _providers: list[AggProviderT]
+    _template_provider: IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT] | None = None
+    _template_provider_factory: Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]
+    _providers: list[IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]
 
-    def __init__(self, template_provider_factory: Callable[[], AggProviderT]):
+    def __init__(
+            self,
+            template_provider_factory: Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]
+    ):
         self._template_provider_factory = template_provider_factory
         self._providers = []
 
-    def _get_template(self) -> AggProviderT:
+    def _get_template(self) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
         if self._template_provider is None:
             self._template_provider = self._template_provider_factory()
         return self._template_provider
 
-    def __call__(self, count: int) -> list[AggProviderT]:
+    def __call__(self, count: int) -> list[IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]:
         template = self._get_template()
         while len(self._providers) < count:
             cloned = template.clone()
@@ -362,7 +388,9 @@ class LazyAggregateProvidersAccessor(IAggregateProvidersAccessor[AggProviderT], 
         return self._providers[:count]
 
     def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
-        return LazyAggregateProvidersAccessor(self._template_provider_factory)
+        return LazyAggregateProvidersAccessor[
+            AggInputT, AggOutputT, IdInputT, IdOutputT
+        ](self._template_provider_factory)
 
     def reset(self, visited: set | None = None):
         self._template_provider = None

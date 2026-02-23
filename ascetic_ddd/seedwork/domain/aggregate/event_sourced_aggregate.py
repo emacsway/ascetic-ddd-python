@@ -4,11 +4,12 @@ from abc import ABCMeta
 
 from ascetic_ddd.seedwork.domain.aggregate.eventive_entity import EventiveEntity
 from ascetic_ddd.seedwork.domain.aggregate.interfaces import IEventSourcedAggregate
+from ascetic_ddd.seedwork.domain.aggregate.persistent_domain_event import PersistentDomainEvent
 from ascetic_ddd.seedwork.domain.aggregate.versioned_aggregate import VersionedAggregate
 
 __all__ = ("EventSourcedAggregate",)
 
-PersistentDomainEventT = typing.TypeVar("PersistentDomainEventT")
+PersistentDomainEventT = typing.TypeVar("PersistentDomainEventT", bound=PersistentDomainEvent)
 
 
 class EventSourcedAggregate(
@@ -37,7 +38,7 @@ class EventSourcedAggregate(
             self._handlers[type(event)](self, event)
 
     def _update(self, event: PersistentDomainEventT) -> None:
-        event = dataclasses.replace(event, aggregate_version=self.next_version())  # type: ignore[type-var]
+        event = dataclasses.replace(event, aggregate_version=self.next_version())
         self._add_domain_event(event)
         self._handlers[type(event)](self, event)
 
@@ -46,6 +47,6 @@ class EventSourcedAggregate(
         """
         Or reduce.
         """
-        agg: typing.Self = cls.make_empty()
+        agg: typing.Self = cls._make_empty()
         agg._load_from(past_events)
         return agg

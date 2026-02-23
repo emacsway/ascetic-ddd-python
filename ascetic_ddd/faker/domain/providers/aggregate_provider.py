@@ -7,33 +7,38 @@ from ascetic_ddd.faker.domain.query.evaluate_visitor import EvaluateWalker
 from ascetic_ddd.faker.domain.query.operators import MergeConflict
 from ascetic_ddd.faker.domain.query.parser import parse_query
 from ascetic_ddd.faker.domain.query.visitors import dict_to_query, query_to_dict
-from ascetic_ddd.faker.domain.providers.interfaces import IAggregateProvider, IAggregateRepository
+from ascetic_ddd.faker.domain.providers.interfaces import (
+    IAggregateProvider, IAggregateRepository,
+)
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.values.empty import empty
 
 
 __all__ = ('AggregateProvider',)
 
-InputT = typing.TypeVar("InputT")
-OutputT = typing.TypeVar("OutputT")
+
+IdInputT = typing.TypeVar("IdInputT")
+IdOutputT = typing.TypeVar("IdOutputT")
+AggInputT = typing.TypeVar("AggInputT", bound=dict)
+AggOutputT = typing.TypeVar("AggOutputT", bound=object)
 
 
 class AggregateProvider(
-    BaseCompositeProvider[InputT, OutputT],
-    IAggregateProvider[InputT, OutputT],
-    typing.Generic[InputT, OutputT],
+    BaseCompositeProvider[AggInputT, AggOutputT],
+    IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT],
+    typing.Generic[AggInputT, AggOutputT, IdInputT, IdOutputT],
     metaclass=ABCMeta
 ):
     _id_attr: str
-    _repository: IAggregateRepository[OutputT]
-    _output_exporter: typing.Callable[[OutputT], InputT] = None
+    _repository: IAggregateRepository[AggOutputT]
+    _output_exporter: typing.Callable[[AggOutputT], AggInputT] = None
 
     def __init__(
             self,
             repository: IAggregateRepository,
             # distributor_factory: IM2ODistributorFactory,
-            output_factory: typing.Callable[..., OutputT] | None = None,  # OutputT of each nested Provider.
-            output_exporter: typing.Callable[[OutputT], InputT] | None = None,
+            output_factory: typing.Callable[..., AggOutputT] | None = None,  # CompositeOutputT of each nested Provider.
+            output_exporter: typing.Callable[[AggOutputT], AggInputT] | None = None,
     ):
         self._repository = repository
 
@@ -67,7 +72,7 @@ class AggregateProvider(
             return
         super().require(criteria)
 
-    async def create(self, session: ISession) -> OutputT:
+    async def create(self, session: ISession) -> AggOutputT:
         if self._output is not empty:
             return self._output
         output = await self._default_factory(session)
@@ -130,7 +135,7 @@ class AggregateProvider(
         return getattr(self, self._id_attr)
 
     @property
-    def repository(self) -> IAggregateRepository[OutputT]:
+    def repository(self) -> IAggregateRepository[AggOutputT]:
         return self._repository
 
     async def setup(self, session: ISession):

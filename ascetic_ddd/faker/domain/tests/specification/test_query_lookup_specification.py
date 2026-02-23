@@ -237,7 +237,7 @@ class MockAggregateProvider:
 # Real Providers for Sociable Tests
 # =============================================================================
 
-class StatusFaker(AggregateProvider[dict, Status]):
+class StatusFaker(AggregateProvider[dict, Status, str, StatusId]):
     """Real StatusFaker provider for sociable tests."""
     _id_attr = 'id'
 
@@ -268,7 +268,7 @@ class StatusFaker(AggregateProvider[dict, Status]):
         }
 
 
-class UserFaker(AggregateProvider[dict, User]):
+class UserFaker(AggregateProvider[dict, User, int, UserId]):
     """Real UserFaker provider for sociable tests."""
     _id_attr = 'id'
 

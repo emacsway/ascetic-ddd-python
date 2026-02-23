@@ -232,7 +232,7 @@ async def uuid_generator(session: ISession, query=None, position: int = -1):
 # ################## Fakers ##################################
 
 
-class FirstModelFaker(AggregateProvider[dict, FirstModel]):
+class FirstModelFaker(AggregateProvider[dict, FirstModel, FirstModelPk, FirstModelPk]):
     id: ValueProvider[FirstModelPk, FirstModelPk]
     attr2: ValueProvider[str, str]
     _id_attr = 'id'
@@ -264,7 +264,7 @@ class SecondModelPkFaker(CompositeValueProvider[dict, SecondModelPk]):
 
     def __init__(
             self,
-            first_model_faker: IEntityProvider[dict, FirstModel],
+            first_model_faker: IEntityProvider[dict, FirstModel, FirstModelPk, FirstModelPk],
             make_distributor
     ) -> None:
         self.first_model_id = ReferenceProvider(
@@ -287,7 +287,7 @@ class SecondModelPkFaker(CompositeValueProvider[dict, SecondModelPk]):
         return {'id': pk.id, 'first_model_id': pk.first_model_id}
 
 
-class SecondModelFaker(AggregateProvider[dict, SecondModel]):
+class SecondModelFaker(AggregateProvider[dict, SecondModel, dict, SecondModelPk]):
     id: SecondModelPkFaker
     attr2: ValueProvider[str, str]
     _id_attr = 'id'
@@ -328,7 +328,7 @@ class ThirdModelPkFaker(CompositeValueProvider[dict, ThirdModelPk]):
 
     def __init__(
             self,
-            first_model_faker: IEntityProvider[dict, FirstModel],
+            first_model_faker: IEntityProvider[dict, FirstModel, FirstModelPk, FirstModelPk],
             make_distributor
     ) -> None:
         self.first_model_id = ReferenceProvider(
@@ -358,7 +358,7 @@ class SecondModelFkFaker(CompositeValueProvider[dict, SecondModelPk]):
 
     def __init__(
             self,
-            first_model_faker: IEntityProvider[dict, FirstModel],
+            first_model_faker: IEntityProvider[dict, FirstModel, FirstModelPk, FirstModelPk],
             make_distributor,
             weights: list[float],
             null_weight: float,
@@ -388,7 +388,7 @@ class SecondModelFkFaker(CompositeValueProvider[dict, SecondModelPk]):
         return {'id': pk.id, 'first_model_id': pk.first_model_id}
 
 
-class ThirdModelFaker(AggregateProvider[dict, ThirdModel]):
+class ThirdModelFaker(AggregateProvider[dict, ThirdModel, dict, ThirdModelPk]):
     id: ThirdModelPkFaker
     attr2: ValueProvider[str, str]
     second_model_id: ReferenceProvider

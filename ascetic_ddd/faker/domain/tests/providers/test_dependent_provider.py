@@ -188,7 +188,7 @@ async def company_id_generator(session: ISession, query=None, position: int = -1
 # Employee Provider (child in 1:M)
 # =============================================================================
 
-class EmployeeProvider(AggregateProvider[dict, Employee]):
+class EmployeeProvider(AggregateProvider[dict, Employee, int, EmployeeId]):
     """Provider for Employee - child in 1:M relationship."""
     _id_attr = 'id'
 
@@ -597,7 +597,7 @@ async def company_name_generator(session: ISession, query=None, position: int = 
     return f"Company_{position if position is not None else 0}"
 
 
-class CompanyProviderWithEmployees(AggregateProvider[dict, Company]):
+class CompanyProviderWithEmployees(AggregateProvider[dict, Company, int, CompanyId]):
     """
     Company provider that includes DependentProvider for employees.
     This tests integration of DependentProvider within AggregateProvider.
@@ -606,7 +606,7 @@ class CompanyProviderWithEmployees(AggregateProvider[dict, Company]):
 
     id: ValueProvider[int, CompanyId]
     name: ValueProvider[str, str]
-    employees: DependentProvider[dict, Employee, EmployeeId]
+    employees: DependentProvider[int, EmployeeId, dict, Employee]
 
     def __init__(
             self,

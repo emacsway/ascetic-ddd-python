@@ -3,11 +3,14 @@ from contextlib import asynccontextmanager
 
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.signals.signal import AsyncSignal
-from ascetic_ddd.session.events import SessionScopeStartedEvent, SessionScopeEndedEvent, QueryStartedEvent, \
-    QueryEndedEvent
+from ascetic_ddd.session.events import (
+    SessionScopeStartedEvent,
+    SessionScopeEndedEvent,
+    QueryStartedEvent,
+    QueryEndedEvent,
+)
 from ascetic_ddd.session.interfaces import (
     ISession,
-    IPgSession,
     IIdentityMap,
     IAsyncConnection
 )
@@ -23,8 +26,8 @@ __all__ = (
 )
 
 
-def extract_client(session: IPgSession) -> BaseDBAsyncClient:
-    return session.client
+def extract_client(session: ISession) -> BaseDBAsyncClient:
+    return typing.cast("TortoiseSession", session).client
 
 
 class TortoiseSessionPool:

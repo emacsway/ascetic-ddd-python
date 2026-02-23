@@ -34,8 +34,14 @@ __all__ = (
 
 InputT = typing.TypeVar("InputT")
 OutputT = typing.TypeVar("OutputT")
+CompositeInputT = typing.TypeVar("CompositeInputT", bound=dict)
+CompositeOutputT = typing.TypeVar("CompositeOutputT", bound=object)
 CloneableT = typing.TypeVar("CloneableT")
-AggProviderT = typing.TypeVar("AggProviderT")
+
+IdInputT = typing.TypeVar("IdInputT")
+IdOutputT = typing.TypeVar("IdOutputT")
+AggInputT = typing.TypeVar("AggInputT", bound=dict)
+AggOutputT = typing.TypeVar("AggOutputT", bound=object)
 
 
 class INameable(metaclass=ABCMeta):
@@ -147,7 +153,9 @@ class IRelativeValueProvider(IValueProvider[InputT, OutputT], typing.Generic[Inp
 
 
 class ICompositeValueProvider(
-    IValueProvider[InputT, OutputT], typing.Generic[InputT, OutputT], metaclass=ABCMeta
+    IValueProvider[CompositeInputT, CompositeOutputT],
+    typing.Generic[CompositeInputT, CompositeOutputT],
+    metaclass=ABCMeta
 ):
     @property
     @abstractmethod
@@ -156,40 +164,46 @@ class ICompositeValueProvider(
 
     @property
     @abstractmethod
-    def dependent_providers(self) -> dict[str, 'IDependentProvider[typing.Any, typing.Any, typing.Any]']:
+    def dependent_providers(self) -> dict[str, 'IDependentProvider[typing.Any, typing.Any, typing.Any, typing.Any]']:
         raise NotImplementedError
 
 
 class IEntityProvider(
-    ICompositeValueProvider[InputT, OutputT], typing.Generic[InputT, OutputT], metaclass=ABCMeta
+    ICompositeValueProvider[AggInputT, AggOutputT],
+    typing.Generic[AggInputT, AggOutputT, IdInputT, IdOutputT],
+    metaclass=ABCMeta
 ):
 
     @property
     @abstractmethod
-    def id_provider(self) -> IValueProvider[InputT, OutputT]:
+    def id_provider(self) -> IValueProvider[IdInputT, IdOutputT]:
         raise NotImplementedError
 
 
-class IAggregateRepository(typing.Protocol[OutputT]):
+class IAggregateRepository(typing.Protocol[AggOutputT]):
 
     @property
-    def on_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[OutputT]]:
+    def table(self) -> str:
         ...
 
     @property
-    def on_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[OutputT]]:
+    def on_inserted(self) -> IAsyncSignal[AggregateInsertedEvent[AggOutputT]]:
         ...
 
-    async def insert(self, session: ISession, agg: OutputT):
+    @property
+    def on_updated(self) -> IAsyncSignal[AggregateUpdatedEvent[AggOutputT]]:
         ...
 
-    async def get(self, session: ISession, id_: IAccessible[typing.Any]) -> OutputT | None:
+    async def insert(self, session: ISession, agg: AggOutputT):
         ...
 
-    async def update(self, session: ISession, agg: OutputT):
+    async def get(self, session: ISession, id_: IAccessible[typing.Any]) -> AggOutputT | None:
         ...
 
-    async def find(self, session: ISession, specification: ISpecification) -> typing.Iterable[OutputT]:
+    async def update(self, session: ISession, agg: AggOutputT):
+        ...
+
+    async def find(self, session: ISession, specification: ISpecification) -> typing.Iterable[AggOutputT]:
         ...
 
     async def setup(self, session: ISession):
@@ -200,31 +214,34 @@ class IAggregateRepository(typing.Protocol[OutputT]):
 
 
 class IAggregateProvider(
-    IEntityProvider[InputT, OutputT], typing.Generic[InputT, OutputT], metaclass=ABCMeta
+    IEntityProvider[AggInputT, AggOutputT, IdInputT, IdOutputT],
+    typing.Generic[AggInputT, AggOutputT, IdInputT, IdOutputT],
+    metaclass=ABCMeta
 ):
     # TODO: move id_provider here?
 
     @property
     @abstractmethod
-    def repository(self) -> IAggregateRepository[OutputT]:
+    def repository(self) -> IAggregateRepository[AggOutputT]:
         raise NotImplementedError
 
 
 class IReferenceProvider(
-    IValueProvider[InputT, OutputT],
-    typing.Generic[InputT, OutputT, AggProviderT], metaclass=ABCMeta
+    IValueProvider[IdInputT, IdOutputT],
+    typing.Generic[IdInputT, IdOutputT, AggInputT, AggOutputT], metaclass=ABCMeta
 ):
 
     @property
     @abstractmethod
-    def aggregate_provider(self) -> IAggregateProvider[InputT, AggProviderT]:
+    def aggregate_provider(self) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
         raise NotImplementedError
 
     @aggregate_provider.setter
     @abstractmethod
     def aggregate_provider(
             self,
-            aggregate_provider: IAggregateProvider[InputT, AggProviderT] | Callable[[], IAggregateProvider[InputT, AggProviderT]]
+            aggregate_provider: (IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT] |
+                                 Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]])
     ) -> None:
         raise NotImplementedError
 
@@ -255,24 +272,33 @@ class IDependentInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
 
 class IDependentProvider(
-    IDependentInputOutput[InputT, OutputT], IProvidable, INameable, ILifecycleAble,
-    ISetupable, typing.Generic[InputT, OutputT, AggProviderT], metaclass=ABCMeta
+    IDependentInputOutput[IdInputT, IdOutputT],
+    IProvidable,
+    INameable,
+    ILifecycleAble,
+    ISetupable,
+    typing.Generic[IdInputT, IdOutputT, AggInputT, AggOutputT],
+    metaclass=ABCMeta
 ):
 
     @property
     @abstractmethod
-    def aggregate_providers(self) -> list[IAggregateProvider[InputT, AggProviderT]]:
+    def aggregate_providers(self) -> list[
+        IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]
+    ]:
         raise NotImplementedError
 
     @aggregate_providers.setter
     @abstractmethod
     def aggregate_providers(
             self,
-            aggregate_provider: list[IAggregateProvider[InputT, AggProviderT] |
-                                     Callable[[], IAggregateProvider[InputT, AggProviderT]]]
+            aggregate_provider: list[
+                IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT] |
+                Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]
+            ]
     ) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def set_dependency_id(self, dependency_id: typing.Any) -> None:
+    def set_dependency_id(self, dependency_id: IdInputT) -> None:
         raise NotImplementedError

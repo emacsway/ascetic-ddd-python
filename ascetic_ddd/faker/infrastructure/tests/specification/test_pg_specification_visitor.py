@@ -167,7 +167,7 @@ class StubRepository(IAggregateRepository):
 # Providers
 # =============================================================================
 
-class StatusFaker(AggregateProvider[dict, Status]):
+class StatusFaker(AggregateProvider[dict, Status, str, StatusId]):
     _id_attr = 'id'
 
     id: ValueProvider[str, StatusId]
@@ -197,7 +197,7 @@ class StatusFaker(AggregateProvider[dict, Status]):
         }
 
 
-class DepartmentFaker(AggregateProvider[dict, Department]):
+class DepartmentFaker(AggregateProvider[dict, Department, int, DepartmentId]):
     _id_attr = 'id'
 
     id: ValueProvider[int, DepartmentId]
@@ -238,7 +238,7 @@ class DepartmentFaker(AggregateProvider[dict, Department]):
         }
 
 
-class UserFaker(AggregateProvider[dict, User]):
+class UserFaker(AggregateProvider[dict, User, int, UserId]):
     _id_attr = 'id'
 
     id: ValueProvider[int, UserId]
@@ -296,7 +296,7 @@ class AddressFaker(CompositeValueProvider[dict, Address]):
         super().__init__(output_factory=Address)
 
 
-class CompanyFaker(AggregateProvider[dict, Company]):
+class CompanyFaker(AggregateProvider[dict, Company, int, int]):
     _id_attr = 'id'
 
     id: ValueProvider[int, int]

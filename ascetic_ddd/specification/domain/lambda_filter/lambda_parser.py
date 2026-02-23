@@ -300,6 +300,7 @@ class LambdaParser:
             user.age.Eq(25) -> Equal(Field(GlobalScope(), "age"), Value(25))
             user.profile.age.Gt(18) -> GreaterThan(Field(Object(GlobalScope(), "profile"), "age"), Value(18))
         """
+        assert isinstance(node.func, ast.Attribute)
         if len(node.args) != 1:
             raise ValueError("%s() requires exactly 1 argument" % node.func.attr)
 
@@ -317,6 +318,7 @@ class LambdaParser:
         Example:
             user.email.IsNull() -> IsNull(Field(GlobalScope(), "email"))
         """
+        assert isinstance(node.func, ast.Attribute)
         if len(node.args) != 0:
             raise ValueError("%s() takes no arguments" % node.func.attr)
 

@@ -258,7 +258,7 @@ async def book_title_gen(session, query=None, position=None):
 # Providers
 # =============================================================================
 
-class TenantProvider(AggregateProvider[dict, Tenant]):
+class TenantProvider(AggregateProvider[dict, Tenant, int, TenantId]):
     _id_attr = 'id'
 
     id: ValueProvider[int, TenantId]
@@ -283,7 +283,7 @@ class TenantProvider(AggregateProvider[dict, Tenant]):
         return {'id': t.id.value, 'name': t.name}
 
 
-class AuthorProvider(AggregateProvider[dict, Author]):
+class AuthorProvider(AggregateProvider[dict, Author, int, AuthorId]):
     _id_attr = 'id'
 
     id: ValueProvider[int, AuthorId]
@@ -313,7 +313,7 @@ class AuthorProvider(AggregateProvider[dict, Author]):
         return {'id': a.id.value, 'tenant_id': a.tenant_id.value, 'name': a.name}
 
 
-class PublisherProvider(AggregateProvider[dict, Publisher]):
+class PublisherProvider(AggregateProvider[dict, Publisher, int, PublisherId]):
     _id_attr = 'id'
 
     id: ValueProvider[int, PublisherId]
@@ -343,7 +343,7 @@ class PublisherProvider(AggregateProvider[dict, Publisher]):
         return {'id': p.id.value, 'tenant_id': p.tenant_id.value, 'title': p.title}
 
 
-class BookProvider(AggregateProvider[dict, Book]):
+class BookProvider(AggregateProvider[dict, Book, int, BookId]):
     """
     Diamond topology:
 

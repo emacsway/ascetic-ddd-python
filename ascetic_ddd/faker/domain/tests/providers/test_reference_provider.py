@@ -409,7 +409,7 @@ class ResumeIdProvider(CompositeValueProvider[dict, ResumeId]):
 # Aggregate Providers - Auto Increment PK
 # =============================================================================
 
-class TenantProviderAutoIncrement(AggregateProvider[dict, Tenant]):
+class TenantProviderAutoIncrement(AggregateProvider[dict, Tenant, int, TenantId]):
     """Tenant provider with auto-increment ID."""
     _id_attr = 'id'
 
@@ -438,7 +438,7 @@ class TenantProviderAutoIncrement(AggregateProvider[dict, Tenant]):
         return {'id': tenant.id.value, 'name': tenant.name}
 
 
-class UserProviderAutoIncrement(AggregateProvider[dict, User]):
+class UserProviderAutoIncrement(AggregateProvider[dict, User, dict, UserId]):
     """User provider with auto-increment ID and reference to Tenant."""
     _id_attr = 'id'
 
@@ -480,7 +480,7 @@ class UserProviderAutoIncrement(AggregateProvider[dict, User]):
         }
 
 
-class ResumeProviderAutoIncrement(AggregateProvider[dict, Resume]):
+class ResumeProviderAutoIncrement(AggregateProvider[dict, Resume, dict, ResumeId]):
     """Resume provider with auto-increment ID and reference to User."""
     _id_attr = 'id'
 
@@ -525,7 +525,7 @@ class ResumeProviderAutoIncrement(AggregateProvider[dict, Resume]):
 # Aggregate Providers - Pre-set PK
 # =============================================================================
 
-class TenantProviderPresetPK(AggregateProvider[dict, Tenant]):
+class TenantProviderPresetPK(AggregateProvider[dict, Tenant, int, TenantId]):
     """Tenant provider with pre-set ID from generator."""
     _id_attr = 'id'
 
@@ -554,7 +554,7 @@ class TenantProviderPresetPK(AggregateProvider[dict, Tenant]):
         return {'id': tenant.id.value, 'name': tenant.name}
 
 
-class UserProviderPresetPK(AggregateProvider[dict, User]):
+class UserProviderPresetPK(AggregateProvider[dict, User, dict, UserId]):
     """User provider with pre-set ID and reference to Tenant."""
     _id_attr = 'id'
 
@@ -594,7 +594,7 @@ class UserProviderPresetPK(AggregateProvider[dict, User]):
         }
 
 
-class ResumeProviderPresetPK(AggregateProvider[dict, Resume]):
+class ResumeProviderPresetPK(AggregateProvider[dict, Resume, dict, ResumeId]):
     """Resume provider with pre-set ID and reference to User."""
     _id_attr = 'id'
 

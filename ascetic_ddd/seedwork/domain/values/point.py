@@ -22,9 +22,9 @@ class Point(_Point):
         return super().__new__(cls, latitude, longitude, altitude)
 
     def export(self, exporter: "IPointExporter") -> None:
-        exporter.longitude = Decimal(self.longitude).quantize(Decimal(".000001"))
-        exporter.latitude = Decimal(self.latitude).quantize(Decimal(".000001"))
-        exporter.altitude = (
+        exporter.set_longitude(Decimal(self.longitude).quantize(Decimal(".000001")))
+        exporter.set_latitude(Decimal(self.latitude).quantize(Decimal(".000001")))
+        exporter.set_altitude(
             bool(self.altitude) and Decimal(self.altitude).quantize(Decimal(".000001")) or None
         )
 

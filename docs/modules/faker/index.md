@@ -310,7 +310,7 @@ class Book:
 ######################## Providers ######################################
 
 
-class TenantProvider(AggregateProvider[dict, Tenant]):
+class TenantProvider(AggregateProvider[dict, Tenant, int, TenantId]):
     _id_attr = 'id'
 
     id: IValueProvider[int, TenantId]
@@ -342,7 +342,7 @@ class TenantProvider(AggregateProvider[dict, Tenant]):
 
 class AuthorIdProvider(CompositeValueProvider[dict, TenantId]):
     author_id: IValueProvider[int, AuthorId]
-    tenant_id: IReferenceProvider[dict, TenantId, TenantProvider]
+    tenant_id: IReferenceProvider[int, TenantId, dict, Tenant]
 
     def __init__(self, tenant_provider: TenantProvider):
         self.author_id = ValueProvider[int, AuthorId](
@@ -352,7 +352,7 @@ class AuthorIdProvider(CompositeValueProvider[dict, TenantId]):
         )
         # Reference to Tenant with skew=2.0 distribution (skewed towards the beginning)
         # mean=10 means on average 10 authors per tenant
-        self.tenant_id = ReferenceProvider[dict, TenantId, TenantProvider](
+        self.tenant_id = ReferenceProvider[int, TenantId, dict, Tenant](
             distributor=distributor_factory(skew=2.0, mean=10),
             aggregate_provider=tenant_provider
         )
@@ -363,7 +363,7 @@ class AuthorIdProvider(CompositeValueProvider[dict, TenantId]):
         )
 
 
-class AuthorProvider(AggregateProvider[dict, Author]):
+class AuthorProvider(AggregateProvider[dict, Author, dict, AuthorId]):
     _id_attr = 'id'
     id: ICompositeValueProvider[dict, AuthorId]
     name: IValueProvider[str, AuthorName]
@@ -388,7 +388,7 @@ class AuthorProvider(AggregateProvider[dict, Author]):
 
 class BookIdProvider(CompositeValueProvider[dict, TenantId]):
     book_id: IValueProvider[int, BookId]
-    tenant_id: IReferenceProvider[dict, TenantId, TenantProvider]
+    tenant_id: IReferenceProvider[int, TenantId, dict, Tenant]
 
     def __init__(self, tenant_provider: TenantProvider):
         self.book_id = ValueProvider[int, BookId](
@@ -396,7 +396,7 @@ class BookIdProvider(CompositeValueProvider[dict, TenantId]):
             output_factory=InternalBookId,
             output_exporter=lambda x: x.value,
         )
-        self.tenant_id = ReferenceProvider[dict, TenantId, TenantProvider](
+        self.tenant_id = ReferenceProvider[int, TenantId, dict, Tenant](
             distributor=distributor_factory(weights=[0.7, 0.2, 0.07, 0.03], mean=50),
             aggregate_provider=tenant_provider
         )
@@ -407,17 +407,17 @@ class BookIdProvider(CompositeValueProvider[dict, TenantId]):
         )
 
 
-class BookProvider(AggregateProvider[dict, Book]):
+class BookProvider(AggregateProvider[dict, Book, dict, BookId]):
     _id_attr = 'id'
     id: BookIdProvider
-    author_id: IReferenceProvider[dict, AuthorId, AuthorProvider]
+    author_id: IReferenceProvider[dict, AuthorId, dict, Author]
     title: IValueProvider[str, BookTitle]
 
     def __init__(self, repository, tenant_provider: TenantProvider, author_provider: AuthorProvider):
         self.id = BookIdProvider(tenant_provider=tenant_provider)
         # Reference to Author with weights distribution (20% of authors write 70% of books)
         # mean=50 means on average 50 books per author
-        self.author_id = ReferenceProvider[dict, AuthorId, AuthorProvider](
+        self.author_id = ReferenceProvider[dict, AuthorId, dict, Author](
             distributor=distributor_factory(weights=[0.7, 0.2, 0.07, 0.03], mean=50),
             aggregate_provider=author_provider,
         )

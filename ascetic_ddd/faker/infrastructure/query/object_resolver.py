@@ -36,11 +36,11 @@ class ProviderObjectResolver(IObjectResolver):
             return None, None
 
         related_provider = provider.aggregate_provider
-        obj = await related_provider._repository.get(session, fk_value)
+        obj = await related_provider._repository.get(session, fk_value)  # type: ignore[attr-defined]
 
         if obj is None:
             return None, None
 
-        state = related_provider._output_exporter(obj)
+        state = related_provider._output_exporter(obj)  # type: ignore[attr-defined]
         nested = ProviderObjectResolver(lambda: related_provider)
         return state, nested
