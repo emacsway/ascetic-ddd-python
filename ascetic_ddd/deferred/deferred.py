@@ -4,6 +4,10 @@ Deferred pattern implementation.
 Simplified version of:
 - https://github.com/emacsway/store/blob/devel/polyfill.js#L199
 - https://github.com/emacsway/go-promise
+
+See also:
+- https://promisesaplus.com/
+- http://promises-aplus.github.io/promises-spec/
 """
 from typing import Any, Callable, Generic, Iterable, TypeVar
 
