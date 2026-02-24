@@ -11,8 +11,8 @@ from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factory
 from ascetic_ddd.faker.domain.distributors.m2o.skew_distributor import estimate_skew, weights_to_skew
 from ascetic_ddd.faker.domain.query.parser import QueryParser
+from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
-from ascetic_ddd.faker.domain.values.empty import Empty, empty
 from ascetic_ddd.faker.infrastructure.tests.db import make_internal_pg_session_pool
 from ascetic_ddd.session.interfaces import ISession
 
@@ -21,12 +21,10 @@ from ascetic_ddd.session.interfaces import ISession
 
 @dataclasses.dataclass(kw_only=True)
 class SomePk:
-    id: uuid.UUID | Empty
+    id: uuid.UUID
     another_model_id: uuid.UUID
 
     def __hash__(self):
-        assert self.id is not empty
-        assert self.another_model_id is not empty
         return hash((self.id, self.another_model_id))
 
 
@@ -137,7 +135,7 @@ class DefaultKeySkewDistributorTestCase(_BaseSkewDistributorTestCase):
             result = []
             for _ in range(self.count):
                 try:
-                    result.append(await self.dist.next(ts_session))
+                    result.append((await self.dist.next(ts_session, EmptySpecification())).unwrap_or(None))
                 except Cursor as cursor:
                     value = await factory(ts_session, cursor.position)
                     await cursor.append(ts_session, value)
@@ -172,7 +170,7 @@ class SpecificKeySkewDistributorTestCase(_BaseSkewDistributorTestCase):
                     lambda obj: dataclasses.asdict(obj)
                 )
                 try:
-                    result.append(await self.dist.next(ts_session, specification=spec))
+                    result.append((await self.dist.next(ts_session, specification=spec)).unwrap_or(None))
                 except Cursor as cursor:
                     value = await factory(ts_session)
                     await cursor.append(ts_session, value)
@@ -207,7 +205,7 @@ class CollectionSkewDistributorTestCase(_BaseSkewDistributorTestCase):
             result = []
             for _ in range(self.count):
                 try:
-                    result.append(await self.dist.next(ts_session))
+                    result.append((await self.dist.next(ts_session, EmptySpecification())).unwrap_or(None))
                 except Cursor as cursor:
                     try:
                         value = next(self._value_iter)

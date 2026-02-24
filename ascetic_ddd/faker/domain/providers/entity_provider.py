@@ -5,8 +5,6 @@ from ascetic_ddd.faker.domain.distributors.m2o.interfaces import ICursor
 from ascetic_ddd.faker.domain.providers._mixins import BaseCompositeProvider
 from ascetic_ddd.faker.domain.providers.interfaces import IEntityProvider
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.values.empty import empty
-
 __all__ = ('EntityProvider',)
 
 IdInputT = typing.TypeVar("IdInputT")
@@ -44,8 +42,8 @@ class EntityProvider(
         super().__init__(output_factory=output_factory)
 
     async def create(self, session: ISession) -> AggOutputT:
-        if self._output is empty:
-            self._output = await self._default_factory(session)
+        if not self._output_defined:
+            self._set_output(await self._default_factory(session))
         return self._output
 
     @property

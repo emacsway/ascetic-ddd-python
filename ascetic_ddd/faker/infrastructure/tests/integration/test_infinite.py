@@ -24,7 +24,6 @@ from ascetic_ddd.faker.domain.providers.interfaces import IEntityProvider
 from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
 from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.faker.infrastructure.distributors.m2o import pg_distributor_factory
 from ascetic_ddd.session.rest_session import RestSessionPool
 from ascetic_ddd.faker.infrastructure.tests.db import make_internal_pg_session_pool
@@ -147,8 +146,6 @@ class SecondModelPk:
     first_model_id: FirstModelPk
 
     def __hash__(self):
-        assert self.id is not empty
-        assert self.first_model_id is not empty
         return hash((self.id, self.first_model_id))
 
     @property
@@ -174,8 +171,6 @@ class ThirdModelPk:
     first_model_id: FirstModelPk
 
     def __hash__(self):
-        assert self.id is not empty
-        assert self.first_model_id is not empty
         return hash((self.id, self.first_model_id))
 
     @property
@@ -436,9 +431,9 @@ class ThirdModelFaker(AggregateProvider[dict, ThirdModel, dict, ThirdModelPk]):
     def _export(agg: ThirdModel) -> dict:
         return {
             'id': ThirdModelPkFaker._export(agg.id),
-            'second_model_id': SecondModelPkFaker._export(agg.second_model_id) if agg.second_model_id and agg.second_model_id is not empty else None,
+            'second_model_id': SecondModelPkFaker._export(agg.second_model_id) if agg.second_model_id is not None else None,
             'attr2': agg.attr2,
-            'parent_id': ThirdModelPkFaker._export(agg.parent_id) if agg.parent_id and agg.parent_id is not empty else None,
+            'parent_id': ThirdModelPkFaker._export(agg.parent_id) if agg.parent_id is not None else None,
         }
 
     async def do_populate(self, session: ISession) -> None:

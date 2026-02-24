@@ -41,16 +41,28 @@ __all__ = (
 
 
 class ISession(typing.Protocol):
-    on_atomic_started: IAsyncSignal[SessionScopeStartedEvent]
-    on_atomic_ended: IAsyncSignal[SessionScopeEndedEvent]
+
+    @property
+    def on_atomic_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
+        ...
+
+    @property
+    def on_atomic_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
+        ...
 
     def atomic(self) -> typing.AsyncContextManager["ISession"]:
         ...
 
 
 class ISessionPool(typing.Protocol):
-    on_session_started: IAsyncSignal[SessionScopeStartedEvent]
-    on_session_ended: IAsyncSignal[SessionScopeEndedEvent]
+
+    @property
+    def on_session_started(self) -> IAsyncSignal[SessionScopeStartedEvent]:
+        ...
+
+    @property
+    def on_session_ended(self) -> IAsyncSignal[SessionScopeEndedEvent]:
+        ...
 
     def session(self) -> typing.AsyncContextManager[ISession]:
         raise NotImplementedError
@@ -189,15 +201,39 @@ class IIdentityMap(metaclass=ABCMeta):
 
 @typing.runtime_checkable
 class IPgSession(ISession, typing.Protocol):
-    identity_map: IIdentityMap
-    connection: IAsyncConnection[tuple[typing.Any, ...]]
-    on_query_started: IAsyncSignal[QueryStartedEvent]
-    on_query_ended: IAsyncSignal[QueryEndedEvent]
+
+    @property
+    def identity_map(self) -> IIdentityMap:
+        ...
+
+    @property
+    def connection(self) -> IAsyncConnection[tuple[typing.Any, ...]]:
+        ...
+
+    @property
+    def on_query_started(self) -> IAsyncSignal[QueryStartedEvent]:
+        ...
+
+    @property
+    def on_query_ended(self) -> IAsyncSignal[QueryEndedEvent]:
+        ...
 
 
 @typing.runtime_checkable
 class IRestSession(ISession, typing.Protocol):
-    identity_map: IIdentityMap
-    request: ClientSession
-    on_request_started: IAsyncSignal[RequestStartedEvent]
-    on_request_ended: IAsyncSignal[RequestEndedEvent]
+
+    @property
+    def identity_map(self) -> IIdentityMap:
+        ...
+
+    @property
+    def request(self) -> ClientSession:
+        ...
+
+    @property
+    def on_request_started(self) -> IAsyncSignal[RequestStartedEvent]:
+        ...
+
+    @property
+    def on_request_ended(self) -> IAsyncSignal[RequestEndedEvent]:
+        ...

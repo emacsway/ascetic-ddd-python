@@ -2,6 +2,7 @@ import hashlib
 import typing
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
+from ascetic_ddd.option import Option
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.signals.signal import AsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
@@ -10,7 +11,6 @@ from ascetic_ddd.faker.infrastructure.session.pg_session import extract_internal
 
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 
 
@@ -25,7 +25,6 @@ class PgSequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
     _initialized: bool = False
     _provider_name: str | None = None
     _table: str | None = None
-    _default_spec: ISpecification
     _on_appended: IAsyncSignal[ValueAppendedEvent[T]]
 
     def __init__(
@@ -33,7 +32,6 @@ class PgSequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
             initialized: bool = False
     ):
         self._initialized = initialized
-        self._default_spec = EmptySpecification()
         self._on_appended = AsyncSignal[ValueAppendedEvent[T]]()
 
     @property
@@ -43,11 +41,8 @@ class PgSequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
     async def next(
             self,
             session: ISession,
-            specification: ISpecification[T] | None = None,
-    ) -> T:
-        if specification is None:
-            specification = self._default_spec
-
+            specification: ISpecification[T],
+    ) -> Option[T]:
         if not self._initialized:
             await self.setup(session)
 

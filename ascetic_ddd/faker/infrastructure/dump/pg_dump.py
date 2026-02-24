@@ -65,6 +65,7 @@ class GzipDump(IDump):
         proc = subprocess.Popen(
             ["gzip"], stdin=subprocess.PIPE, stdout=out, stderr=subprocess.PIPE
         )
+        assert proc.stdin is not None
         await self._delegate.dump(proc.stdin)
 
         sub_out, sub_err = proc.communicate()
@@ -76,6 +77,7 @@ class GzipDump(IDump):
         proc = subprocess.Popen(
             ["gunzip"], stdin=in_, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
+        assert proc.stdout is not None
         await self._delegate.load(proc.stdout)
 
         sub_out, sub_err = proc.communicate()

@@ -42,7 +42,7 @@ class MultiQueryBase(typing.Generic[Row], metaclass=ABCMeta):
         self._sql_template: str = ""
         self._values_pattern: str = ""
         self._params: list[typing.Sequence[typing.Any]] = []
-        self._results: list[Deferred[Row]] = []
+        self._results: list[Deferred[Row | None]] = []
 
     def _build_sql(self) -> str:
         """Build the combined SQL query with duplicated VALUES clauses."""
@@ -63,7 +63,7 @@ class MultiQueryBase(typing.Generic[Row], metaclass=ABCMeta):
         *,
         prepare: bool | None = None,
         binary: bool | None = None,
-    ) -> Deferred[Row]:
+    ) -> Deferred[Row | None]:
         """
         Add a query to the batch.
 
@@ -74,7 +74,7 @@ class MultiQueryBase(typing.Generic[Row], metaclass=ABCMeta):
             binary: is not used
 
         Returns:
-            Deferred[Row] that will be resolved when batch is evaluated
+            Deferred[Row | None] that will be resolved when batch is evaluated
         """
         query_str = query if isinstance(query, str) else query.decode()
 
@@ -96,7 +96,7 @@ class MultiQueryBase(typing.Generic[Row], metaclass=ABCMeta):
             self._params.append(params)
 
         # Create and store deferred result
-        result: Deferred[Row] = Deferred()
+        result = Deferred[Row | None]()
         self._results.append(result)
         return result
 
@@ -168,7 +168,7 @@ class AutoincrementMultiInsertQuery(MultiQueryBase[Row], IMultiQuerier[Row], typ
         errors: list[Exception] = []
         for i, row in enumerate(rows):
             if i < len(self._results):
-                self._results[i].resolve(row)
+                self._results[i].resolve(typing.cast(Row, row))
                 errors.extend(self._results[i].occurred_err())
 
         if errors:

@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+from ascetic_ddd.option import Some
 from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.signals.signal import AsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 
@@ -28,7 +28,7 @@ class MockDistributor(IM2ODistributor):
         if self._index < len(self._values):
             value = self._values[self._index]
             self._index += 1
-            return value
+            return Some(value)
         raise Cursor(position=self._index, callback=self._append)
 
     async def _append(self, session: ISession, value, position: int):
@@ -240,7 +240,7 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
 
         self.assertFalse(provider.is_complete())
         self.assertIsNone(provider._criteria)
-        self.assertEqual(provider._output, empty)
+        self.assertFalse(provider._output_defined)
 
 
 class ValueProviderWithFactoriesTestCase(IsolatedAsyncioTestCase):

@@ -12,7 +12,7 @@ from ascetic_ddd.session.events import (
 from ascetic_ddd.session.interfaces import (
     ISession,
     IIdentityMap,
-    IAsyncConnection
+    IAsyncConnection,
 )
 from ascetic_ddd.session.identity_map import IdentityMap
 from ascetic_ddd.session.pg_session import AsyncConnectionDecorator

@@ -14,7 +14,7 @@ class CompositeDump(IFileDump):
         self._delegates = delegates
 
     async def exists(self, name: str) -> bool:
-        return all(await delegate.exists(name) for delegate in self._delegates)
+        return all([await delegate.exists(name) for delegate in self._delegates])
 
     @property
     def ttl(self) -> datetime.timedelta:

@@ -187,8 +187,8 @@ def normalize_query(op: IQueryOperator) -> IQueryOperator:
         return OrOperator(tuple(normalize_query(operand) for operand in op.operands))
 
     if isinstance(op, CompositeQuery):
-        normalized = {k: normalize_query(v) for k, v in op.fields.items()}
-        return CompositeQuery(normalized)
+        normalized_fields: dict[str, IQueryOperator] = {k: normalize_query(v) for k, v in op.fields.items()}
+        return CompositeQuery(normalized_fields)
 
     return op
 

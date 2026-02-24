@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from ascetic_ddd.seedwork.domain.values.money.currency import Currency
 from ascetic_ddd.seedwork.domain.values.money.expression import Expression
 
 if TYPE_CHECKING:
@@ -26,7 +27,7 @@ class Sum(Expression):
         self.augend = augend
         self.addend = addend
 
-    def reduce(self, bank: "Bank", to: str) -> "Money":
+    def reduce(self, bank: "Bank", to: Currency) -> "Money":
         """
         Reduce this Sum to a Money object in the target currency.
 

@@ -13,6 +13,7 @@ from psycopg.types.json import Jsonb
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+from ascetic_ddd.option import Option, Some
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
@@ -72,11 +73,8 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
     async def next(
             self,
             session: ISession,
-            specification: ISpecification[T] | None = None,
-    ) -> T:
-        if specification is None:
-            specification = self._default_spec
-
+            specification: ISpecification[T],
+    ) -> Option[T]:
         if not self._initialized:
             await self.setup(session)
 
@@ -87,14 +85,15 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
         value, should_create_new = await self._get_next_value(session, specification)
         if should_create_new:
             try:
-                value = await self._delegate.next(session)
+                return await self._delegate.next(session, specification)
             except Cursor as cursor:
                 raise Cursor(
                     position=-1,
                     callback=self._append,
                     delegate=cursor
                 )
-        return value
+        assert value is not None
+        return Some(value)
 
     @abstractmethod
     async def _get_next_value(self, session: ISession, specification: ISpecification[T]) -> tuple[T | None, bool]:

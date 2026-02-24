@@ -192,7 +192,7 @@ class DataclassState(IAggregateState):
         source = self._agg_to_state(agg)
         target = dict()
         for key, value in source.items():
-            if dataclasses.is_dataclass(value):
+            if dataclasses.is_dataclass(value) and not isinstance(value, type):
                 target.update(self._agg_to_state(value))
             else:
                 target[key] = value

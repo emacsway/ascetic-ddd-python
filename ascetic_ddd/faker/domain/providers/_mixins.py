@@ -18,7 +18,6 @@ from ascetic_ddd.faker.domain.query.parser import parse_query
 from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.values.empty import empty, Empty
 from ascetic_ddd.signals.interfaces import ISyncSignal
 from ascetic_ddd.signals.signal import SyncSignal
 from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, InputPopulatedEvent
@@ -119,16 +118,20 @@ class BaseProvider(
     metaclass=abc.ABCMeta
 ):
     _criteria: IQueryOperator | None = None
-    _input: InputT | Empty = empty
-    _output: OutputT | Empty = empty
+    _input: InputT | None = None
+    _input_defined: bool = False
+    _output: OutputT | None = None
+    _output_defined: bool = False
     _is_transient: bool = False
     _on_required: ISyncSignal[CriteriaRequiredEvent]
     _on_populated: ISyncSignal[InputPopulatedEvent[InputT]]
 
     def _do_init(self):
         self._criteria = None
-        self._input = empty
-        self._output = empty
+        self._input = None
+        self._input_defined = False
+        self._output = None
+        self._output_defined = False
         self._is_transient = False
         self._on_required = SyncSignal[CriteriaRequiredEvent]()
         self._on_populated = SyncSignal[InputPopulatedEvent[InputT]]()
@@ -164,25 +167,33 @@ class BaseProvider(
             self._criteria = new_criteria
         # Only reset output if input actually changed
         if self._criteria != old_criteria:
-            self._input = empty
-            self._output = empty
+            self._input = None
+            self._input_defined = False
+            self._output = None
+            self._output_defined = False
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
     def state(self) -> InputT:
         """Return current query as dict format."""
-        return self._input
+        assert self._input_defined, "Provider '%s' not populated" % self._provider_name
+        return typing.cast(InputT, self._input)
 
     def is_complete(self) -> bool:
-        return self._output is not empty
+        return self._output_defined
 
     def is_transient(self) -> bool:
         return self._is_transient
 
-    def _set_input(self, input_: InputT):
+    def _set_input(self, input_: InputT | None):
         self._input = input_
+        self._input_defined = True
         if input_ is not None:
             self._is_transient = False
-        self._on_populated.notify(InputPopulatedEvent(self._input))
+        self._on_populated.notify(InputPopulatedEvent(typing.cast(InputT, self._input)))
+
+    def _set_output(self, output: OutputT | None):
+        self._output = output
+        self._output_defined = True
 
     async def append(self, session: ISession, value: OutputT):
         pass
@@ -219,7 +230,7 @@ class BaseDistributionProvider(BaseProvider[InputT, OutputT], typing.Generic[Inp
         await self._distributor.cleanup(session)
         await super().cleanup(session)
 
-    async def append(self, session: ISession, value: InputT):
+    async def append(self, session: ISession, value: OutputT):
         await self._distributor.append(session, value)
 
 
@@ -231,7 +242,8 @@ class BaseCompositeProvider(
 ):
 
     _criteria: IQueryOperator | None = None
-    _output: CompositeOutputT | Empty = empty
+    _output: CompositeOutputT | None = None
+    _output_defined: bool = False
     _output_factory: typing.Callable[..., CompositeOutputT] = None  # CompositeOutputT of each nested Provider.
     _provider_name: str | None = None
     _on_required: ISyncSignal[CriteriaRequiredEvent]
@@ -239,7 +251,8 @@ class BaseCompositeProvider(
 
     def _do_init(self):
         self._criteria = None
-        self._output = empty
+        self._output = None
+        self._output_defined = False
         self._on_required = SyncSignal[CriteriaRequiredEvent]()
         self._on_populated = SyncSignal[InputPopulatedEvent]()
         super()._do_init()
@@ -287,7 +300,8 @@ class BaseCompositeProvider(
             self._criteria = new_criteria
         # Only reset output if input actually changed
         if self._criteria != old_criteria:
-            self._output = empty
+            self._output = None
+            self._output_defined = False
             self._distribute_criteria(new_criteria)
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
@@ -323,9 +337,8 @@ class BaseCompositeProvider(
         """Return current query as dict format, composed from nested providers."""
         value = dict()
         for attr, provider in self.providers.items():
-            val = provider.state()
-            if val is not empty:
-                value[attr] = val
+            if provider.is_complete():
+                value[attr] = provider.state()
         return value
 
     async def _default_factory(self, session: ISession, position: typing.Optional[int] = None):
@@ -334,9 +347,13 @@ class BaseCompositeProvider(
             data[attr] = await provider.create(session)
         return self._output_factory(**data)
 
+    def _set_output(self, output: CompositeOutputT | None):
+        self._output = output
+        self._output_defined = True
+
     def is_complete(self) -> bool:
         return (
-            self._output is not empty or
+            self._output_defined or
             all(provider.is_complete() for provider in self.providers.values())
         )
 
@@ -425,10 +442,6 @@ class BaseCompositeDistributionProvider(
     typing.Generic[CompositeInputT, CompositeOutputT],
     metaclass=abc.ABCMeta
 ):
-
-    _criteria: IQueryOperator | None = None
-    _output: CompositeOutputT | Empty = empty
-    _provider_name: str | None = None
     _distributor: IM2ODistributor[CompositeOutputT]
 
     def __init__(

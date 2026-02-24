@@ -5,6 +5,7 @@ from abc import abstractmethod
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor, IExternalSource
+from ascetic_ddd.option import Option, Some
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
@@ -169,11 +170,8 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
     async def next(
             self,
             session: ISession,
-            specification: ISpecification[T] | None = None,
-    ) -> T:
-        if specification is None:
-            specification = self._default_spec
-
+            specification: ISpecification[T],
+    ) -> Option[T]:
         # Resolve nested constraints (if any)
         if hasattr(specification, 'resolve_nested'):
             await specification.resolve_nested(session)
@@ -191,7 +189,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
             value = target_index.next(self._mean)
         except StopIteration:
             try:
-                value = await self._delegate.next(session)
+                return await self._delegate.next(session, specification)
             except Cursor as cursor:
                 raise Cursor(
                     position=-1,
@@ -205,7 +203,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
             # Retry
             return await self.next(session, specification)
 
-        return value
+        return Some(value)
 
     async def _relocate_stale_value(self, session: ISession, value: T, current_spec: ISpecification[T]) -> None:
         """

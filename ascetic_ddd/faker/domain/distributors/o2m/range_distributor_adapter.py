@@ -5,6 +5,7 @@ from ascetic_ddd.faker.domain.distributors.m2o.nullable_distributor import Nulla
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.o2m.interfaces import IO2MDistributor
 from ascetic_ddd.faker.domain.distributors.o2m.weighted_range_distributor import WeightedRangeDistributor
+from ascetic_ddd.option import Option, Some
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.signals.interfaces import IAsyncSignal
@@ -64,8 +65,8 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
     async def next(
             self,
             session: ISession,
-            specification: ISpecification[T] | None = None,
-    ) -> T:
+            specification: ISpecification[T],
+    ) -> Option[T]:
         """
         Returns a value from the dictionary by a random number.
 
@@ -84,12 +85,12 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
 
         value = self._values[num]
 
-        # Check specification if provided
-        if specification is not None and not await specification.is_satisfied_by(session, value):
+        # Check specification
+        if not await specification.is_satisfied_by(session, value):
             # Value does not satisfy the specification -- try again
             return await self.next(session, specification)
 
-        return value
+        return Some(value)
 
     async def _append(self, session: ISession, value: T, position: int):
         """

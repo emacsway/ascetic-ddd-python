@@ -1,6 +1,7 @@
 import typing
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
+from ascetic_ddd.option import Option
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.signals.signal import AsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
@@ -27,8 +28,8 @@ class DummyDistributor(IM2ODistributor[T], typing.Generic[T]):
     async def next(
             self,
             session: ISession,
-            specification: ISpecification[T] | None = None,
-    ) -> T:
+            specification: ISpecification[T],
+    ) -> Option[T]:
         raise Cursor(
             position=-1,
             callback=self._append,

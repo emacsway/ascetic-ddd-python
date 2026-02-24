@@ -129,11 +129,8 @@ class VaultTransitService(IKeyManagementService):
     async def _request(self, session: ISession, method: str, path: str, data: dict | None = None) -> dict:
         url = "%s/v1/%s%s" % (self._vault_addr, self._mount, path)
         headers = {"X-Vault-Token": self._vault_token}
-        kwargs = {"headers": headers}
-        if data is not None:
-            kwargs["json"] = data
         http_session = self._extract_request(session)
-        async with http_session.request(method, url, **kwargs) as response:
+        async with http_session.request(method, url, headers=headers, json=data) as response:
             if response.status == 404:
                 raise KekNotFound(path)
             response.raise_for_status()

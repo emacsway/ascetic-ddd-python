@@ -66,7 +66,9 @@ class EventInsertQuery(IEventInsertQuery, metaclass=ABCMeta):
     def set_event_version(self, value: int) -> None:
         self._params[5] = value
 
-    def set_event_meta(self, meta: EventMeta) -> None:
+    def set_event_meta(self, meta: EventMeta | None) -> None:
+        if meta is None:
+            return
         exporter = EventMetaExporter()
         meta.export(exporter)
         self._params[7] = self._encode(exporter.data)

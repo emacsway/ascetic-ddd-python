@@ -9,6 +9,7 @@ See also:
 - https://promisesaplus.com/
 - http://promises-aplus.github.io/promises-spec/
 """
+import typing
 from typing import Any, Callable, Generic, Iterable, TypeVar
 
 from ascetic_ddd.deferred.interfaces import IDeferred
@@ -97,7 +98,7 @@ class Deferred(Generic[T]):
         Returns:
             New Deferred for chaining
         """
-        next_deferred: Deferred[R] = Deferred()
+        next_deferred = Deferred[R]()
         handler = _Handler(on_success, on_error, next_deferred)
         self._handlers.append(handler)
 
@@ -116,7 +117,7 @@ class Deferred(Generic[T]):
         If handler raises an exception, reject the next deferred with it.
         """
         try:
-            result = handler.on_success(self._value)
+            result = handler.on_success(typing.cast(T, self._value))
             handler.next.resolve(result)
         except Exception as e:
             self._occurred_errors.append(e)
@@ -130,7 +131,7 @@ class Deferred(Generic[T]):
         If handler raises an exception, reject the next deferred with it.
         """
         try:
-            result = handler.on_error(self._err)
+            result = handler.on_error(typing.cast(Exception, self._err))
             handler.next.resolve(result)
         except Exception as e:
             self._occurred_errors.append(e)
@@ -168,7 +169,7 @@ class Deferred(Generic[T]):
             A Deferred that resolves with list[T].
         """
         deferreds_list = list(deferreds)
-        result: 'Deferred[list[T]]' = Deferred()
+        result = Deferred[list[T]]()
 
         if not deferreds_list:
             result.resolve([])

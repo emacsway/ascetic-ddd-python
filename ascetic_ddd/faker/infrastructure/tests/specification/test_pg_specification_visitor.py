@@ -4,6 +4,7 @@ from unittest import TestCase, IsolatedAsyncioTestCase
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+from ascetic_ddd.option import Some
 from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
 from ascetic_ddd.faker.domain.providers.composite_value_provider import CompositeValueProvider
 from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
@@ -86,7 +87,7 @@ class StubDistributor(IM2ODistributor):
             raise Cursor(position=self._index, callback=self._append)
         value = self._values[self._index]
         self._index += 1
-        return value
+        return Some(value)
 
     async def _append(self, session: ISession, value, position):
         self._appended.append(value)

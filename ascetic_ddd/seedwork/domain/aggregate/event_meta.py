@@ -18,7 +18,7 @@ class EventMeta:
     correlation_id: uuid.UUID | None = None
     reason: str | None = None
     occurred_at: datetime.datetime | None = None
-    causal_dependencies: tuple[CausalDependency] = ()
+    causal_dependencies: tuple[CausalDependency, ...] = ()
 
     def export(self, exporter: "IEventMetaExporter") -> None:
         exporter.set_event_id(self.event_id)

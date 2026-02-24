@@ -23,9 +23,9 @@ class CursorCollector(typing.Generic[Row]):
     Instead of executing queries immediately, stores them for batch processing.
     """
 
-    def __init__(self, collect_query: typing.Callable[[Query, Params | None], Deferred[Row]]):
+    def __init__(self, collect_query: typing.Callable[[Query, Params | None], Deferred[Row | None]]):
         self._collect_query = collect_query
-        self._last_result: Deferred[Row] | None = None
+        self._last_result: Deferred[Row | None] | None = None
 
     async def execute(
         self,
@@ -58,7 +58,7 @@ class CursorCollector(typing.Generic[Row]):
         """
         if self._last_result is not None:
             return self._last_result
-        result: Deferred[Row | None] = Deferred()
+        result = Deferred[Row | None]()
         result.resolve(None)
         return result
 
@@ -68,9 +68,9 @@ class CursorCollector(typing.Generic[Row]):
 
         Returns Deferred[list[Row]] that will be resolved after batch evaluation.
         """
-        result: Deferred[list[Row]] = Deferred()
+        result = Deferred[list[Row]]()
         if self._last_result is not None:
-            def on_resolve(row: Row) -> None:
+            def on_resolve(row: Row | None) -> None:
                 result.resolve([row] if row is not None else [])
             self._last_result.then(on_resolve, lambda e: None)
         else:
@@ -108,12 +108,12 @@ class ConnectionCollector(typing.Generic[Row]):
     Implements IAsyncConnection interface to mimic real database connection.
     """
 
-    def __init__(self, collect_query: typing.Callable[[Query, Params | None], Deferred[Row]]):
+    def __init__(self, collect_query: typing.Callable[[Query, Params | None], Deferred[Row | None]]):
         self._collect_query = collect_query
 
-    def cursor(self, *args: typing.Any, **kwargs: typing.Any) -> CursorCollector:
+    def cursor(self, *args: typing.Any, **kwargs: typing.Any) -> "CursorCollector[Row]":
         """Return a cursor collector for collecting queries."""
-        return CursorCollector(self._collect_query)
+        return CursorCollector[Row](self._collect_query)
 
     def transaction(
         self,
@@ -188,7 +188,7 @@ class QueryCollector:
         self,
         query: Query,
         params: Params | None = None,
-    ) -> Deferred[Row]:
+    ) -> Deferred[Row | None]:
         """
         Internal method to collect a query for batching.
 
@@ -197,7 +197,7 @@ class QueryCollector:
             params: Sequence of parameter values
 
         Returns:
-            Deferred[Row] that will be resolved when batch is evaluated
+            Deferred[Row | None] that will be resolved when batch is evaluated
         """
         query_str = query if isinstance(query, str) else query.decode()
 
@@ -211,7 +211,7 @@ class QueryCollector:
             return self._multi_query_map[query_str].execute(query, params)
 
         # For non-batchable queries, create immediately resolved result
-        result: Deferred[Row] = Deferred()
+        result = Deferred[Row | None]()
         result.resolve(None)
         return result
 

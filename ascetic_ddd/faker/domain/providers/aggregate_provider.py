@@ -11,9 +11,6 @@ from ascetic_ddd.faker.domain.providers.interfaces import (
     IAggregateProvider, IAggregateRepository,
 )
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.values.empty import empty
-
-
 __all__ = ('AggregateProvider',)
 
 
@@ -54,7 +51,7 @@ class AggregateProvider(
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         new_criteria = parse_query(criteria)
-        if self._output is not empty:
+        if self._output_defined:
             # Already created — validate state instead of resetting output
             state = self.state()
             walker = EvaluateWalker()
@@ -73,7 +70,7 @@ class AggregateProvider(
         super().require(criteria)
 
     async def create(self, session: ISession) -> AggOutputT:
-        if self._output is not empty:
+        if self._output_defined:
             return self._output
         output = await self._default_factory(session)
         await self._repository.insert(session, output)
@@ -90,7 +87,7 @@ class AggregateProvider(
         # await self.id_provider.append(session, getattr(result, self._id_attr))
 
         # self.require() could reset self._output
-        self._output = output
+        self._set_output(output)
 
         # Create dependent entities AFTER this aggregate is created (they need its ID for FK)
         if self.dependent_providers:
@@ -120,7 +117,7 @@ class AggregateProvider(
                 self._set_input(input_)
                 for attr, provider in self.providers.items():
                     await provider.populate(session)
-                self._output = output
+                self._set_output(output)
                 return
 
         await self.do_populate(session)

@@ -99,6 +99,7 @@ class TransformVisitor(Visitor):
         Recursively transforms the operand and wraps in prefix operator.
         """
         node.operand().accept(self)
+        assert self._current_node is not None
         self._current_node = Prefix(
             node.operator(), self._current_node, node.associativity()
         )
@@ -112,10 +113,12 @@ class TransformVisitor(Visitor):
         """
         # Transform left operand
         node.left().accept(self)
+        assert self._current_node is not None
         left = self._current_node
 
         # Transform right operand
         node.right().accept(self)
+        assert self._current_node is not None
         right = self._current_node
 
         # Check if we have composite expressions
@@ -144,8 +147,9 @@ class TransformVisitor(Visitor):
         Recursively transforms the operand and wraps in postfix operator.
         """
         node.operand().accept(self)
+        assert self._current_node is not None
         self._current_node = Postfix(
-            node.operator(), self._current_node, node.associativity()
+            self._current_node, node.operator(), node.associativity()
         )
 
     def result(self) -> Visitable:

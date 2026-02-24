@@ -16,4 +16,5 @@ class RestStatsObserver:
         return self._stats
 
     async def request_ended(self, event: RequestEndedEvent):
+        assert event.request_view.response_time is not None
         self.stats.append("%s.%s" % (event.request_view.label, str(event.request_view.status)), event.request_view.response_time)

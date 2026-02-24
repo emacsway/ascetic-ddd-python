@@ -1,6 +1,7 @@
 import typing
 from abc import ABCMeta, abstractmethod
 
+from ascetic_ddd.option import Option
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
@@ -34,8 +35,8 @@ class IM2ODistributor(typing.Generic[T], metaclass=ABCMeta):
     async def next(
             self,
             session: ISession,  # To get Redis connect from it.
-            specification: ISpecification[T] | None = None,
-    ) -> T:
+            specification: ISpecification[T],
+    ) -> Option[T]:
         """
         Returns next value from distribution.
         Raises ICursor(num) when mean is reached, signaling caller to create new value.

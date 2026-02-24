@@ -19,7 +19,9 @@ class PersistentDomainEventExporter(IPersistentDomainEventExporter):
     def set_event_version(self, value: int) -> None:
         self.data["event_version"] = value
 
-    def set_event_meta(self, meta: EventMeta) -> None:
+    def set_event_meta(self, meta: EventMeta | None) -> None:
+        if meta is None:
+            return
         exporter = EventMetaExporter()
         meta.export(exporter)
         self.data["event_meta"] = exporter.data

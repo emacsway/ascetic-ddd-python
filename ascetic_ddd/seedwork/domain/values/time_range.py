@@ -41,9 +41,9 @@ class TimeRange(TimestamptzRange):
 class ITimeRangeExporter(metaclass=ABCMeta):
 
     @abstractmethod
-    def set_lower(self, value: datetime.datetime) -> None:
+    def set_lower(self, value: datetime.datetime | None) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    def set_upper(self, value: datetime.datetime) -> None:
+    def set_upper(self, value: datetime.datetime | None) -> None:
         raise NotImplementedError

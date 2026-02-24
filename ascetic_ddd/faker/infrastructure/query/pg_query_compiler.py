@@ -267,7 +267,7 @@ class PgQueryCompiler(IQueryVisitor[None]):
 
     @staticmethod
     def _encode(obj: typing.Any) -> Jsonb:
-        if dataclasses.is_dataclass(obj):
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
             obj = dataclasses.asdict(obj)
         dumps = functools.partial(json.dumps, cls=JSONEncoder)
         return Jsonb(obj, dumps)

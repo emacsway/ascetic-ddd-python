@@ -95,10 +95,10 @@ class EventGetQuery(IEventGetQuery, metaclass=ABCMeta):
 
     def _reconstitute_causal_dependency(self, data: dict) -> CausalDependency:
         return CausalDependency(
-            tenant_id=data.get("tenant_id"),
-            stream_id=data.get("aggregate_id"),
-            stream_type=data.get("aggregate_type"),
-            stream_position=data.get("aggregate_version"),
+            tenant_id=data["tenant_id"],
+            stream_id=data["aggregate_id"],
+            stream_type=data["aggregate_type"],
+            stream_position=data["aggregate_version"],
         )
 
 

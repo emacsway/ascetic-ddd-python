@@ -15,7 +15,6 @@ from ascetic_ddd.faker.domain.providers.interfaces import (
     IAggregateProvider,
 )
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.values.empty import empty, Empty
 
 __all__ = ('DependentProvider',)
 
@@ -88,7 +87,8 @@ class DependentProvider(
     _distributor: IO2MDistributor
     _aggregate_providers_accessor: IAggregateProvidersAccessor[AggInputT, AggOutputT, IdInputT, IdOutputT]
     _criteria: list[dict] | None = None
-    _outputs: list[IdOutputT] | Empty = empty
+    _outputs: list[AggOutputT]
+    _outputs_defined: bool = False
     _count: int | None = None
     _weights: list[float] | None = None
     _value_selector: WeightedRangeDistributor | None = None
@@ -116,7 +116,8 @@ class DependentProvider(
 
     def _do_init(self):
         self._criteria = None
-        self._outputs = empty
+        self._outputs = []
+        self._outputs_defined = False
         self._count = None
         self._weights = None
         self._value_selector = None
@@ -142,12 +143,12 @@ class DependentProvider(
         """
         Returns list of IDs of created children.
         """
-        if self._outputs is empty:
+        if not self._outputs_defined:
             return []
 
         results = []
         for provider in self.aggregate_providers:
-            if provider._output is not empty:  # type: ignore[attr-defined]
+            if provider.is_complete():
                 id_result = await provider.id_provider.create(session)
                 results.append(id_result)
         return results
@@ -202,6 +203,7 @@ class DependentProvider(
 
         # Collect results
         self._outputs = []
+        self._outputs_defined = True
         for provider in providers:
             result = await provider.create(session)
             self._outputs.append(result)
@@ -230,7 +232,8 @@ class DependentProvider(
         if self._criteria != criteria or self._weights != weights:
             self._criteria = criteria
             self._weights = weights
-            self._outputs = empty
+            self._outputs = []
+            self._outputs_defined = False
 
             if weights is not None:
                 # Weighted mode: create selector, count from distributor
@@ -256,7 +259,7 @@ class DependentProvider(
         return [provider.id_provider.state() for provider in self.aggregate_providers]
 
     def is_complete(self) -> bool:
-        return self._outputs is not empty
+        return self._outputs_defined
 
     def is_transient(self) -> bool:
         return False
@@ -285,11 +288,11 @@ class DependentProvider(
         This provider will be cloned for each child.
         """
         # Check if it's a provider object (has 'clone' method) or a factory callable
-        if hasattr(aggregate_provider, 'clone'):
+        if not callable(aggregate_provider) or hasattr(aggregate_provider, 'clone'):
             # It's already a provider object
             accessor = EagerAggregateProvidersAccessor[
                 AggInputT, AggOutputT, IdInputT, IdOutputT
-            ](aggregate_provider)
+            ](typing.cast(IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT], aggregate_provider))
         else:
             # It's a factory callable
             accessor = LazyAggregateProvidersAccessor[
@@ -297,7 +300,7 @@ class DependentProvider(
             ](aggregate_provider)
         self._aggregate_providers_accessor = accessor
 
-    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt | None = None):
+    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         clone._aggregate_providers_accessor = self._aggregate_providers_accessor.clone(shunt)
         super()._do_clone(clone, shunt)
 

@@ -17,7 +17,6 @@ from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
-from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, CriteriaRequiredEvent
 
 __all__ = ('ReferenceProvider',)
@@ -69,7 +68,7 @@ class ReferenceProvider(
         super().__init__(distributor=distributor)
 
     async def create(self, session: ISession) -> IdOutputT:
-        if self._output is empty:
+        if not self._output_defined:
             raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
         return self._output
 
@@ -88,8 +87,9 @@ class ReferenceProvider(
             specification = EmptySpecification()
 
         try:
-            agg = await self._distributor.next(session, specification)
-            if agg is not None:
+            result = await self._distributor.next(session, specification)
+            if result.is_some():
+                agg = result.unwrap()
                 agg_state = self.aggregate_provider._output_exporter(agg)  # type: ignore[attr-defined]
                 # self.aggregate_provider.require(dict_to_query(agg_state))
                 id_ = agg_state[self.aggregate_provider._id_attr]  # type: ignore[attr-defined]
@@ -98,12 +98,12 @@ class ReferenceProvider(
                 agg = await self.aggregate_provider.create(session)
                 # self._set_input(self.aggregate_provider.id_provider.state())
                 self._set_input(id_)
-                self._output = await self.aggregate_provider.id_provider.create(session)
+                self._set_output(await self.aggregate_provider.id_provider.create(session))
             else:
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
                 # self._criteria = None
                 self._set_input(None)
-                self._output = None
+                self._set_output(None)
         except ICursor as cursor:
             if self._criteria is not None:
                 # Propagate constraints to aggregate_provider (already done in require())
@@ -113,7 +113,7 @@ class ReferenceProvider(
             await cursor.append(session, agg)
             self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
-            self._output = await self.aggregate_provider.id_provider.create(session)
+            self._set_output(await self.aggregate_provider.id_provider.create(session))
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
@@ -130,8 +130,8 @@ class ReferenceProvider(
 
         # Null FK — no reference. Don't propagate to aggregate.
         if isinstance(new_criteria, EqOperator) and new_criteria.value is None:
-            self._input = None
-            self._output = None
+            self._set_input(None)
+            self._set_output(None)
             return
 
         old_criteria = self._criteria
@@ -150,8 +150,10 @@ class ReferenceProvider(
             self._criteria = new_criteria
         # Only reset output if input actually changed
         if self._criteria != old_criteria:
-            self._input = empty
-            self._output = empty
+            self._input = None
+            self._input_defined = False
+            self._output = None
+            self._output_defined = False
             self._propagate_to_aggregate(new_criteria)
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
@@ -187,7 +189,7 @@ class ReferenceProvider(
             self, aggregate_provider_accessor
         )
 
-    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt | None = None):
+    def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         clone._aggregate_provider_accessor = self._aggregate_provider_accessor.clone(shunt)
         super()._do_clone(clone, shunt)
 

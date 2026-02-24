@@ -11,8 +11,6 @@ from ascetic_ddd.faker.domain.specification.query_lookup_specification import Qu
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.values.empty import empty
-
 __all__ = ('ValueProvider',)
 
 InputT = typing.TypeVar("InputT")
@@ -50,7 +48,7 @@ class ValueProvider(
         "⊆" means subset of a composition.
     """
     _input_generator: IInputGenerator[InputT] | None = None
-    _output_factory: typing.Callable[[InputT], OutputT] = None  # OutputT of each nested Provider.
+    _output_factory: typing.Callable[[InputT | None], OutputT] = None  # OutputT of each nested Provider.
     _output_exporter: typing.Callable[[OutputT], InputT] = None
     _specification_factory: typing.Callable[..., ISpecification]
 
@@ -87,7 +85,7 @@ class ValueProvider(
         super().__init__(distributor=distributor)
 
     async def create(self, session: ISession) -> OutputT:
-        if self._output is empty:
+        if not self._output_defined:
             raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
         return self._output
 
@@ -98,8 +96,8 @@ class ValueProvider(
         if self._criteria is not None:
             # Extract value from EqOperator
             self._set_input(self._criteria.value if isinstance(self._criteria, EqOperator) else None)
-        if self._input is not empty:
-            self._output = self._output_factory(self._input)
+        if self._input_defined:
+            self._set_output(self._output_factory(typing.cast(InputT, self._input)))
             # await cursor.append(session, self._output)
             return
 
@@ -107,21 +105,21 @@ class ValueProvider(
             specification = self._specification_factory(self._criteria)
         else:
             specification = EmptySpecification()
-        specification = None  # FIXE: check how it works
+        specification = EmptySpecification()  # FIXE: check how it works
 
         try:
             # EqOperator would pollute the BaseDistributor index, must not pass it here.
-            output = await self._distributor.next(session, specification)
+            output = (await self._distributor.next(session, specification)).unwrap()
             self._set_input(self._output_exporter(output))
-            self._output = output
+            self._set_output(output)
         except ICursor as cursor:
             if self._input_generator is None:
                 self._set_input(None)
-                self._output = self._output_factory(None)
+                self._set_output(self._output_factory(None))
                 self._is_transient = True
             else:
                 self._set_input(await self._input_generator(session, self._criteria, cursor.position))
-                self._output = self._output_factory(self._input)
+                self._set_output(self._output_factory(typing.cast(InputT, self._input)))
                 await cursor.append(session, self._output)
 
     def _make_specification(self) -> ISpecification | None:

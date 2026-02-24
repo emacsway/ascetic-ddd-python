@@ -4,13 +4,13 @@ from unittest import IsolatedAsyncioTestCase
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+from ascetic_ddd.option import Some
 from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
 from ascetic_ddd.faker.domain.providers.composite_value_provider import CompositeValueProvider
 from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
 from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.signals.signal import AsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
@@ -104,7 +104,7 @@ class StubDistributor(IM2ODistributor):
         if self._index < len(self._values):
             value = self._values[self._index]
             self._index += 1
-            return value
+            return Some(value)
         raise Cursor(position=self._index, callback=self._append)
 
     async def _append(self, session: ISession, value, position: int):
@@ -1033,7 +1033,7 @@ class ReferenceProviderResetTestCase(IsolatedAsyncioTestCase):
         user_provider.reset()
 
         self.assertFalse(user_provider.tenant_id.is_complete())
-        # _criteria is now IQueryOperator | None, not Empty
+        # _criteria is now IQueryOperator | None, not defined
         self.assertIsNone(user_provider.tenant_id._criteria)
 
 

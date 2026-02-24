@@ -1,11 +1,11 @@
 import random
 import typing
 
+from ascetic_ddd.option import Option, Nothing
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
-from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 
 __all__ = ('NullableDistributor',)
@@ -17,7 +17,6 @@ T = typing.TypeVar("T")
 class NullableDistributor(IM2ODistributor[T], typing.Generic[T]):
     _delegate: IM2ODistributor[T]
     _null_weight: float
-    _default_spec: ISpecification
 
     def __init__(
             self,
@@ -26,18 +25,15 @@ class NullableDistributor(IM2ODistributor[T], typing.Generic[T]):
     ):
         self._delegate = delegate
         self._null_weight = null_weight
-        self._default_spec = EmptySpecification()
 
     async def next(
             self,
             session: ISession,
-            specification: ISpecification[T] | None = None,
-    ) -> T | None:
-        if specification is None:
-            specification = self._default_spec
+            specification: ISpecification[T],
+    ) -> Option[T]:
         # if isinstance(specification, EmptySpecification) and self._null_weight > 0 and self._is_null():
         if self._null_weight > 0 and self._is_null():
-            return None
+            return Nothing()
         return await self._delegate.next(session, specification)
 
     @property

@@ -39,6 +39,7 @@ class Identity(Hashable, IAccessible[T], typing.Generic[T]):
         return f"{type(self).__name__}({self._value!r})"
 
     def export(self, setter: typing.Callable[[T], None]) -> None:
+        assert self._value is not None
         setter(self._value)
 
     def import_(self, value: T):

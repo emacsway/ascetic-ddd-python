@@ -4,13 +4,13 @@ from unittest import IsolatedAsyncioTestCase
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+from ascetic_ddd.option import Some
 from ascetic_ddd.faker.domain.distributors.o2m.interfaces import IO2MDistributor
 from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
 from ascetic_ddd.faker.domain.providers.dependent_provider import DependentProvider
 from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.signals.signal import AsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
@@ -414,7 +414,7 @@ class DependentProviderResetTestCase(IsolatedAsyncioTestCase):
 
         self.assertFalse(provider.is_complete())
         self.assertIsNone(provider._criteria)
-        self.assertEqual(provider._outputs, empty)
+        self.assertFalse(provider._outputs_defined)
         self.assertIsNone(provider._count)
 
     async def test_reset_allows_repopulate(self):
@@ -531,7 +531,7 @@ class DependentProviderCloneTestCase(IsolatedAsyncioTestCase):
 
         self.assertFalse(clone.is_complete())
         self.assertEqual(clone._criteria, None)
-        self.assertEqual(clone._outputs, empty)
+        self.assertFalse(clone._outputs_defined)
 
 
 # =============================================================================

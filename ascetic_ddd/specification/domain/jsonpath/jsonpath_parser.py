@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 from ascetic_ddd.specification.domain.nodes import (
     And,
+    EmptiableObject,
     Equal,
     Field,
     GlobalScope,
@@ -433,7 +434,7 @@ class NativeParametrizedSpecification:
 
         return chain, i
 
-    def _build_object_chain(self, parent: Visitable, names: list[str]) -> Visitable:
+    def _build_object_chain(self, parent: EmptiableObject, names: list[str]) -> EmptiableObject:
         """
         Build a chain of Object nodes from a list of field names.
 
@@ -548,7 +549,7 @@ class NativeParametrizedSpecification:
 
     def _parse_nested_wildcard(
         self, tokens: list[Token], ctx: _ParseContext, start: int,
-        parent: Visitable, collection_name: str
+        parent: EmptiableObject, collection_name: str
     ) -> tuple[Wildcard, int]:
         """
         Parse nested wildcard pattern: collection[*][?predicate]

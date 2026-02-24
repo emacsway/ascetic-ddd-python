@@ -5,6 +5,7 @@ from unittest import IsolatedAsyncioTestCase
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+from ascetic_ddd.option import Some
 from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
 from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
 from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
@@ -15,7 +16,6 @@ from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import (
     QueryLookupSpecification
 )
-from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
 from ascetic_ddd.signals.signal import AsyncSignal, SyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
@@ -82,7 +82,7 @@ class StubDistributor(IM2ODistributor):
             raise Cursor(position=self._index, callback=self._append)
         value = self._values[self._index]
         self._index += 1
-        return value
+        return Some(value)
 
     async def _append(self, session: ISession, value, position):
         self._appended.append(value)
@@ -146,8 +146,9 @@ class MockReferenceProvider(IReferenceProvider):
     def __init__(self, repository: MockRepository, aggregate_provider: typing.Any):
         self._repository = repository
         self._aggregate_provider = aggregate_provider
-        self._query = empty
-        self._output = empty
+        self._query = None
+        self._output = None
+        self._output_defined = False
         self._provider_name = None
         self._on_required = SyncSignal[CriteriaRequiredEvent]()
         self._on_populated = SyncSignal[InputPopulatedEvent]()
@@ -193,14 +194,15 @@ class MockReferenceProvider(IReferenceProvider):
         pass
 
     def reset(self):
-        self._query = empty
-        self._output = empty
+        self._query = None
+        self._output = None
+        self._output_defined = False
 
     def is_complete(self):
-        return self._output is not empty
+        return self._output_defined
 
     def is_transient(self):
-        return self._query is empty
+        return self._query is None
 
     def clone(self, shunt=None):
         return MockReferenceProvider(self._repository, self._aggregate_provider)

@@ -50,6 +50,7 @@ from jsonpath_rfc9535.filter_expressions import (
 
 from ascetic_ddd.specification.domain.nodes import (
     And,
+    EmptiableObject,
     Equal,
     Field,
     GlobalScope,
@@ -601,11 +602,11 @@ class ParametrizedSpecificationRFC9535:
             )
 
         # Build nested Field structure
-        parent: Visitable = Item() if in_item_context else GlobalScope()
+        parent: EmptiableObject = Item() if in_item_context else GlobalScope()
         parent = self._build_object_chain(parent, field_chain[:-1])
         return Field(parent, field_chain[-1])
 
-    def _build_object_chain(self, parent: Visitable, names: List[str]) -> Visitable:
+    def _build_object_chain(self, parent: EmptiableObject, names: List[str]) -> EmptiableObject:
         """
         Build a chain of Object nodes from a list of field names.
 

@@ -2,6 +2,7 @@ import datetime
 from dateutil import tz
 from unittest import IsolatedAsyncioTestCase
 
+from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.scope_specification import ScopeSpecification
 from ascetic_ddd.faker.infrastructure.tests.db import make_internal_pg_session_pool
 from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factory
@@ -28,8 +29,10 @@ class SequenceDistributorTestCase(IsolatedAsyncioTestCase):
         self.dist.provider_name = 'path.Fk.fk_id'
 
     async def _next_with_factory(self, ts_session, specification=None):
+        if specification is None:
+            specification = EmptySpecification()
         try:
-            return await self.dist.next(ts_session, specification)
+            return (await self.dist.next(ts_session, specification)).unwrap()
         except Cursor as cursor:
             value = await self.value_factory(ts_session, cursor.position)
             await cursor.append(ts_session, value)

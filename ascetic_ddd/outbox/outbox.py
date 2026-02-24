@@ -105,6 +105,8 @@ class Outbox(IOutbox):
 
                 # Update consumer position to the last message
                 last = messages[-1]
+                assert last.transaction_id is not None
+                assert last.position is not None
                 await self._ack_message(tx_session, effective_consumer_group, uri, last.transaction_id, last.position)
 
                 return True
@@ -139,6 +141,8 @@ class Outbox(IOutbox):
                     for message in messages:
                         yield message
                         # Ack after each message is processed
+                        assert message.transaction_id is not None
+                        assert message.position is not None
                         await self._ack_message(
                             tx_session, consumer_group, uri,
                             message.transaction_id, message.position

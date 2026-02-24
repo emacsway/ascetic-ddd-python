@@ -51,7 +51,8 @@ class QueryToDictVisitor(IQueryVisitor[dict]):
     def visit_and(self, op: AndOperator) -> dict:
         result: dict = {}
         for operand in op.operands:
-            result.update(operand.accept(self))
+            accepted: dict = operand.accept(self)
+            result.update(accepted)
         return result
 
     def visit_or(self, op: OrOperator) -> dict:

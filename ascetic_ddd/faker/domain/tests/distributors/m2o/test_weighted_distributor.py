@@ -12,8 +12,8 @@ from ascetic_ddd.faker.infrastructure.tests.db import make_internal_pg_session_p
 from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factory
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.query.parser import QueryParser
+from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
-from ascetic_ddd.faker.domain.values.empty import Empty, empty
 from ascetic_ddd.session.interfaces import ISession
 
 # logging.basicConfig(level="DEBUG")
@@ -21,12 +21,10 @@ from ascetic_ddd.session.interfaces import ISession
 
 @dataclasses.dataclass(kw_only=True)
 class SomePk:
-    id: uuid.UUID | Empty
+    id: uuid.UUID
     another_model_id: uuid.UUID
 
     def __hash__(self):
-        assert self.id is not empty
-        assert self.another_model_id is not empty
         return hash((self.id, self.another_model_id))
 
 
@@ -158,7 +156,7 @@ class DefaultKeyDistributorTestCase(_BaseDistributorTestCase):
             result = []
             for _ in range(self.count):
                 try:
-                    result.append(await self.dist.next(ts_session))
+                    result.append((await self.dist.next(ts_session, EmptySpecification())).unwrap_or(None))
                 except Cursor as cursor:
                     value = await factory(ts_session, cursor.position)
                     await cursor.append(ts_session, value)
@@ -193,7 +191,7 @@ class SpecificKeyDistributorTestCase(_BaseDistributorTestCase):
                     lambda obj: dataclasses.asdict(obj)
                 )
                 try:
-                    result.append(await self.dist.next(ts_session, specification=spec))
+                    result.append((await self.dist.next(ts_session, specification=spec)).unwrap_or(None))
                 except Cursor as cursor:
                     value = await factory(ts_session)
                     await cursor.append(ts_session, value)
@@ -226,7 +224,7 @@ class CollectionDistributorTestCase(_BaseDistributorTestCase):
     async def _next_with_fallback(self, ts_session):
         """If source is exhausted, use fallback via repeated next call."""
         try:
-            return await self.dist.next(ts_session)
+            return (await self.dist.next(ts_session, EmptySpecification())).unwrap_or(None)
         except Cursor as cursor:
             if self._source_available:
                 try:
@@ -237,10 +235,10 @@ class CollectionDistributorTestCase(_BaseDistributorTestCase):
                     self._source_available = False
             # Fallback: call next again (now there are values, select will return one)
             try:
-                return await self.dist.next(ts_session)
+                return (await self.dist.next(ts_session, EmptySpecification())).unwrap_or(None)
             except Cursor:
                 # In rare case Cursor is raised again (probabilistically)
-                return await self.dist.next(ts_session)
+                return (await self.dist.next(ts_session, EmptySpecification())).unwrap_or(None)
 
     async def test_fixed_collection(self):
 

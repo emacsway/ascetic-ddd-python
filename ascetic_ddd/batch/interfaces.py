@@ -38,7 +38,7 @@ class IMultiQuerier(IQueryEvaluator, typing.Generic[Row], metaclass=ABCMeta):
         *,
         prepare: bool | None = None,
         binary: bool | None = None,
-    ) -> Deferred[Row]:
+    ) -> Deferred[Row | None]:
         """
         Add a query to the batch.
 
@@ -49,7 +49,7 @@ class IMultiQuerier(IQueryEvaluator, typing.Generic[Row], metaclass=ABCMeta):
             binary: is not used
 
         Returns:
-            Deferred[Row] that will be resolved when batch is evaluated
+            Deferred[Row | None] that will be resolved when batch is evaluated
         """
         raise NotImplementedError
 

@@ -2,6 +2,7 @@ import typing
 from collections import defaultdict
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
+from ascetic_ddd.option import Option
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.signals.signal import AsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
@@ -33,10 +34,8 @@ class SequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
     async def next(
             self,
             session: ISession,
-            specification: ISpecification[T] | None = None,
-    ) -> T:
-        if specification is None:
-            specification = self._default_spec
+            specification: ISpecification[T],
+    ) -> Option[T]:
         position = self._sequences[specification]
         self._sequences[specification] += 1
         raise Cursor(

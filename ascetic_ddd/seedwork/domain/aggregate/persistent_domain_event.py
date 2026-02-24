@@ -40,7 +40,7 @@ class IPersistentDomainEventExporter(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def set_event_meta(self, meta: EventMeta) -> None:
+    def set_event_meta(self, meta: EventMeta | None) -> None:
         raise NotImplementedError
 
     @abstractmethod

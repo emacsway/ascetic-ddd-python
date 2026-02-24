@@ -9,7 +9,6 @@ from ascetic_ddd.session.rest_session import extract_request
 from ascetic_ddd.seedwork.domain.identity.interfaces import IAccessible
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.values.empty import empty
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
 from ascetic_ddd.faker.infrastructure.utils.dataclasses import IDataclass
 from ascetic_ddd.signals.interfaces import IAsyncSignal
@@ -55,7 +54,7 @@ class RestRepository(typing.Generic[T]):
         url = self.url(agg)
         await self.do_prepare_request(session, url)
         response = await self._extract_request(session).post(url, data=params)
-        await self.do_handle_insert_response(agg, session, response)
+        await self.do_handle_insert_response(session, agg, response)
         await self._set_pk(agg, response)
         await self._on_inserted.notify(AggregateInsertedEvent(session, agg))
 
@@ -107,14 +106,12 @@ class RestRepository(typing.Generic[T]):
         params = dict()
         for field in dataclasses.fields(agg):
             value = getattr(agg, field.name)
-            if value is empty:
-                continue
-            elif type(agg).__annotations__[field.name] in (Json, Json | None):
+            if type(agg).__annotations__[field.name] in (Json, Json | None):
                 if value is not None:
                     params[field.name] = self._encode(value)
                 else:
                     params[field.name] = value
-            elif dataclasses.is_dataclass(value):
+            elif dataclasses.is_dataclass(value) and not isinstance(value, type):
                 params[field.name] = self.agg_to_params(value)
             else:
                 params[field.name] = value
