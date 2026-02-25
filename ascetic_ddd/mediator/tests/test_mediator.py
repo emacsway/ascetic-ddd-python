@@ -106,9 +106,9 @@ class SendTestCase(IsolatedAsyncioTestCase):
         handler.assert_called_once_with(self.session, command)
         self.assertEqual(result, 5)
 
-    async def test_send_returns_none_when_no_handler(self):
-        result = await self.mediator.send(self.session, SampleCommand(1))
-        self.assertIsNone(result)
+    async def test_send_raises_when_no_handler(self):
+        with self.assertRaises(RuntimeError):
+            await self.mediator.send(self.session, SampleCommand(1))
 
     async def test_send_dispatches_by_request_type(self):
         handler1 = mock.AsyncMock(return_value=10)
@@ -130,9 +130,9 @@ class UnregisterTestCase(IsolatedAsyncioTestCase):
         handler = mock.AsyncMock()
         await self.mediator.register(SampleCommand, handler)
         await self.mediator.unregister(SampleCommand)
-        result = await self.mediator.send(self.session, SampleCommand(2))
+        with self.assertRaises(RuntimeError):
+            await self.mediator.send(self.session, SampleCommand(2))
         handler.assert_not_called()
-        self.assertIsNone(result)
 
     async def test_unregister_nonexistent_raises(self):
         with self.assertRaises(KeyError):
@@ -142,9 +142,9 @@ class UnregisterTestCase(IsolatedAsyncioTestCase):
         handler = mock.AsyncMock()
         disposable = await self.mediator.register(SampleCommand, handler)
         await disposable.dispose()
-        result = await self.mediator.send(self.session, SampleCommand(2))
+        with self.assertRaises(RuntimeError):
+            await self.mediator.send(self.session, SampleCommand(2))
         handler.assert_not_called()
-        self.assertIsNone(result)
 
 
 class PipelineTestCase(IsolatedAsyncioTestCase):
@@ -275,7 +275,7 @@ class PipelineTestCase(IsolatedAsyncioTestCase):
         await self.mediator.send(self.session, AnotherCommand("x"))
         self.assertEqual(call_log, [])
 
-    async def test_send_without_handler_skips_pipelines(self):
+    async def test_send_without_handler_raises(self):
         call_log = []
 
         async def pipeline(session, request, next_):
@@ -283,6 +283,6 @@ class PipelineTestCase(IsolatedAsyncioTestCase):
             return await next_(session, request)
 
         await self.mediator.add_pipeline(SampleCommand, pipeline)
-        result = await self.mediator.send(self.session, SampleCommand(1))
-        self.assertIsNone(result)
+        with self.assertRaises(RuntimeError):
+            await self.mediator.send(self.session, SampleCommand(1))
         self.assertEqual(call_log, [])
