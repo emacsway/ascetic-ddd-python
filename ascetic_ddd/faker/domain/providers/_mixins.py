@@ -269,7 +269,7 @@ class BaseCompositeProvider(
                 def output_factory(**kwargs):
                     return kwargs
 
-            self._output_factory = output_factory
+            self._output_factory = output_factory  # pyright: ignore[reportAttributeAccessIssue]
         super().__init__()
 
     def require(self, criteria: dict[str, typing.Any]) -> None:

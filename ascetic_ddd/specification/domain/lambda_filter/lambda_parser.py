@@ -394,7 +394,7 @@ class LambdaParser:
 
         # Parse predicate with new context (item variable)
         if isinstance(gen.target, ast.Name):
-            self.arg_name = gen.target.arg if hasattr(gen.target, 'arg') else gen.target.id
+            self.arg_name = gen.target.arg if hasattr(gen.target, 'arg') else gen.target.id  # pyright: ignore[reportAttributeAccessIssue]
         else:
             raise ValueError("Only simple target names are supported in comprehensions")
 
@@ -433,7 +433,7 @@ class LambdaParser:
 
         # Parse predicate with new context (item variable)
         if isinstance(gen.target, ast.Name):
-            self.arg_name = gen.target.arg if hasattr(gen.target, 'arg') else gen.target.id
+            self.arg_name = gen.target.arg if hasattr(gen.target, 'arg') else gen.target.id  # pyright: ignore[reportAttributeAccessIssue]
         else:
             raise ValueError("Only simple target names are supported in comprehensions")
 

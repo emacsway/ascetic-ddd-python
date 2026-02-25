@@ -92,7 +92,7 @@ class PgSession:
             identity_map: IIdentityMap
     ):
         # self._connection = connection
-        self._connection = AsyncConnectionDecorator(connection, self)
+        self._connection = AsyncConnectionDecorator(connection, self)  # pyright: ignore[reportAttributeAccessIssue]
         self._parent = None
         self._identity_map = identity_map
         self._on_atomic_started = AsyncSignal[SessionScopeStartedEvent]()

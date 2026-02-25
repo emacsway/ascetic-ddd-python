@@ -46,7 +46,7 @@ def prepare_input_generator(input_generator):
             # Check if already wrapped
             if not isinstance(input_generator, CallableGenerator):
                 input_generator = CallableGenerator(input_generator)
-        input_generator = RequiredGenerator(input_generator)
+        input_generator = RequiredGenerator(input_generator)  # pyright: ignore[reportArgumentType]
     return input_generator
 
 

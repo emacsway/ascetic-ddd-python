@@ -72,7 +72,7 @@ class ValueProvider(
                 def output_factory(result):
                     return result
 
-            self._output_factory = output_factory
+            self._output_factory = output_factory  # pyright: ignore[reportAttributeAccessIssue]
 
         if self._output_exporter is None:
             if output_exporter is None:

@@ -90,7 +90,7 @@ class Number(Validator):
 
     def __init__(self, minimum=None, maximum=None, msg=None):
         if None not in (minimum, maximum):
-            assert maximum >= minimum, "maximum must be greater than or equal to minimum"
+            assert maximum >= minimum, "maximum must be greater than or equal to minimum"  # pyright: ignore[reportOptionalOperand]
         self.minimum = minimum
         self.maximum = maximum
         super().__init__(msg)
@@ -117,7 +117,7 @@ class ChainValidator:
         for validator in self.validators:
             assert callable(validator), 'The validator must be callable'
             try:
-                await validator(value, gettext=gettext)
+                await validator(value, gettext=gettext)  # pyright: ignore[reportGeneralTypeIssues]
             except ValidationError as e:
                 errors.append(e)
                 # Don't need message code. To rewrite message simple wrap (or extend) validator.

@@ -230,7 +230,7 @@ class SubscriptionAggregateProviderAccessor(
             # Bind repository as external_source for distributor
             if hasattr(aggregate_provider, '_repository'):
                 self._reference_provider._distributor.bind_external_source(  # type: ignore[attr-defined]
-                    aggregate_provider._repository
+                    aggregate_provider._repository  # pyright: ignore[reportAttributeAccessIssue]
                 )
 
             async def _observer(event: AggregateInsertedEvent):

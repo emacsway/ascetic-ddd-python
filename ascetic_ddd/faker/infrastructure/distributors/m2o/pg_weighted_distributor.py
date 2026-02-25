@@ -80,7 +80,7 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
 
         # Resolve nested constraints (if any)
         if hasattr(specification, 'resolve_nested'):
-            await specification.resolve_nested(session)
+            await specification.resolve_nested(session)  # pyright: ignore[reportAttributeAccessIssue]
 
         value, should_create_new = await self._get_next_value(session, specification)
         if should_create_new:
@@ -167,7 +167,7 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
             CREATE INDEX IF NOT EXISTS %(index_name)s ON %(values_table)s USING GIN(value jsonb_path_ops);
         """ % {
             "values_table": self._values_table,
-            "index_name": escape("gin_%s" % self.provider_name[:(63 - 4)]),
+            "index_name": escape("gin_%s" % self.provider_name[:(63 - 4)]),  # pyright: ignore[reportOptionalSubscript]
         }
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(sql)

@@ -188,13 +188,13 @@ class ModelParser:
                 identity_base_class=self._IDENTITY_BASE_CLASS_MAP.get(
                     base_type, 'IntIdentity',
                 ),
-                **common,
+                **common,  # pyright: ignore[reportArgumentType]
             )
 
         if kind == 'enum':
             return EnumVoDef(
                 enum_values=vo_data.get('values', {}),
-                **common,
+                **common,  # pyright: ignore[reportArgumentType]
             )
 
         if kind == 'composite':
@@ -204,7 +204,7 @@ class ModelParser:
             self._vo_map = saved
             return CompositeVoDef(
                 fields=vo_fields,
-                **common,
+                **common,  # pyright: ignore[reportArgumentType]
             )
 
         return SimpleVoDef(
@@ -213,7 +213,7 @@ class ModelParser:
                 vo_data.get('constraints', {}),
             ),
             maps=self._parse_maps(vo_data.get('map', ())),
-            **common,
+            **common,  # pyright: ignore[reportArgumentType]
         )
 
     def _parse_domain_event(self, ev_name, ev_data):
