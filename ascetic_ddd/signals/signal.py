@@ -44,8 +44,8 @@ class SyncSignal(ISyncSignal[EventT], typing.Generic[EventT]):
             return (id(target.__self__), id(target.__func__))
         return id(target)
 
-    def __copy__(self):
-        c = copy.copy(super())
+    def __copy__(self) -> typing.Self:
+        c: typing.Self = copy.copy(super())  # type: ignore[assignment]
         c._observers = collections.OrderedDict()
         return c
 
@@ -80,7 +80,7 @@ class AsyncSignal(IAsyncSignal[EventT], typing.Generic[EventT]):
             return (id(target.__self__), id(target.__func__))
         return id(target)
 
-    def __copy__(self):
-        c = copy.copy(super())
+    def __copy__(self) -> typing.Self:
+        c: typing.Self = copy.copy(super())  # type: ignore[assignment]
         c._observers = collections.OrderedDict()
         return c

@@ -435,8 +435,8 @@ class BaseCompositeProvider(
         self._provider_name = value
         for attr, provider in self.providers.items():
             provider.provider_name = "%s.%s" % (value, attr)
-        for attr, provider in self.dependent_providers.items():
-            provider.provider_name = "%s.%s" % (value, attr)
+        for attr, dep_provider in self.dependent_providers.items():
+            dep_provider.provider_name = "%s.%s" % (value, attr)
 
 
 class BaseCompositeDistributionProvider(

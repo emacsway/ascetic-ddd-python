@@ -19,6 +19,7 @@ from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, Ag
 __all__ = ('InternalPgRepository',)
 
 T = typing.TypeVar("T")
+F = typing.TypeVar("F", bound=typing.Callable[..., typing.Any])
 
 
 class InternalPgRepository(typing.Generic[T]):
@@ -31,7 +32,7 @@ class InternalPgRepository(typing.Generic[T]):
     _initialized: bool
 
     @staticmethod
-    def check_init(func):
+    def check_init(func: F) -> F:
 
         @wraps(func)
         async def _deco(self, session: ISession, *args, **kwargs):
@@ -39,7 +40,7 @@ class InternalPgRepository(typing.Generic[T]):
                 await self.setup(session)
             return await func(self, session, *args, **kwargs)
 
-        return _deco
+        return _deco  # type: ignore[return-value]
 
     def __init__(
             self,

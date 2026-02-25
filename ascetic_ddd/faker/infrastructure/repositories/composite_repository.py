@@ -1,6 +1,6 @@
 import typing
 
-from ascetic_ddd.faker.domain.providers.aggregate_provider import IAggregateRepository
+from ascetic_ddd.faker.domain.providers.interfaces import IAggregateRepository
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.infrastructure.distributors.m2o.interfaces import IPgExternalSource

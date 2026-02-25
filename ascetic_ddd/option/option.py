@@ -80,7 +80,7 @@ class Option(typing.Generic[T]):
             return False
         if not self._valid:
             return True
-        return self._val == other._val  # type: ignore[no-any-return]
+        return self._val == other._val
 
     def __hash__(self) -> int:
         if not self._valid:

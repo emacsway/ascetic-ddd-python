@@ -3,7 +3,7 @@ import os
 from dataclasses import dataclass, replace as dataclass_replace
 
 import inflection
-from jinja2 import ChoiceLoader, Environment, FileSystemLoader
+from jinja2 import BaseLoader, ChoiceLoader, Environment, FileSystemLoader
 
 from ascetic_ddd.cli.scaffold.ast_merge import merge_modules
 from ascetic_ddd.cli.scaffold.model import (
@@ -32,6 +32,7 @@ def _pluralize(name):
 
 
 def _make_env(templates_dir=None):
+    loader: BaseLoader
     if templates_dir:
         loader = ChoiceLoader([
             FileSystemLoader(templates_dir),

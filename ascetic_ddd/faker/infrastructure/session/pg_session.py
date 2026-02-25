@@ -34,7 +34,7 @@ def extract_external_connection(session: ISession) -> IAsyncConnection[tuple[typ
 class InternalPgSessionPool(PgSessionPool):
     @staticmethod
     def _make_session(connection):
-        return InternalPgSession(connection)
+        return InternalPgSession(connection, IdentityMap(isolation_level=IdentityMap.READ_UNCOMMITTED))
 
 
 class InternalPgSession(PgSession):
@@ -54,7 +54,7 @@ class InternalPgAtomicSession(PgAtomicSession):
 class ExternalPgSessionPool(PgSessionPool):
     @staticmethod
     def _make_session(connection):
-        return ExternalPgSession(connection)
+        return ExternalPgSession(connection, IdentityMap(isolation_level=IdentityMap.READ_UNCOMMITTED))
 
 
 class ExternalPgSession(PgSession):

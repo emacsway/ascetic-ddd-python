@@ -31,7 +31,7 @@ class JSONEncoder(json.JSONEncoder):
             return duration_iso_string(o)
         if isinstance(o, decimal.Decimal | uuid.UUID):
             return str(o)
-        if dataclasses.is_dataclass(o):
+        if dataclasses.is_dataclass(o) and not isinstance(o, type):
             return dataclasses.asdict(o)
 
         return super().default(o)

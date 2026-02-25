@@ -132,7 +132,7 @@ class DAGChangeManager(IChangeManager):
         for binding_type, observer in self._type_bindings:
             if binding_type == typ:
                 # Don't subscribe observer to itself
-                if subject is observer:
+                if subject is observer:  # type: ignore[comparison-overlap]
                     continue
                 if not self._has_edge(subject, observer):
                     self.register(subject, observer)

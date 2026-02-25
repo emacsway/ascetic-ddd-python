@@ -115,7 +115,7 @@ class ChainValidator:
     async def __call__(self, value, gettext=dummy_gettext):
         errors = []
         for validator in self.validators:
-            assert isinstance(validator, collections.abc.Callable), 'The validator must be callable'
+            assert callable(validator), 'The validator must be callable'
             try:
                 await validator(value, gettext=gettext)
             except ValidationError as e:
