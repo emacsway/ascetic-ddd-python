@@ -523,9 +523,13 @@ class ProviderChangeManagerCollectProvidersTestCase(IsolatedAsyncioTestCase):
         book_repo = StubBookRepository()
 
         tenant_provider = TenantProvider(tenant_repo)
+        tenant_provider.provider_name = 'tenant'
         author_provider = AuthorProvider(author_repo, tenant_provider)
+        author_provider.provider_name = 'author'
         publisher_provider = PublisherProvider(publisher_repo, tenant_provider)
+        publisher_provider.provider_name = 'publisher'
         book_provider = BookProvider(book_repo, author_provider, publisher_provider)
+        book_provider.provider_name = 'book'
 
         cm = ProviderChangeManager()
         visited = {}
@@ -541,9 +545,13 @@ class ProviderChangeManagerCollectProvidersTestCase(IsolatedAsyncioTestCase):
         book_repo = StubBookRepository()
 
         tenant_provider = TenantProvider(tenant_repo)
+        tenant_provider.provider_name = 'tenant'
         author_provider = AuthorProvider(author_repo, tenant_provider)
+        author_provider.provider_name = 'author'
         publisher_provider = PublisherProvider(publisher_repo, tenant_provider)
+        publisher_provider.provider_name = 'publisher'
         book_provider = BookProvider(book_repo, author_provider, publisher_provider)
+        book_provider.provider_name = 'book'
 
         cm = ProviderChangeManager()
         visited = {}
@@ -582,36 +590,27 @@ class ProviderChangeManagerTopoSortTestCase(IsolatedAsyncioTestCase):
         book_repo = StubBookRepository()
 
         tenant_provider = TenantProvider(tenant_repo)
+        tenant_provider.provider_name = 'tenant'
         author_provider = AuthorProvider(author_repo, tenant_provider)
+        author_provider.provider_name = 'author'
         publisher_provider = PublisherProvider(publisher_repo, tenant_provider)
+        publisher_provider.provider_name = 'publisher'
         book_provider = BookProvider(book_repo, author_provider, publisher_provider)
+        book_provider.provider_name = 'book'
 
         cm = ProviderChangeManager()
         visited = {}
         edges = []
         cm._collect_providers(book_provider, visited, edges)
         sorted_ = cm._topo_sort(visited, edges)
-
         names = [p.provider_name for p in sorted_]
-        # None names for providers without provider_name set - assign for test
-        tenant_provider.provider_name = 'tenant'
-        author_provider.provider_name = 'author'
-        publisher_provider.provider_name = 'publisher'
-        book_provider.provider_name = 'book'
-
-        # Re-run with names set
-        visited2 = {}
-        edges2 = []
-        cm._collect_providers(book_provider, visited2, edges2)
-        sorted2 = cm._topo_sort(visited2, edges2)
-        names2 = [p.provider_name for p in sorted2]
 
         # Tenant must come before Author and Publisher
-        self.assertLess(names2.index('tenant'), names2.index('author'))
-        self.assertLess(names2.index('tenant'), names2.index('publisher'))
+        self.assertLess(names.index('tenant'), names.index('author'))
+        self.assertLess(names.index('tenant'), names.index('publisher'))
         # Author and Publisher must come before Book
-        self.assertLess(names2.index('author'), names2.index('book'))
-        self.assertLess(names2.index('publisher'), names2.index('book'))
+        self.assertLess(names.index('author'), names.index('book'))
+        self.assertLess(names.index('publisher'), names.index('book'))
 
 
 if __name__ == '__main__':
