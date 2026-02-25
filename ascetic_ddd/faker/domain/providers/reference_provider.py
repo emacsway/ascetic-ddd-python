@@ -13,7 +13,7 @@ from ascetic_ddd.faker.domain.query.operators import (
 )
 from ascetic_ddd.faker.domain.query.parser import parse_query
 from ascetic_ddd.faker.domain.query.visitors import query_to_dict, dict_to_query
-from ascetic_ddd.option.option import Some, Nothing
+from ascetic_ddd.option.option import Nothing
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
@@ -99,12 +99,12 @@ class ReferenceProvider(
                 await self.aggregate_provider.create(session)
                 # self._set_input(self.aggregate_provider.id_provider.state())
                 self._set_input(id_)
-                self._output = Some(await self.aggregate_provider.id_provider.create(session))
+                self._set_output(await self.aggregate_provider.id_provider.create(session))
             else:
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
                 # self._criteria = None
                 self._set_input(None)
-                self._output = Some(None)
+                self._set_output(None)
         except ICursor as cursor:
             if self._criteria is not None:
                 # Propagate constraints to aggregate_provider (already done in require())
@@ -114,7 +114,7 @@ class ReferenceProvider(
             await cursor.append(session, created_agg)
             self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
-            self._output = Some(await self.aggregate_provider.id_provider.create(session))
+            self._set_output(await self.aggregate_provider.id_provider.create(session))
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
@@ -132,7 +132,7 @@ class ReferenceProvider(
         # Null FK — no reference. Don't propagate to aggregate.
         if isinstance(new_criteria, EqOperator) and new_criteria.value is None:
             self._set_input(None)
-            self._output = Some(None)
+            self._set_output(None)
             return
 
         old_criteria = self._criteria

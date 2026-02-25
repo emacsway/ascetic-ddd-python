@@ -10,7 +10,6 @@ from ascetic_ddd.faker.domain.query.visitors import dict_to_query, query_to_dict
 from ascetic_ddd.faker.domain.providers.interfaces import (
     IAggregateProvider, IAggregateRepository,
 )
-from ascetic_ddd.option.option import Some
 from ascetic_ddd.session.interfaces import ISession
 __all__ = ('AggregateProvider',)
 
@@ -88,7 +87,7 @@ class AggregateProvider(
         # await self.id_provider.append(session, getattr(result, self._id_attr))
 
         # self.require() could reset self._output
-        self._output = Some(output)
+        self._set_output(output)
 
         # Create dependent entities AFTER this aggregate is created (they need its ID for FK)
         if self.dependent_providers:
@@ -118,7 +117,7 @@ class AggregateProvider(
                 self._set_input(input_)
                 for attr, provider in self.providers.items():
                     await provider.populate(session)
-                self._output = Some(output)
+                self._set_output(output)
                 return
 
         await self.do_populate(session)

@@ -9,7 +9,6 @@ from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
-from ascetic_ddd.option.option import Some
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 __all__ = ('ValueProvider',)
@@ -98,7 +97,7 @@ class ValueProvider(
             # Extract value from EqOperator
             self._set_input(self._criteria.value if isinstance(self._criteria, EqOperator) else None)
         if self._input.is_some():
-            self._output = Some(self._output_factory(typing.cast(InputT, self._input.unwrap())))
+            self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
             # await cursor.append(session, self._output.unwrap())
             return
 
@@ -112,15 +111,15 @@ class ValueProvider(
             # EqOperator would pollute the BaseDistributor index, must not pass it here.
             output = (await self._distributor.next(session, specification)).unwrap()
             self._set_input(self._output_exporter(output))
-            self._output = Some(output)
+            self._set_output(output)
         except ICursor as cursor:
             if self._input_generator is None:
                 self._set_input(None)
-                self._output = Some(self._output_factory(None))
+                self._set_output(self._output_factory(None))
                 self._is_transient = True
             else:
                 self._set_input(await self._input_generator(session, self._criteria, cursor.position))
-                self._output = Some(self._output_factory(typing.cast(InputT, self._input.unwrap())))
+                self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
                 await cursor.append(session, self._output.unwrap())
 
     def _make_specification(self) -> ISpecification | None:
