@@ -13,6 +13,7 @@ from ascetic_ddd.faker.domain.query.operators import (
 )
 from ascetic_ddd.faker.domain.query.parser import parse_query
 from ascetic_ddd.faker.domain.query.visitors import query_to_dict, dict_to_query
+from ascetic_ddd.option.option import Some, Nothing
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
@@ -68,9 +69,9 @@ class ReferenceProvider(
         super().__init__(distributor=distributor)
 
     async def create(self, session: ISession) -> IdOutputT:
-        if not self._output_defined:
+        if self._output.is_nothing():
             raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
-        return typing.cast(IdOutputT, self._output)
+        return typing.cast(IdOutputT, self._output.unwrap())
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
@@ -98,12 +99,12 @@ class ReferenceProvider(
                 await self.aggregate_provider.create(session)
                 # self._set_input(self.aggregate_provider.id_provider.state())
                 self._set_input(id_)
-                self._set_output(await self.aggregate_provider.id_provider.create(session))
+                self._output = Some(await self.aggregate_provider.id_provider.create(session))
             else:
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
                 # self._criteria = None
                 self._set_input(None)
-                self._set_output(None)
+                self._output = Some(None)
         except ICursor as cursor:
             if self._criteria is not None:
                 # Propagate constraints to aggregate_provider (already done in require())
@@ -113,7 +114,7 @@ class ReferenceProvider(
             await cursor.append(session, created_agg)
             self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
-            self._set_output(await self.aggregate_provider.id_provider.create(session))
+            self._output = Some(await self.aggregate_provider.id_provider.create(session))
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
@@ -131,7 +132,7 @@ class ReferenceProvider(
         # Null FK — no reference. Don't propagate to aggregate.
         if isinstance(new_criteria, EqOperator) and new_criteria.value is None:
             self._set_input(None)
-            self._set_output(None)
+            self._output = Some(None)
             return
 
         old_criteria = self._criteria
@@ -150,10 +151,8 @@ class ReferenceProvider(
             self._criteria = new_criteria
         # Only reset output if input actually changed
         if self._criteria != old_criteria:
-            self._input = None
-            self._input_defined = False
-            self._output = None
-            self._output_defined = False
+            self._input = Nothing()
+            self._output = Nothing()
             self._propagate_to_aggregate(new_criteria)
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 

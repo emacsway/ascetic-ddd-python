@@ -284,8 +284,8 @@ class AggregateProviderAutoIncrementTestCase(IsolatedAsyncioTestCase):
         result = await provider.create(session)
 
         self.assertTrue(provider.is_complete())
-        self.assertIs(provider._output, result)
-        self.assertTrue(provider._output_defined)
+        self.assertIs(provider._output.unwrap(), result)
+        self.assertTrue(provider._output.is_some())
 
     async def test_auto_increment_assigns_id(self):
         """Repository should assign ID via auto-increment."""
@@ -376,8 +376,8 @@ class AggregateProviderPresetPKTestCase(IsolatedAsyncioTestCase):
         result = await provider.create(session)
 
         self.assertTrue(provider.is_complete())
-        self.assertIs(provider._output, result)
-        self.assertTrue(provider._output_defined)
+        self.assertIs(provider._output.unwrap(), result)
+        self.assertTrue(provider._output.is_some())
 
     async def test_id_provider_complete_before_create(self):
         """id_provider should be complete before create() with pre-set PK."""
@@ -471,7 +471,7 @@ class AggregateProviderResetTestCase(IsolatedAsyncioTestCase):
         self.assertFalse(provider.is_complete())
         # _input is now IQueryOperator | None, not Empty
         self.assertIsNone(provider._criteria)
-        self.assertFalse(provider._output_defined)
+        self.assertTrue(provider._output.is_nothing())
 
     async def test_reset_clears_nested_providers(self):
         """reset() should clear all nested providers."""

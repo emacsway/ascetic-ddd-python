@@ -677,7 +677,7 @@ class ReferenceProviderAutoIncrementBasicTestCase(IsolatedAsyncioTestCase):
         await user_provider.create(session)
 
         # The actual Tenant aggregate gets auto-increment ID from repository
-        tenant = user_provider.tenant_id.aggregate_provider._output
+        tenant = user_provider.tenant_id.aggregate_provider._output.unwrap()
         self.assertEqual(tenant.id.value, 10)
         # Repository stored the aggregate with correct ID
         self.assertEqual(len(tenant_repo._inserted), 1)
@@ -699,7 +699,7 @@ class ReferenceProviderAutoIncrementBasicTestCase(IsolatedAsyncioTestCase):
         await user_provider.create(session)
 
         # The referenced Tenant aggregate has the auto-incremented ID
-        tenant = user_provider.tenant_id.aggregate_provider._output
+        tenant = user_provider.tenant_id.aggregate_provider._output.unwrap()
         self.assertEqual(tenant.id.value, 5)
         # Verify repository assigned the ID correctly
         self.assertEqual(tenant_repo._inserted[0].id.value, 5)
@@ -721,7 +721,7 @@ class ReferenceProviderAutoIncrementBasicTestCase(IsolatedAsyncioTestCase):
         # Key assertion: is_complete() must be True after populate()
         # This tests the ICursor branch where _output must be set AFTER set()
         self.assertTrue(user_provider.tenant_id.is_complete())
-        self.assertIsNotNone(user_provider.tenant_id._output)
+        self.assertTrue(user_provider.tenant_id._output.is_some())
 
 
 # =============================================================================

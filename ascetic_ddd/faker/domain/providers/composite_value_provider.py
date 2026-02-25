@@ -7,6 +7,7 @@ from ascetic_ddd.faker.domain.query.visitors import dict_to_query
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
+from ascetic_ddd.option.option import Some
 from ascetic_ddd.session.interfaces import ISession
 
 __all__ = (
@@ -68,14 +69,14 @@ class CompositeValueProvider(
         super().__init__(distributor=distributor, output_factory=output_factory)
 
     async def create(self, session: ISession) -> CompositeOutputT:
-        if not self._output_defined:
+        if self._output.is_nothing():
             raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
-        return typing.cast(CompositeOutputT, self._output)
+        return typing.cast(CompositeOutputT, self._output.unwrap())
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
-            if not self._output_defined:
-                self._set_output(await self._default_factory(session))
+            if self._output.is_nothing():
+                self._output = Some(await self._default_factory(session))
             return
 
         if self._criteria is not None:
@@ -91,17 +92,17 @@ class CompositeValueProvider(
                 self._set_input(input_)
                 for attr, provider in self.providers.items():
                     await provider.populate(session)
-                self._set_output(output)
+                self._output = Some(output)
             else:
-                self._set_output(None)
+                self._output = Some(None)
         except ICursor as cursor:
             await self.do_populate(session)
             for attr, provider in self.providers.items():
                 await provider.populate(session)
             output = await self._default_factory(session, cursor.position)
-            self._set_output(output)
+            self._output = Some(output)
             if not self.is_transient():
-                await cursor.append(session, self._output)
+                await cursor.append(session, self._output.unwrap())
 
     async def do_populate(self, session: ISession) -> None:
         pass

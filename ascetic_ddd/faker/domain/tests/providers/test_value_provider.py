@@ -90,7 +90,7 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
         await provider.populate(session)
 
         self.assertTrue(provider.is_complete())
-        self.assertEqual(provider._output, 'existing_value')
+        self.assertEqual(provider._output.unwrap(), 'existing_value')
         generator.assert_not_called()
 
     async def test_populate_creates_new_value_when_cursor_raised(self):
@@ -130,10 +130,10 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
         provider.provider_name = 'test_provider'
 
         await provider.populate(session)
-        first_result = provider._output
+        first_result = provider._output.unwrap()
 
         await provider.populate(session)
-        second_result = provider._output
+        second_result = provider._output.unwrap()
 
         self.assertEqual(first_result, second_result)
         self.assertEqual(distributor._index, 1)
@@ -202,7 +202,7 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
 
         # Key assertion: is_complete() must be True even when ICursor was raised
         self.assertTrue(provider.is_complete())
-        self.assertEqual(provider._output, 'generated_value')
+        self.assertEqual(provider._output.unwrap(), 'generated_value')
 
     async def test_is_complete_true_after_populate_with_cursor_no_generator(self):
         """is_complete() should return True after populate() with ICursor and no input_generator."""
@@ -219,7 +219,7 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
         await provider.populate(session)
 
         self.assertTrue(provider.is_complete())
-        self.assertIsNone(provider._output)
+        self.assertIsNone(provider._output.unwrap())
 
     async def test_reset_clears_state(self):
         """reset() should clear the provider state."""
@@ -240,7 +240,7 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
 
         self.assertFalse(provider.is_complete())
         self.assertIsNone(provider._criteria)
-        self.assertFalse(provider._output_defined)
+        self.assertTrue(provider._output.is_nothing())
 
 
 class ValueProviderWithFactoriesTestCase(IsolatedAsyncioTestCase):
@@ -265,7 +265,7 @@ class ValueProviderWithFactoriesTestCase(IsolatedAsyncioTestCase):
 
         await provider.populate(session)
 
-        self.assertEqual(provider._output, 'transformed_42')
+        self.assertEqual(provider._output.unwrap(), 'transformed_42')
 
     async def test_output_exporter_extracts_input_from_output(self):
         """output_exporter should extract input value from distributor output."""
@@ -285,7 +285,7 @@ class ValueProviderWithFactoriesTestCase(IsolatedAsyncioTestCase):
 
         # state() returns primitive input value
         self.assertEqual(provider.state(), 'test')
-        self.assertEqual(provider._output, {'id': 1, 'name': 'test'})
+        self.assertEqual(provider._output.unwrap(), {'id': 1, 'name': 'test'})
 
 
 class ValueProviderGeneratorTypesTestCase(IsolatedAsyncioTestCase):

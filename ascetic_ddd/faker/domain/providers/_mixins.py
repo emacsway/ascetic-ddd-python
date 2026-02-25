@@ -17,6 +17,7 @@ from ascetic_ddd.faker.domain.query.operators import (
 from ascetic_ddd.faker.domain.query.parser import parse_query
 from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
+from ascetic_ddd.option.option import Option, Some, Nothing
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.signals.interfaces import ISyncSignal
 from ascetic_ddd.signals.signal import SyncSignal
@@ -119,20 +120,16 @@ class BaseProvider(
     metaclass=abc.ABCMeta
 ):
     _criteria: IQueryOperator | None = None
-    _input: InputT | None = None
-    _input_defined: bool = False
-    _output: OutputT | None = None
-    _output_defined: bool = False
+    _input: Option[InputT | None]
+    _output: Option[OutputT | None]
     _is_transient: bool = False
     _on_required: ISyncSignal[CriteriaRequiredEvent]
     _on_populated: ISyncSignal[InputPopulatedEvent[InputT]]
 
     def _do_init(self):
         self._criteria = None
-        self._input = None
-        self._input_defined = False
-        self._output = None
-        self._output_defined = False
+        self._input = Nothing()
+        self._output = Nothing()
         self._is_transient = False
         self._on_required = SyncSignal[CriteriaRequiredEvent]()
         self._on_populated = SyncSignal[InputPopulatedEvent[InputT]]()
@@ -168,33 +165,26 @@ class BaseProvider(
             self._criteria = new_criteria
         # Only reset output if input actually changed
         if self._criteria != old_criteria:
-            self._input = None
-            self._input_defined = False
-            self._output = None
-            self._output_defined = False
+            self._input = Nothing()
+            self._output = Nothing()
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
     def state(self) -> InputT:
         """Return current query as dict format."""
-        assert self._input_defined, "Provider '%s' not populated" % self._provider_name
-        return typing.cast(InputT, self._input)
+        assert self._input.is_some(), "Provider '%s' not populated" % self._provider_name
+        return typing.cast(InputT, self._input.unwrap())
 
     def is_complete(self) -> bool:
-        return self._output_defined
+        return self._output.is_some()
 
     def is_transient(self) -> bool:
         return self._is_transient
 
     def _set_input(self, input_: InputT | None):
-        self._input = input_
-        self._input_defined = True
+        self._input = Some(input_)
         if input_ is not None:
             self._is_transient = False
-        self._on_populated.notify(InputPopulatedEvent(typing.cast(InputT, self._input)))
-
-    def _set_output(self, output: OutputT | None):
-        self._output = output
-        self._output_defined = True
+        self._on_populated.notify(InputPopulatedEvent(typing.cast(InputT, input_)))
 
     async def append(self, session: ISession, value: OutputT):
         pass
@@ -244,8 +234,7 @@ class BaseCompositeProvider(
 ):
 
     _criteria: IQueryOperator | None = None
-    _output: CompositeOutputT | None = None
-    _output_defined: bool = False
+    _output: Option[CompositeOutputT | None]
     _output_factory: typing.Callable[..., CompositeOutputT] = None  # type: ignore[assignment]  # CompositeOutputT of each nested Provider.
     _provider_name: str | None = None
     _on_required: ISyncSignal[CriteriaRequiredEvent]
@@ -253,8 +242,7 @@ class BaseCompositeProvider(
 
     def _do_init(self):
         self._criteria = None
-        self._output = None
-        self._output_defined = False
+        self._output = Nothing()
         self._on_required = SyncSignal[CriteriaRequiredEvent]()
         self._on_populated = SyncSignal[InputPopulatedEvent]()
         super()._do_init()
@@ -302,8 +290,7 @@ class BaseCompositeProvider(
             self._criteria = new_criteria
         # Only reset output if input actually changed
         if self._criteria != old_criteria:
-            self._output = None
-            self._output_defined = False
+            self._output = Nothing()
             self._distribute_criteria(new_criteria)
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
@@ -349,13 +336,9 @@ class BaseCompositeProvider(
             data[attr] = await provider.create(session)
         return self._output_factory(**data)
 
-    def _set_output(self, output: CompositeOutputT | None):
-        self._output = output
-        self._output_defined = True
-
     def is_complete(self) -> bool:
         return (
-            self._output_defined or
+            self._output.is_some() or
             all(provider.is_complete() for provider in self.providers.values())
         )
 

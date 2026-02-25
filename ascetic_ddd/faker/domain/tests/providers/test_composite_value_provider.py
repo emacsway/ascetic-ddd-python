@@ -224,8 +224,8 @@ class CompositeValueProviderLevel2TestCase(IsolatedAsyncioTestCase):
         await provider.populate(session)
 
         self.assertTrue(provider.is_complete())
-        self.assertTrue(provider._output_defined)
-        self.assertIsInstance(provider._output, UserId)
+        self.assertTrue(provider._output.is_some())
+        self.assertIsInstance(provider._output.unwrap(), UserId)
 
     async def test_nested_providers_are_populated(self):
         """Nested ValueProviders should be populated during parent populate()."""
@@ -387,7 +387,7 @@ class CompositeValueProviderResetTestCase(IsolatedAsyncioTestCase):
         self.assertFalse(provider.is_complete())
         # _input is now IQueryOperator | None, not Empty
         self.assertIsNone(provider._criteria)
-        self.assertFalse(provider._output_defined)
+        self.assertTrue(provider._output.is_nothing())
 
 
 class CompositeValueProviderProviderNameTestCase(IsolatedAsyncioTestCase):

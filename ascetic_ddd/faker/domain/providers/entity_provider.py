@@ -4,6 +4,7 @@ from abc import ABCMeta
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import ICursor
 from ascetic_ddd.faker.domain.providers._mixins import BaseCompositeProvider
 from ascetic_ddd.faker.domain.providers.interfaces import IEntityProvider
+from ascetic_ddd.option.option import Some
 from ascetic_ddd.session.interfaces import ISession
 __all__ = ('EntityProvider',)
 
@@ -42,9 +43,9 @@ class EntityProvider(
         super().__init__(output_factory=output_factory)
 
     async def create(self, session: ISession) -> EntOutputT:
-        if not self._output_defined:
-            self._set_output(await self._default_factory(session))
-        return typing.cast(EntOutputT, self._output)
+        if self._output.is_nothing():
+            self._output = Some(await self._default_factory(session))
+        return typing.cast(EntOutputT, self._output.unwrap())
 
     @property
     def id_provider(self):

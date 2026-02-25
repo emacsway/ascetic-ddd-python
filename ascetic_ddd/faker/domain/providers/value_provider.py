@@ -9,6 +9,7 @@ from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
+from ascetic_ddd.option.option import Some
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 __all__ = ('ValueProvider',)
@@ -85,9 +86,9 @@ class ValueProvider(
         super().__init__(distributor=distributor)
 
     async def create(self, session: ISession) -> OutputT:
-        if not self._output_defined:
+        if self._output.is_nothing():
             raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
-        return typing.cast(OutputT, self._output)
+        return typing.cast(OutputT, self._output.unwrap())
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
@@ -96,9 +97,9 @@ class ValueProvider(
         if self._criteria is not None:
             # Extract value from EqOperator
             self._set_input(self._criteria.value if isinstance(self._criteria, EqOperator) else None)
-        if self._input_defined:
-            self._set_output(self._output_factory(typing.cast(InputT, self._input)))
-            # await cursor.append(session, self._output)
+        if self._input.is_some():
+            self._output = Some(self._output_factory(typing.cast(InputT, self._input.unwrap())))
+            # await cursor.append(session, self._output.unwrap())
             return
 
         if self._criteria is not None:
@@ -111,16 +112,16 @@ class ValueProvider(
             # EqOperator would pollute the BaseDistributor index, must not pass it here.
             output = (await self._distributor.next(session, specification)).unwrap()
             self._set_input(self._output_exporter(output))
-            self._set_output(output)
+            self._output = Some(output)
         except ICursor as cursor:
             if self._input_generator is None:
                 self._set_input(None)
-                self._set_output(self._output_factory(None))
+                self._output = Some(self._output_factory(None))
                 self._is_transient = True
             else:
                 self._set_input(await self._input_generator(session, self._criteria, cursor.position))
-                self._set_output(self._output_factory(typing.cast(InputT, self._input)))
-                await cursor.append(session, self._output)
+                self._output = Some(self._output_factory(typing.cast(InputT, self._input.unwrap())))
+                await cursor.append(session, self._output.unwrap())
 
     def _make_specification(self) -> ISpecification | None:
         return None
