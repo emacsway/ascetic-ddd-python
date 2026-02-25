@@ -13,7 +13,7 @@ class Bank:
     the reduce operation to convert expressions to a target currency.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Create a Bank with an empty rate table."""
         self._rates: Dict[Tuple[Currency, Currency], int] = {}
 

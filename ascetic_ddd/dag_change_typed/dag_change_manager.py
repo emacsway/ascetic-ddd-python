@@ -61,7 +61,7 @@ class DAGChangeManager(IChangeManager):
     a dependency on a type, the container resolves it to an instance.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Instance-based edges
         self._deps: dict[IChangeSubject, list[IChangeObserver]] = {}
         self._reverse_deps: dict[IChangeObserver, list[IChangeSubject]] = {}

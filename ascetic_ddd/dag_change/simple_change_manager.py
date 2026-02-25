@@ -14,7 +14,7 @@ class SimpleChangeManager(IChangeManager):
     Useful for comparison and for cases where DAG ordering is not needed.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._deps: dict[IChangeSubject, list[IChangeObserver]] = {}
         self._reverse_deps: dict[IChangeObserver, list[IChangeSubject]] = {}
 

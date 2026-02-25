@@ -54,7 +54,7 @@ class DAGChangeManager(IChangeManager):
       3. No duplication in diamond dependencies
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # GoF point 1: associative look-up instead of storing in Subject.
         # If a subject has no observers, there is simply no entry — zero overhead.
         self._deps: dict[IChangeSubject, list[IChangeObserver]] = {}
