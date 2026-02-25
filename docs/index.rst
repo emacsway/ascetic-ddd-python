@@ -10,6 +10,8 @@ repositories, specifications, sagas, outbox/inbox patterns, fakers and more.
 
 Designed to be ascetic — minimal, explicit, and free of unnecessary abstractions.
 
+  "Less is more" -- the key principle of Niklaus Wirth's Oberon philosophy.
+
 Source Code:
 
 - Python version: `ascetic-ddd-python <https://github.com/krew-solutions/ascetic-ddd-python>`__;
