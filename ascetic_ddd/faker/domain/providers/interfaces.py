@@ -292,10 +292,8 @@ class IDependentProvider(
     @abstractmethod
     def aggregate_providers(
             self,
-            aggregate_provider: list[
-                IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT] |
-                Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]
-            ]
+            aggregate_provider: (IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT] |
+                                 Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]])
     ) -> None:
         raise NotImplementedError
 

@@ -66,10 +66,10 @@ class Nullable(Delegating, INullable):
 
 
 class Comparison(Delegating, IComparison):
-    def __eq__(self, other: IComparison) -> ILogical:
+    def __eq__(self, other: IComparison) -> ILogical:  # type: ignore[override]
         return Logical(nodes.Equal(self.delegate(), other.delegate()))
 
-    def __ne__(self, other: IComparison) -> ILogical:
+    def __ne__(self, other: IComparison) -> ILogical:  # type: ignore[override]
         return Logical(nodes.NotEqual(self.delegate(), other.delegate()))
 
     def __gt__(self, other: IComparison) -> ILogical:

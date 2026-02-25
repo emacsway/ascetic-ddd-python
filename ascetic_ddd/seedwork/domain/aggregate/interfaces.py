@@ -74,7 +74,7 @@ class IDomainEventLoader(typing.Generic[PersistentDomainEventT], metaclass=ABCMe
 
 class IEventSourcedAggregate(
     typing.Generic[PersistentDomainEventT],
-    IDomainEventLoader[IDomainEventLoader],
+    IDomainEventLoader[PersistentDomainEventT],
     IEventiveEntity[PersistentDomainEventT],
     IVersionedAggregate,
     metaclass=ABCMeta,

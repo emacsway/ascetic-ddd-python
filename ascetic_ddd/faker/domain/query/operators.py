@@ -139,7 +139,7 @@ class EqOperator(IQueryOperator):
             self._hash = hash(('$eq', hashable(self.value)))
         return self._hash
 
-    def __add__(self, other: 'EqOperator') -> 'EqOperator':
+    def __add__(self, other: 'IQueryOperator') -> 'EqOperator':
         if not isinstance(other, EqOperator):
             return NotImplemented
         if self.value == other.value:
@@ -178,7 +178,7 @@ class ComparisonOperator(IQueryOperator):
             self._hash = hash((self.op, hashable(self.value)))
         return self._hash
 
-    def __add__(self, other: 'ComparisonOperator') -> 'ComparisonOperator':
+    def __add__(self, other: 'IQueryOperator') -> 'ComparisonOperator':
         if not isinstance(other, ComparisonOperator):
             return NotImplemented
         if self.op == other.op and self.value == other.value:
@@ -214,7 +214,7 @@ class OrOperator(IQueryOperator):
             self._hash = hash(('$or', tuple(hash(op) for op in self.operands)))
         return self._hash
 
-    def __add__(self, other: 'OrOperator') -> 'OrOperator':
+    def __add__(self, other: 'IQueryOperator') -> 'OrOperator':
         if not isinstance(other, OrOperator):
             return NotImplemented
         if self.operands == other.operands:
@@ -250,7 +250,7 @@ class InOperator(IQueryOperator):
             self._hash = hash(('$in', tuple(hashable(v) for v in self.values)))
         return self._hash
 
-    def __add__(self, other: 'InOperator') -> 'InOperator':
+    def __add__(self, other: 'IQueryOperator') -> 'InOperator':
         if not isinstance(other, InOperator):
             return NotImplemented
         if self.values == other.values:
@@ -287,7 +287,7 @@ class IsNullOperator(IQueryOperator):
             self._hash = hash(('$is_null', self.value))
         return self._hash
 
-    def __add__(self, other: 'IsNullOperator') -> 'IsNullOperator':
+    def __add__(self, other: 'IQueryOperator') -> 'IsNullOperator':
         if not isinstance(other, IsNullOperator):
             return NotImplemented
         if self.value == other.value:
@@ -326,7 +326,7 @@ class AndOperator(IQueryOperator):
             self._hash = hash(('$and', tuple(hash(op) for op in self.operands)))
         return self._hash
 
-    def __add__(self, other: 'AndOperator') -> 'AndOperator':
+    def __add__(self, other: 'IQueryOperator') -> 'AndOperator':
         if not isinstance(other, AndOperator):
             return NotImplemented
         if self.operands == other.operands:
@@ -365,7 +365,7 @@ class RelOperator(IQueryOperator):
             self._hash = hash(('$rel', hash(self.query)))
         return self._hash
 
-    def __add__(self, other: 'RelOperator') -> 'RelOperator':
+    def __add__(self, other: 'IQueryOperator') -> 'RelOperator':
         if not isinstance(other, RelOperator):
             return NotImplemented
         return RelOperator(self.query + other.query)
@@ -401,7 +401,7 @@ class CompositeQuery(IQueryOperator):
             self._hash = hash(('composite', items))
         return self._hash
 
-    def __add__(self, other: 'CompositeQuery') -> 'CompositeQuery':
+    def __add__(self, other: 'IQueryOperator') -> 'CompositeQuery':
         if not isinstance(other, CompositeQuery):
             return NotImplemented
         merged: dict[str, IQueryOperator] = dict(self.fields)

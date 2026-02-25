@@ -374,7 +374,7 @@ class BaseCompositeProvider(
         # attach observers to dependencies now:
         super()._do_clone(clone, shunt)
 
-    async def append(self, session: ISession, value: OutputT):
+    async def append(self, session: ISession, value: CompositeOutputT):
         pass
 
     async def setup(self, session: ISession):

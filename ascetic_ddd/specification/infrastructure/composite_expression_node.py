@@ -20,11 +20,11 @@ class CompositeExpressionsDifferentLengthError(Exception):
 class ICompositeExpression(Protocol):
     """Interface for expression composers."""
 
-    def __eq__(self, other: "CompositeExpression") -> Visitable:
+    def __eq__(self, other: "CompositeExpression") -> Visitable:  # type: ignore[override]
         """Create equality expression with another composite."""
         ...
 
-    def __ne__(self, other: "CompositeExpression") -> Visitable:
+    def __ne__(self, other: "CompositeExpression") -> Visitable:  # type: ignore[override]
         """Create not-equal expression with another composite."""
         ...
 
@@ -39,7 +39,7 @@ class CompositeExpression(Visitable):
     def __init__(self, *nodes: Visitable):
         self._nodes = list(nodes)
 
-    def __eq__(self, other: "CompositeExpression") -> Visitable:
+    def __eq__(self, other: "CompositeExpression") -> Visitable:  # type: ignore[override]
         """
         Create an AND expression of equality comparisons.
 
@@ -66,7 +66,7 @@ class CompositeExpression(Visitable):
 
         return And(operands[0], *operands[1:])
 
-    def __ne__(self, other: "CompositeExpression") -> Visitable:
+    def __ne__(self, other: "CompositeExpression") -> Visitable:  # type: ignore[override]
         """
         Create a NOT(AND(...)) expression for inequality.
 

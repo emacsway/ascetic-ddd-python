@@ -42,10 +42,10 @@ class ILogical(IDelegating, typing.Protocol):
 
 
 class IComparison(IDelegating, typing.Protocol):
-    def __eq__(self, other: 'IComparison') -> 'ILogical':
+    def __eq__(self, other: 'IComparison') -> 'ILogical':  # type: ignore[override]
         ...
 
-    def __ne__(self, other: 'IComparison') -> 'ILogical':
+    def __ne__(self, other: 'IComparison') -> 'ILogical':  # type: ignore[override]
         ...
 
     def __gt__(self, other: 'IComparison') -> 'ILogical':
