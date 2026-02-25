@@ -31,7 +31,7 @@ def distributor_factory(
         sequence: Pass sequence number to value generator.
     """
     if sequence:
-        dist = SequenceDistributor[T]()
+        dist: IM2ODistributor[T] = SequenceDistributor[T]()
     else:
         dist = DummyDistributor[T]()
     if weights is not None:

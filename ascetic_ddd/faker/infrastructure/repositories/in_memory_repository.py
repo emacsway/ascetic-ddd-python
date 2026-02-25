@@ -15,13 +15,13 @@ T = typing.TypeVar("T")
 
 
 class InMemoryRepository(typing.Generic[T]):
-    _id_attr: str = None
+    _id_attr: typing.Optional[str] = None
     _aggregates: dict[typing.Any, T]
     _agg_exporter: typing.Callable[[T], dict]
     _on_inserted: IAsyncSignal[AggregateInsertedEvent[T]]
     _on_updated: IAsyncSignal[AggregateUpdatedEvent[T]]
 
-    def __init__(self, agg_exporter: typing.Callable[[T], dict], id_attr: str = None):
+    def __init__(self, agg_exporter: typing.Callable[[T], dict], id_attr: typing.Optional[str] = None):
         self._on_inserted = AsyncSignal[AggregateInsertedEvent[T]]()
         self._on_updated = AsyncSignal[AggregateUpdatedEvent[T]]()
         self._agg_exporter = agg_exporter

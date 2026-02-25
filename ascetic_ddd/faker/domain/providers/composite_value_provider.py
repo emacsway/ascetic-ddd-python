@@ -43,7 +43,7 @@ class CompositeValueProvider(
         "Σx" means composition of "x",
         "⊆" means subset of a composition.
     """
-    _output_exporter: typing.Callable[[CompositeOutputT], CompositeInputT] = None
+    _output_exporter: typing.Callable[[CompositeOutputT], CompositeInputT] = None  # type: ignore[assignment]
     _specification_factory: typing.Callable[..., ISpecification]
 
     def __init__(

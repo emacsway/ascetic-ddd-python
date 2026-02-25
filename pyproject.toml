@@ -64,9 +64,6 @@ disallow_untyped_defs = false
 check_untyped_defs = false
 ignore_missing_imports = true
 exclude = ["tests", "_build", "\\.env"]
-disable_error_code = [
-    "assignment",
-]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

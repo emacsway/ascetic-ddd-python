@@ -496,7 +496,7 @@ class NativeParametrizedSpecification:
         if i < len(tokens) and tokens[i].type == "AT":
             i += 1
             # Use Item() only in wildcard context, otherwise GlobalScope()
-            parent = Item() if ctx.is_wildcard_context else GlobalScope()
+            parent: EmptiableObject = Item() if ctx.is_wildcard_context else GlobalScope()
         else:
             parent = GlobalScope()
 

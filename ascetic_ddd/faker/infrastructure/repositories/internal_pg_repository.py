@@ -45,7 +45,7 @@ class InternalPgRepository(typing.Generic[T]):
             self,
             table: str,
             agg_exporter: typing.Callable[[T], dict],
-            id_attr: str = None,
+            id_attr: typing.Optional[str] = None,
             initialized: bool = False
     ):
         self._on_inserted = AsyncSignal[AggregateInsertedEvent[T]]()

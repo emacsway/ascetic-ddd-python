@@ -290,7 +290,9 @@ class DependentProvider(
         # Check if it's a provider object (has 'clone' method) or a factory callable
         if not callable(aggregate_provider) or hasattr(aggregate_provider, 'clone'):
             # It's already a provider object
-            accessor = EagerAggregateProvidersAccessor[
+            accessor: IAggregateProvidersAccessor[
+                AggInputT, AggOutputT, IdInputT, IdOutputT
+            ] = EagerAggregateProvidersAccessor[
                 AggInputT, AggOutputT, IdInputT, IdOutputT
             ](typing.cast(IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT], aggregate_provider))
         else:

@@ -95,7 +95,7 @@ class ReferenceProvider(
                 id_ = agg_state[self.aggregate_provider._id_attr]  # type: ignore[attr-defined]
                 self.aggregate_provider.id_provider.require({'$eq': id_})
                 await self.aggregate_provider.populate(session)
-                agg = await self.aggregate_provider.create(session)
+                await self.aggregate_provider.create(session)
                 # self._set_input(self.aggregate_provider.id_provider.state())
                 self._set_input(id_)
                 self._set_output(await self.aggregate_provider.id_provider.create(session))
@@ -109,8 +109,8 @@ class ReferenceProvider(
                 # Propagate constraints to aggregate_provider (already done in require())
                 pass
             await self.aggregate_provider.populate(session)
-            agg = await self.aggregate_provider.create(session)
-            await cursor.append(session, agg)
+            created_agg = await self.aggregate_provider.create(session)
+            await cursor.append(session, created_agg)
             self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
             self._set_output(await self.aggregate_provider.id_provider.create(session))
@@ -178,7 +178,9 @@ class ReferenceProvider(
                                  Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]])
     ) -> None:
         if callable(aggregate_provider):
-            aggregate_provider_accessor = LazyAggregateProviderAccessor[
+            aggregate_provider_accessor: IAggregateProviderAccessor[
+                AggInputT, AggOutputT, IdInputT, IdOutputT
+            ] = LazyAggregateProviderAccessor[
                 AggInputT, AggOutputT, IdInputT, IdOutputT
             ](aggregate_provider)
         else:

@@ -30,6 +30,7 @@ from jsonpath2.nodes.current import CurrentNode
 
 from ascetic_ddd.specification.domain.nodes import (
     And,
+    EmptiableObject,
     Equal,
     Field,
     GlobalScope,
@@ -593,7 +594,7 @@ class ParametrizedSpecificationJsonPath2:
         predicate, _ = self._convert_expression_to_spec(filter_expression, item_ctx)
 
         # Build parent: Item() or GlobalScope() + Object(collection_name)
-        parent = Item() if ctx.in_item_context else GlobalScope()
+        parent: EmptiableObject = Item() if ctx.in_item_context else GlobalScope()
         parent = Object(parent, collection_name)
 
         return Wildcard(parent, predicate)
@@ -661,7 +662,7 @@ class ParametrizedSpecificationJsonPath2:
 
             if field_chain:
                 # Build nested Field structure
-                parent = Item() if ctx.in_item_context else GlobalScope()
+                parent: EmptiableObject = Item() if ctx.in_item_context else GlobalScope()
 
                 # Build Object chain for all fields except the last
                 for field_name in field_chain[:-1]:

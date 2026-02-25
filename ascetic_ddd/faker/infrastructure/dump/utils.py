@@ -1,5 +1,6 @@
 import datetime
 
+from ascetic_ddd.faker.infrastructure.dump.interfaces import IFileDump
 from ascetic_ddd.faker.infrastructure.dump.pg_dump import FileDump, GzipDump, PgDump
 from ascetic_ddd.faker.infrastructure.dump.s3_dump import AwsCredentials, S3Dump
 from ascetic_ddd.faker.infrastructure.dump.single_pg_dump import SinglePgDump
@@ -13,7 +14,7 @@ def make_single_dumper(
         conninfo: str,
         aws_credentials: AwsCredentials | None = None
 ):
-    dumper = SinglePgDump(
+    dumper: IFileDump = SinglePgDump(
         base_path=base_path,
         ttl=ttl,
         conninfo=conninfo
@@ -29,7 +30,7 @@ def make_dumper(
         conninfo: str,
         aws_credentials: AwsCredentials | None = None
 ):
-    dumper = FileDump(
+    dumper: IFileDump = FileDump(
         delegate=GzipDump(
             delegate=PgDump(
                 conninfo=conninfo

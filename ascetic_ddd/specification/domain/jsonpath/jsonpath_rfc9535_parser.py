@@ -450,7 +450,7 @@ class ParametrizedSpecificationRFC9535:
         """
         # Handle integer literals
         if isinstance(operand, IntegerLiteral):
-            value = operand.value
+            value: int | float | str = operand.value
             # Check if it's a placeholder marker
             if value == PLACEHOLDER_MARKER_INT:
                 return self._try_bind_placeholder(ctx, params, ("d", "f"))

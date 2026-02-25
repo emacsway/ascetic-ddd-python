@@ -48,8 +48,8 @@ class ValueProvider(
         "⊆" means subset of a composition.
     """
     _input_generator: IInputGenerator[InputT] | None = None
-    _output_factory: typing.Callable[[InputT | None], OutputT] = None  # OutputT of each nested Provider.
-    _output_exporter: typing.Callable[[OutputT], InputT] = None
+    _output_factory: typing.Callable[[InputT | None], OutputT] = None  # type: ignore[assignment]  # OutputT of each nested Provider.
+    _output_exporter: typing.Callable[[OutputT], InputT] = None  # type: ignore[assignment]
     _specification_factory: typing.Callable[..., ISpecification]
 
     def __init__(

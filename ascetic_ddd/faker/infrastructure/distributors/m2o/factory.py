@@ -30,7 +30,7 @@ def pg_distributor_factory(
         sequence: Pass sequence number to value generator.
     """
     if sequence:
-        dist = PgSequenceDistributor[T]()
+        dist: IM2ODistributor[T] = PgSequenceDistributor[T]()
     else:
         dist = DummyDistributor[T]()
     if weights is not None:

@@ -287,9 +287,9 @@ class LambdaParser:
                 return self._convert_method_comparison(node, node_class)
 
             # Postfix methods
-            node_class = self._METHOD_POSTFIX_MAP.get(method_name)
-            if node_class is not None:
-                return self._convert_method_postfix(node, node_class)
+            postfix_class = self._METHOD_POSTFIX_MAP.get(method_name)
+            if postfix_class is not None:
+                return self._convert_method_postfix(node, postfix_class)
 
         raise ValueError("Unsupported function call: %s" % ast.unparse(node))
 
@@ -503,7 +503,7 @@ class LambdaParser:
             if node.value.id == self.arg_name:
                 # In item context (inside wildcard), use Item()
                 # Otherwise use GlobalScope()
-                obj = Item() if self._in_item_context else GlobalScope()
+                obj: EmptiableObject = Item() if self._in_item_context else GlobalScope()
             else:
                 raise ValueError(f"Non-local variable: {node.value.id}")
         elif isinstance(node.value, ast.Attribute):

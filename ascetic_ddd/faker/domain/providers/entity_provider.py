@@ -23,7 +23,7 @@ class EntityProvider(
     Mutable output - composite Entity. Saved as part of aggregate.
     """
     _id_attr: str
-    _output_exporter: typing.Callable[[EntOutputT], EntInputT] = None
+    _output_exporter: typing.Callable[[EntOutputT], EntInputT] = None  # type: ignore[assignment]
 
     def __init__(
             self,

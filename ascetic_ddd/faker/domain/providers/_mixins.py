@@ -246,7 +246,7 @@ class BaseCompositeProvider(
     _criteria: IQueryOperator | None = None
     _output: CompositeOutputT | None = None
     _output_defined: bool = False
-    _output_factory: typing.Callable[..., CompositeOutputT] = None  # CompositeOutputT of each nested Provider.
+    _output_factory: typing.Callable[..., CompositeOutputT] = None  # type: ignore[assignment]  # CompositeOutputT of each nested Provider.
     _provider_name: str | None = None
     _on_required: ISyncSignal[CriteriaRequiredEvent]
     _on_populated: ISyncSignal[InputPopulatedEvent]
@@ -380,14 +380,14 @@ class BaseCompositeProvider(
     async def setup(self, session: ISession):
         for provider in self.providers.values():
             await provider.setup(session)
-        for provider in self.dependent_providers.values():
-            await provider.setup(session)
+        for dep_provider in self.dependent_providers.values():
+            await dep_provider.setup(session)
 
     async def cleanup(self, session: ISession):
         for provider in self.providers.values():
             await provider.cleanup(session)
-        for provider in self.dependent_providers.values():
-            await provider.cleanup(session)
+        for dep_provider in self.dependent_providers.values():
+            await dep_provider.cleanup(session)
 
     @classmethod
     @functools.cache

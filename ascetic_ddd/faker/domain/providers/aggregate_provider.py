@@ -28,7 +28,7 @@ class AggregateProvider(
 ):
     _id_attr: str
     _repository: IAggregateRepository[AggOutputT]
-    _output_exporter: typing.Callable[[AggOutputT], AggInputT] = None
+    _output_exporter: typing.Callable[[AggOutputT], AggInputT] = None  # type: ignore[assignment]
 
     def __init__(
             self,

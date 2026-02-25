@@ -47,6 +47,6 @@ class EventSourcedAggregate(
         """
         Or reduce.
         """
-        agg: typing.Self = cls._make_empty()
+        agg = cls._make_empty()
         agg._load_from(past_events)
         return agg
