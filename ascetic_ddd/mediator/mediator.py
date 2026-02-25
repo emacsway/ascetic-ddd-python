@@ -22,7 +22,7 @@ class Mediator(IMediator[SessionT], typing.Generic[SessionT]):
     async def send(self, session: SessionT, request: IRequest[ResultT]) -> ResultT:
         if handler := self._handlers.get(type(request)):
             return await self._execute_pipelines(session, request, handler)
-        return None
+        raise RuntimeError("Unknown receiver for request %r" % request)
 
     async def register(
             self,

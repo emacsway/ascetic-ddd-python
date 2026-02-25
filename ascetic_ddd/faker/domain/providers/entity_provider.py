@@ -9,26 +9,26 @@ __all__ = ('EntityProvider',)
 
 IdInputT = typing.TypeVar("IdInputT")
 IdOutputT = typing.TypeVar("IdOutputT")
-AggInputT = typing.TypeVar("AggInputT", bound=dict)
-AggOutputT = typing.TypeVar("AggOutputT", bound=object)
+EntInputT = typing.TypeVar("EntInputT", bound=dict)
+EntOutputT = typing.TypeVar("EntOutputT", bound=object)
 
 
 class EntityProvider(
-    BaseCompositeProvider[AggInputT, AggOutputT],
-    IEntityProvider[AggInputT, AggOutputT, IdInputT, IdOutputT],
-    typing.Generic[AggInputT, AggOutputT, IdInputT, IdOutputT],
+    BaseCompositeProvider[EntInputT, EntOutputT],
+    IEntityProvider[EntInputT, EntOutputT, IdInputT, IdOutputT],
+    typing.Generic[EntInputT, EntOutputT, IdInputT, IdOutputT],
     metaclass=ABCMeta
 ):
     """
     Mutable output - composite Entity. Saved as part of aggregate.
     """
     _id_attr: str
-    _output_exporter: typing.Callable[[AggOutputT], AggInputT] = None
+    _output_exporter: typing.Callable[[EntOutputT], EntInputT] = None
 
     def __init__(
             self,
-            output_factory: typing.Callable[..., AggOutputT] | None = None,  # AggOutputT of each nested Provider.
-            output_exporter: typing.Callable[[AggOutputT], AggInputT] | None = None,
+            output_factory: typing.Callable[..., EntOutputT] | None = None,  # AggOutputT of each nested Provider.
+            output_exporter: typing.Callable[[EntOutputT], EntInputT] | None = None,
     ):
 
         if self._output_exporter is None:
@@ -41,10 +41,10 @@ class EntityProvider(
 
         super().__init__(output_factory=output_factory)
 
-    async def create(self, session: ISession) -> AggOutputT:
+    async def create(self, session: ISession) -> EntOutputT:
         if not self._output_defined:
             self._set_output(await self._default_factory(session))
-        return self._output
+        return typing.cast(EntOutputT, self._output)
 
     @property
     def id_provider(self):

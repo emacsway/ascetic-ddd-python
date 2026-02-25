@@ -37,7 +37,7 @@ class _Handler(Generic[T, R]):
         self.next = next_deferred
 
 
-class Deferred(Generic[T]):
+class Deferred(IDeferred[T]):
     """
     Implementation of the Deferred pattern.
 
@@ -45,7 +45,7 @@ class Deferred(Generic[T]):
     for both success and error cases, similar to JavaScript Promises.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._value: T | None = None
         self._err: Exception | None = None
         self._occurred_errors: list[Exception] = []
@@ -85,7 +85,7 @@ class Deferred(Generic[T]):
         self,
         on_success: Callable[[T], R],
         on_error: Callable[[Exception], R],
-    ) -> "IDeferred[R]":
+    ) -> "Deferred[R]":
         """
         Register callbacks for success and error cases.
 

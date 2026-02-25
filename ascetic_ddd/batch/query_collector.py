@@ -34,7 +34,7 @@ class CursorCollector(typing.Generic[Row]):
         *,
         prepare: bool | None = None,
         binary: bool | None = None,
-    ) -> "CursorCollector":
+    ) -> "CursorCollector[Row]":
         """
         Collect query for batch execution instead of executing immediately.
 
@@ -89,7 +89,7 @@ class CursorCollector(typing.Generic[Row]):
         """No-op for batch cursor."""
         pass
 
-    async def __aenter__(self) -> "CursorCollector":
+    async def __aenter__(self) -> "CursorCollector[Row]":
         return self
 
     async def __aexit__(
@@ -152,7 +152,7 @@ class ConnectionCollector(typing.Generic[Row]):
         await self.close()
 
 
-class QueryCollector:
+class QueryCollector(typing.Generic[Row]):
     """
     Collects and batches database queries for efficient execution.
 
@@ -175,12 +175,12 @@ class QueryCollector:
         # Results are now available through deferred objects
     """
 
-    def __init__(self):
-        self._multi_query_map: dict[str, IMultiQuerier] = {}
-        self._connection = ConnectionCollector[tuple[typing.Any, ...]](self._collect_query)
+    def __init__(self) -> None:
+        self._multi_query_map: dict[str, IMultiQuerier[Row]] = {}
+        self._connection = ConnectionCollector[Row](self._collect_query)
 
     @property
-    def connection(self) -> ConnectionCollector[tuple[typing.Any, ...]]:
+    def connection(self) -> ConnectionCollector[Row]:
         """Return batch connection for collecting queries."""
         return self._connection
 

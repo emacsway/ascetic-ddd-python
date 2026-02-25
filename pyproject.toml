@@ -67,7 +67,6 @@ exclude = ["tests", "_build", "\\.env"]
 disable_error_code = [
     "assignment",
     "override",
-    "return-value",
 ]
 
 [build-system]

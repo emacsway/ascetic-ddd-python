@@ -341,9 +341,9 @@ class EagerAggregateProvidersAccessor(
         return self._providers[:count]
 
     def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
-        return EagerAggregateProvidersAccessor[
+        return typing.cast(typing.Self, EagerAggregateProvidersAccessor[
             AggInputT, AggOutputT, IdInputT, IdOutputT
-        ](self._template_provider.clone(shunt))
+        ](self._template_provider.clone(shunt)))
 
     def reset(self, visited: set | None = None):
         self._providers = []
@@ -391,9 +391,9 @@ class LazyAggregateProvidersAccessor(
         return self._providers[:count]
 
     def clone(self, shunt: ICloningShunt | None = None) -> typing.Self:
-        return LazyAggregateProvidersAccessor[
+        return typing.cast(typing.Self, LazyAggregateProvidersAccessor[
             AggInputT, AggOutputT, IdInputT, IdOutputT
-        ](self._template_provider_factory)
+        ](self._template_provider_factory))
 
     def reset(self, visited: set | None = None):
         self._template_provider = None

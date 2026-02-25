@@ -116,6 +116,7 @@ def object_(name: str) -> nodes.Object:
     parts = name.split(".")
     while parts:
         parent = nodes.Object(parent, parts.pop(0))
+    assert isinstance(parent, nodes.Object)
     return parent
 
 

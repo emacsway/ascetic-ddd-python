@@ -14,13 +14,13 @@ __all__ = (
 )
 
 
-InputT = typing.TypeVar("InputT")
-OutputT = typing.TypeVar("OutputT")
+CompositeInputT = typing.TypeVar("CompositeInputT", bound=dict)
+CompositeOutputT = typing.TypeVar("CompositeOutputT", bound=object)
 
 
 class CompositeValueProvider(
     BaseCompositeDistributionProvider,
-    typing.Generic[InputT, OutputT]
+    typing.Generic[CompositeInputT, CompositeOutputT]
 ):
     """
     Immutable output - composite ValueObject.
@@ -43,14 +43,14 @@ class CompositeValueProvider(
         "Σx" means composition of "x",
         "⊆" means subset of a composition.
     """
-    _output_exporter: typing.Callable[[OutputT], InputT] = None
+    _output_exporter: typing.Callable[[CompositeOutputT], CompositeInputT] = None
     _specification_factory: typing.Callable[..., ISpecification]
 
     def __init__(
             self,
-            distributor: IM2ODistributor[InputT] | None = None,
-            output_factory: typing.Callable[..., OutputT] | None = None,  # OutputT of each nested Provider.
-            output_exporter: typing.Callable[[OutputT], InputT] | None = None,
+            distributor: IM2ODistributor[CompositeInputT] | None = None,
+            output_factory: typing.Callable[..., CompositeOutputT] | None = None,  # OutputT of each nested Provider.
+            output_exporter: typing.Callable[[CompositeOutputT], CompositeInputT] | None = None,
             specification_factory: typing.Callable[..., ISpecification] = QueryLookupSpecification,
     ):
         if distributor is None:
@@ -67,10 +67,10 @@ class CompositeValueProvider(
         self._specification_factory = specification_factory
         super().__init__(distributor=distributor, output_factory=output_factory)
 
-    async def create(self, session: ISession) -> OutputT:
+    async def create(self, session: ISession) -> CompositeOutputT:
         if not self._output_defined:
             raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
-        return self._output
+        return typing.cast(CompositeOutputT, self._output)
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():

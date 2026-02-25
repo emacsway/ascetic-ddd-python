@@ -38,7 +38,7 @@ class MultiQueryBase(typing.Generic[Row], metaclass=ABCMeta):
     """
     _extract_connection = staticmethod(extract_connection)
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._sql_template: str = ""
         self._values_pattern: str = ""
         self._params: list[typing.Sequence[typing.Any]] = []

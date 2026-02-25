@@ -16,6 +16,7 @@ class Identity(Hashable, IAccessible[T], typing.Generic[T]):
 
     @property
     def value(self) -> T:
+        assert self._value is not None
         return self._value
 
     def is_transient(self) -> bool:

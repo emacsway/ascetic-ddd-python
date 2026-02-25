@@ -87,7 +87,7 @@ class ValueProvider(
     async def create(self, session: ISession) -> OutputT:
         if not self._output_defined:
             raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
-        return self._output
+        return typing.cast(OutputT, self._output)
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():

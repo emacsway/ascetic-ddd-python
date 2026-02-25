@@ -44,6 +44,7 @@ class NameableMixin(INameable, metaclass=abc.ABCMeta):
 
     @property
     def provider_name(self) -> str:
+        assert self._provider_name is not None
         return self._provider_name
 
     @provider_name.setter
@@ -215,6 +216,7 @@ class BaseDistributionProvider(BaseProvider[InputT, OutputT], typing.Generic[Inp
 
     @property
     def provider_name(self) -> str:
+        assert self._provider_name is not None
         return self._provider_name
 
     @provider_name.setter
@@ -339,7 +341,7 @@ class BaseCompositeProvider(
         for attr, provider in self.providers.items():
             if provider.is_complete():
                 value[attr] = provider.state()
-        return value
+        return typing.cast(CompositeInputT, value)
 
     async def _default_factory(self, session: ISession, position: typing.Optional[int] = None):
         data = dict()

@@ -170,7 +170,7 @@ class DataclassState(IAggregateState):
     def pk_setter(self) -> typing.Callable[[typing.Any], None]:
         return partial(self._set_id, agg=self._agg)
 
-    async def _set_id(self, agg: T, val):
+    def _set_id(self, agg: T, val):
         if self._id_attr is None:
             return
         path = self._id_attr.split(".")

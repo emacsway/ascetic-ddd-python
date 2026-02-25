@@ -12,6 +12,7 @@ from ascetic_ddd.specification.domain.nodes import (
     Add,
     And,
     Div,
+    EmptiableObject,
     Equal,
     Field,
     GlobalScope,
@@ -450,7 +451,7 @@ class LambdaParser:
         collection_object = Object(collection_parent, collection_name)
         return Wildcard(collection_object, predicate)
 
-    def _extract_collection_path(self, node: ast.AST) -> tuple[Object, str]:
+    def _extract_collection_path(self, node: ast.AST) -> tuple[EmptiableObject, str]:
         """
         Extract collection path from iterator.
 
@@ -471,7 +472,7 @@ class LambdaParser:
         else:
             raise ValueError(f"Unsupported collection iterator: {type(node).__name__}")
 
-    def _get_parent_from_value(self, node: ast.AST) -> Object:
+    def _get_parent_from_value(self, node: ast.AST) -> EmptiableObject:
         """Get parent object from value node."""
         if isinstance(node, ast.Name):
             if node.id == self.arg_name:

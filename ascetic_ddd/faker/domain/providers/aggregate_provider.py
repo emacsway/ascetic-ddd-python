@@ -71,7 +71,7 @@ class AggregateProvider(
 
     async def create(self, session: ISession) -> AggOutputT:
         if self._output_defined:
-            return self._output
+            return typing.cast(AggOutputT, self._output)
         output = await self._default_factory(session)
         await self._repository.insert(session, output)
         state = self._output_exporter(output)

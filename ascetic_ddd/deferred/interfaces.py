@@ -1,13 +1,16 @@
 """Deferred pattern interfaces."""
-from typing import Callable, Protocol, TypeVar
+import typing
+from abc import ABCMeta, abstractmethod
+from typing import Callable, TypeVar
 
 T = TypeVar("T")
 R = TypeVar("R")
 
 
-class IDeferred(Protocol[T]):
+class IDeferred(typing.Generic[T], metaclass=ABCMeta):
     """Interface for deferred operations (similar to Promise)."""
 
+    @abstractmethod
     def resolve(self, value: T) -> None:
         """
         Resolve the deferred with a value.
@@ -19,6 +22,7 @@ class IDeferred(Protocol[T]):
         """
         ...
 
+    @abstractmethod
     def reject(self, err: Exception) -> None:
         """
         Reject the deferred with an error.
@@ -30,6 +34,7 @@ class IDeferred(Protocol[T]):
         """
         ...
 
+    @abstractmethod
     def then(
         self,
         on_success: Callable[[T], R],
@@ -53,6 +58,7 @@ class IDeferred(Protocol[T]):
         """
         ...
 
+    @abstractmethod
     def occurred_err(self) -> list[Exception]:
         """
         Collect all errors that occurred during execution.

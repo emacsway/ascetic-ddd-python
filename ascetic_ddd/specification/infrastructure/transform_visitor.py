@@ -154,4 +154,5 @@ class TransformVisitor(Visitor):
 
     def result(self) -> Visitable:
         """Return the transformed AST."""
+        assert self._current_node is not None
         return self._current_node

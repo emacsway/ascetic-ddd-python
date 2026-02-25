@@ -61,7 +61,7 @@ class IterableGenerator(typing.Generic[T]):
             return next(self._values)
         except StopIteration as e:
             self._values = iter(self._source)
-            return self.__call__(session=session, query=query, position=position)
+            return await self.__call__(session=session, query=query, position=position)
 
 
 class HypothesisStrategyGenerator(typing.Generic[T]):
@@ -107,14 +107,14 @@ class CallableGenerator(typing.Generic[T]):
         return result
 
 
-class CountableGenerator(typing.Generic[T]):
+class CountableGenerator:
 
     def __init__(self, base: str):
         self._count = 0
         self._pid = os.getpid()
         self._base = base
 
-    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> T:
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> str:
         result = "%s_%s_%s" % (self._base, os.getpid(), ++self._count)
         self._count += 1
         return result

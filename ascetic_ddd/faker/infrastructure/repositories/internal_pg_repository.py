@@ -104,7 +104,9 @@ class InternalPgRepository(typing.Generic[T]):
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(sql, (self._encode(key),))
             row = await acursor.fetchone()
-            return row and self._deserialize(row[0])
+            if row is None:
+                return None
+            return self._deserialize(row[0])
 
     async def update(self, session: ISession, agg: T):
         state = self._agg_exporter(agg)
