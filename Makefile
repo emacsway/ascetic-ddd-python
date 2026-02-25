@@ -1,6 +1,9 @@
-.PHONY: lint typecheck
+.PHONY: lint typecheck pyright
 
 typecheck:
 	python -m mypy ascetic_ddd/
 
-lint: typecheck
+pyright:
+	pyright
+
+lint: typecheck pyright
