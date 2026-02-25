@@ -35,3 +35,13 @@ Consequences
 - Interface definitions serve as clear contracts for both Python and Go
   implementations
 - The codebase may feel less "Pythonic" but gains cross-language clarity
+
+Type Checking
+-------------
+- **mypy** is the primary type checker. Strict typing enables potential
+  compilation via `mypyc <https://mypyc.readthedocs.io/>`__, which can provide
+  a significant (multi-fold) performance improvement for hot paths.
+- **Pyright** is a secondary type checker that catches additional errors mypy
+  may miss (e.g. stricter protocol conformance, unreachable code analysis).
+- When suppressing type errors, use ``# type: ignore`` for mypy issues and
+  ``# pyright: ignore`` for pyright-only issues. mypy takes priority.
