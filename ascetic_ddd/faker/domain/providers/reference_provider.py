@@ -1,6 +1,7 @@
 import typing
 from collections.abc import Callable
 from abc import ABCMeta, abstractmethod
+from functools import cached_property
 
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import ICursor, IM2ODistributor
 from ascetic_ddd.faker.domain.providers._mixins import BaseDistributionProvider
@@ -198,9 +199,9 @@ class ReferenceProvider(
         self._aggregate_provider_accessor.reset(visited)
         super()._do_reset(visited)
 
-    @property
+    @cached_property
     def _id_attr(self) -> str:
-        return self.aggregate_provider.id_provider.provider_name.rsplit(".", 1).pop()
+        return self.aggregate_provider.id_provider.provider_name.rsplit(".", 1)[-1]
 
     async def setup(self, session: ISession):
         await super().setup(session)
