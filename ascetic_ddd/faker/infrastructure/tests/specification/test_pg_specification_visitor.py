@@ -4,6 +4,7 @@ from unittest import TestCase, IsolatedAsyncioTestCase
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+from ascetic_ddd.faker.domain.query.operators import EqOperator, CompositeQuery, RelOperator
 from ascetic_ddd.option import Some
 from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
 from ascetic_ddd.faker.domain.providers.composite_value_provider import CompositeValueProvider
@@ -339,18 +340,20 @@ class CompanyFaker(AggregateProvider[dict, Company, int, int]):
 class PgSpecificationVisitorBasicTestCase(TestCase):
     """Basic tests for PgSpecificationVisitor."""
 
-    def test_empty_pattern(self):
-        """Empty pattern should produce no SQL."""
+    def test_empty_query(self):
+        """Empty CompositeQuery should produce no SQL."""
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern({})
+        visitor.visit_query_specification(CompositeQuery({}))
 
         self.assertEqual(visitor.sql, "")
         self.assertEqual(visitor.params, tuple())
 
-    def test_simple_pattern(self):
-        """Simple pattern should use @> operator."""
+    def test_simple_query(self):
+        """Simple query should use @> operator."""
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern({'status': 'active'})
+        visitor.visit_query_specification(
+            CompositeQuery({'status': EqOperator('active')})
+        )
 
         self.assertIn("@>", visitor.sql)
         self.assertEqual(len(visitor.params), 1)
@@ -358,10 +361,10 @@ class PgSpecificationVisitorBasicTestCase(TestCase):
     def test_multiple_simple_constraints(self):
         """Multiple simple constraints should be combined with @>."""
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern({
-            'status': 'active',
-            'type': 'user'
-        })
+        visitor.visit_query_specification(CompositeQuery({
+            'status': EqOperator('active'),
+            'type': EqOperator('user'),
+        }))
 
         self.assertIn("@>", visitor.sql)
         self.assertEqual(len(visitor.params), 1)
@@ -369,17 +372,19 @@ class PgSpecificationVisitorBasicTestCase(TestCase):
     def test_custom_target_value_expr(self):
         """Custom target_value_expr should be used in SQL."""
         visitor = PgSpecificationVisitor(target_value_expr="data")
-        visitor._visit_object_pattern({'status': 'active'})
+        visitor.visit_query_specification(
+            CompositeQuery({'status': EqOperator('active')})
+        )
 
         self.assertIn("data @>", visitor.sql)
 
-    def test_non_dict_pattern(self):
-        """Non-dict pattern should use @> operator."""
+    def test_scalar_value(self):
+        """Scalar EqOperator should use @> operator."""
         import uuid
         test_uuid = uuid.uuid4()
 
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern(test_uuid)
+        visitor.visit_query_specification(EqOperator(test_uuid))
 
         self.assertIn("@>", visitor.sql)
         self.assertEqual(len(visitor.params), 1)
@@ -392,19 +397,19 @@ class PgSpecificationVisitorBasicTestCase(TestCase):
 class PgSpecificationVisitorNestedConstraintsTestCase(TestCase):
     """Tests for nested constraints handling."""
 
-    def test_nested_without_accessor_uses_containment(self):
-        """Nested dict without accessor should use simple @>."""
+    def test_nested_composite_without_accessor_uses_containment(self):
+        """Nested CompositeQuery without accessor should use simple @>."""
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern(
-            {'fk_id': {'status': 'active'}},
+        visitor.visit_query_specification(
+            CompositeQuery({'fk_id': CompositeQuery({'status': EqOperator('active')})}),
             aggregate_provider_accessor=None
         )
 
         self.assertIn("@>", visitor.sql)
         self.assertNotIn("EXISTS", visitor.sql)
 
-    def test_nested_with_reference_provider_uses_exists(self):
-        """Nested dict for IReferenceProvider should generate EXISTS subquery."""
+    def test_rel_operator_uses_exists(self):
+        """RelOperator should generate EXISTS subquery."""
         # Setup providers hierarchy
         status_repo = StubRepository(table="statuses")
         status_dist = StubDistributor()
@@ -422,8 +427,10 @@ class PgSpecificationVisitorNestedConstraintsTestCase(TestCase):
         user_provider.provider_name = "user"
 
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern(
-            {'department_id': {'name': 'Engineering'}},
+        visitor.visit_query_specification(
+            CompositeQuery({
+                'department_id': RelOperator(CompositeQuery({'name': EqOperator('Engineering')})),
+            }),
             aggregate_provider_accessor=lambda: user_provider
         )
 
@@ -432,15 +439,17 @@ class PgSpecificationVisitorNestedConstraintsTestCase(TestCase):
         self.assertIn("departments", visitor.sql)
         self.assertIn("value_id", visitor.sql)
 
-    def test_nested_with_composite_value_object_uses_containment(self):
-        """Nested dict for CompositeValueProvider should use simple @>."""
+    def test_nested_composite_value_object_uses_containment(self):
+        """Nested CompositeQuery (non-RelOperator) should use simple @>."""
         company_repo = StubRepository(table="companies")
         company_provider = CompanyFaker(company_repo)
         company_provider.provider_name = "company"
 
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern(
-            {'address': {'city': 'Moscow'}},
+        visitor.visit_query_specification(
+            CompositeQuery({
+                'address': CompositeQuery({'city': EqOperator('Moscow')}),
+            }),
             aggregate_provider_accessor=lambda: company_provider
         )
 
@@ -450,8 +459,8 @@ class PgSpecificationVisitorNestedConstraintsTestCase(TestCase):
         # So no EXISTS subquery
         self.assertNotIn("EXISTS", visitor.sql)
 
-    def test_mixed_simple_and_nested_constraints(self):
-        """Mixed simple and nested constraints should generate combined SQL."""
+    def test_mixed_simple_and_rel_constraints(self):
+        """Mixed simple and RelOperator constraints should generate combined SQL."""
         status_repo = StubRepository(table="statuses")
         status_dist = StubDistributor()
         status_provider = StatusFaker(status_repo, status_dist)
@@ -468,11 +477,11 @@ class PgSpecificationVisitorNestedConstraintsTestCase(TestCase):
         user_provider.provider_name = "user"
 
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern(
-            {
-                'name': 'Alice',  # Simple constraint
-                'department_id': {'name': 'Engineering'}  # Nested constraint
-            },
+        visitor.visit_query_specification(
+            CompositeQuery({
+                'name': EqOperator('Alice'),
+                'department_id': RelOperator(CompositeQuery({'name': EqOperator('Engineering')})),
+            }),
             aggregate_provider_accessor=lambda: user_provider
         )
 
@@ -502,8 +511,10 @@ class PgSpecificationVisitorExistsSubqueryTestCase(TestCase):
         dept_provider.provider_name = "department"
 
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern(
-            {'status_id': {'name': 'Active'}},
+        visitor.visit_query_specification(
+            CompositeQuery({
+                'status_id': RelOperator(CompositeQuery({'name': EqOperator('Active')})),
+            }),
             aggregate_provider_accessor=lambda: dept_provider
         )
 
@@ -514,11 +525,11 @@ class PgSpecificationVisitorExistsSubqueryTestCase(TestCase):
         self.assertIn("SELECT 1", sql)
         self.assertIn("statuses", sql)
 
-        # Check that it uses rt.value @> for GIN index
-        self.assertIn("rt.value @>", sql)
+        # Check that it uses rt<N>.value @> for GIN index
+        self.assertRegex(sql, r"rt\d+\.value @>")
 
         # Check that it uses value_id = for B-tree index
-        self.assertIn("rt.value_id =", sql)
+        self.assertRegex(sql, r"rt\d+\.value_id =")
         self.assertIn("value->'status_id'", sql)
 
     def test_exists_subquery_nested_two_levels(self):
@@ -539,8 +550,12 @@ class PgSpecificationVisitorExistsSubqueryTestCase(TestCase):
         user_provider.provider_name = "user"
 
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern(
-            {'department_id': {'status_id': {'name': 'Active'}}},
+        visitor.visit_query_specification(
+            CompositeQuery({
+                'department_id': RelOperator(CompositeQuery({
+                    'status_id': RelOperator(CompositeQuery({'name': EqOperator('Active')})),
+                })),
+            }),
             aggregate_provider_accessor=lambda: user_provider
         )
 
@@ -559,33 +574,27 @@ class PgSpecificationVisitorExistsSubqueryTestCase(TestCase):
 class PgSpecificationVisitorEdgeCasesTestCase(TestCase):
     """Edge case tests for PgSpecificationVisitor."""
 
-    def test_unknown_provider_key_uses_containment(self):
-        """Unknown key (not in _providers) should use simple @>."""
+    def test_nested_composite_without_rel_uses_containment(self):
+        """Nested CompositeQuery without RelOperator should use simple @>."""
         status_repo = StubRepository(table="statuses")
         status_dist = StubDistributor()
         status_provider = StatusFaker(status_repo, status_dist)
         status_provider.provider_name = "status"
 
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern(
-            {'unknown_field': {'nested': 'value'}},
+        visitor.visit_query_specification(
+            CompositeQuery({
+                'unknown_field': CompositeQuery({'nested': EqOperator('value')}),
+            }),
             aggregate_provider_accessor=lambda: status_provider
         )
 
-        # Unknown field should use simple @>
+        # No RelOperator — should use simple @>
         self.assertIn("@>", visitor.sql)
         self.assertNotIn("EXISTS", visitor.sql)
 
-    def test_none_pattern(self):
-        """None pattern should produce no SQL."""
-        visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern(None)
-
-        self.assertEqual(visitor.sql, "")
-        self.assertEqual(visitor.params, tuple())
-
-    def test_empty_nested_pattern(self):
-        """Empty nested pattern should be handled gracefully."""
+    def test_empty_rel_query(self):
+        """RelOperator with empty CompositeQuery should be handled gracefully."""
         status_repo = StubRepository(table="statuses")
         status_dist = StubDistributor()
         status_provider = StatusFaker(status_repo, status_dist)
@@ -597,11 +606,13 @@ class PgSpecificationVisitorEdgeCasesTestCase(TestCase):
         dept_provider.provider_name = "department"
 
         visitor = PgSpecificationVisitor()
-        visitor._visit_object_pattern(
-            {'status_id': {}},  # Empty nested dict
+        visitor.visit_query_specification(
+            CompositeQuery({
+                'status_id': RelOperator(CompositeQuery({})),
+            }),
             aggregate_provider_accessor=lambda: dept_provider
         )
 
-        # Empty nested should still generate EXISTS with TRUE
-        # or be handled gracefully
-        self.assertTrue(len(visitor.sql) > 0 or visitor.sql == "")
+        # Empty RelOperator query — no SQL generated
+        self.assertEqual(visitor.sql, "")
+        self.assertEqual(visitor.params, tuple())
