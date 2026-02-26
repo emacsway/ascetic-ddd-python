@@ -157,7 +157,7 @@ class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
             return self._nested_cache[cache_key]
 
         referenced_aggregate_provider = ref_provider.aggregate_provider
-        repository = referenced_aggregate_provider._repository
+        repository = referenced_aggregate_provider.repository
         foreign_obj = await repository.get(session, fk_id)
 
         if foreign_obj is None:

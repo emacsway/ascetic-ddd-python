@@ -36,7 +36,7 @@ class ProviderObjectResolver(IObjectResolver):
             return None, None
 
         related_provider = provider.aggregate_provider
-        obj = await related_provider._repository.get(session, fk_value)  # type: ignore[attr-defined]
+        obj = await related_provider.repository.get(session, fk_value)
 
         if obj is None:
             return None, None

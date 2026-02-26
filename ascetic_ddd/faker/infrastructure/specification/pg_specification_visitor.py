@@ -92,7 +92,7 @@ class PgSpecificationVisitor(ISpecificationVisitor):
                     # FK to another aggregate — get the table and build a subquery
                     related_agg_provider = nested_provider.aggregate_provider
                     if hasattr(related_agg_provider, '_repository'):
-                        related_table = related_agg_provider._repository.table  # pyright: ignore[reportAttributeAccessIssue]
+                        related_table = related_agg_provider.repository.table
 
                         # Recursively build a subquery for the nested pattern
                         subquery_sql, subquery_params = self._build_subquery(

@@ -53,7 +53,7 @@ class ProviderRelationResolver(IRelationResolver):
         if not hasattr(related_provider, '_repository'):
             return None
 
-        related_table = related_provider._repository.table  # pyright: ignore[reportAttributeAccessIssue]
+        related_table = related_provider.repository.table
         pk_field = 'value_id'
 
         nested_resolver = ProviderRelationResolver(lambda: related_provider)
