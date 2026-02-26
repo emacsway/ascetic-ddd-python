@@ -2,4 +2,4 @@ from ascetic_ddd.faker.infrastructure.repositories.pg_repository import PgReposi
 from ascetic_ddd.faker.infrastructure.repositories.internal_pg_repository import InternalPgRepository
 from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
 from ascetic_ddd.faker.infrastructure.repositories.rest_repository import RestRepository
-from ascetic_ddd.faker.infrastructure.repositories.composite_repository import CompositeRepository, CompositeRepository, CompositeAutoPkRepository
+from ascetic_ddd.faker.infrastructure.repositories.composite_repository import CompositeRepository, CompositeAutoPkRepository

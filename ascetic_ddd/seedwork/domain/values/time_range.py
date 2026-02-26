@@ -16,12 +16,12 @@ class TimeRange(TimestamptzRange):
         lower: datetime.datetime | None = None,
         upper: datetime.datetime | None = None,
     ):
-        if lower and not isinstance(lower, datetime.datetime):
+        if lower and not isinstance(lower, datetime.datetime):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise ValueError(
                 "Type of Timeslot.lower should be datetime.datetime, not %r", (lower,)
             )
 
-        if upper and not isinstance(upper, datetime.datetime):
+        if upper and not isinstance(upper, datetime.datetime):  # pyright: ignore[reportUnnecessaryIsInstance]
             raise ValueError(
                 "Type of Timeslot.upper should be datetime.datetime, not %r", (upper,)
             )

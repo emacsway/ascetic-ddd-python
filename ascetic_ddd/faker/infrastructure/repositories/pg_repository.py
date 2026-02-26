@@ -120,8 +120,13 @@ class IAggregateState(metaclass=ABCMeta):
 
 
 class DataclassState(IAggregateState):
+    _id_attr: str
+    _pk_field: str
+    _state: dict[str, typing.Any]
+    _is_auto_increment_pk: bool
+    _pk_param: typing.Any
 
-    def __init__(self, agg: IDataclass, id_attr: str | None = None, pk_field: str | None = None):
+    def __init__(self, agg: IDataclass, id_attr: str | None = None, pk_field: str | None = None) -> None:
         self._agg = agg
         self._state = self._export_state(agg)
 
@@ -138,7 +143,7 @@ class DataclassState(IAggregateState):
         self._is_auto_increment_pk = self._state.get(self._pk_field) is None
 
     @staticmethod
-    def _default_id_attr(agg: IDataclass):
+    def _default_id_attr(agg: IDataclass) -> str:
         id_attr = ''
         obj = agg
         while dataclasses.is_dataclass(obj):
@@ -170,18 +175,14 @@ class DataclassState(IAggregateState):
     def pk_setter(self) -> typing.Callable[[typing.Any], None]:
         return partial(self._set_id, agg=self._agg)
 
-    def _set_id(self, agg: T, val):
-        if self._id_attr is None:
-            return
+    def _set_id(self, agg: T, val) -> None:
         path = self._id_attr.split(".")
         obj = agg
         for step in path[:-1]:
             obj = getattr(obj, step)
         setattr(obj, path[-1], val)
 
-    def _get_id(self, agg: IDataclass):
-        if self._id_attr is None:
-            return
+    def _get_id(self, agg: IDataclass) -> typing.Any:
         path = self._id_attr.split(".")
         val = agg
         for step in path:

@@ -49,9 +49,7 @@ class PgKeyManagementService(IKeyManagementService):
         return kek.encrypt(dek)
 
     async def decrypt_dek(self, session: ISession, tenant_id: typing.Any, encrypted_dek: bytes) -> bytes:
-        key_version = int.from_bytes(
-            encrypted_dek[:Kek._KEY_VERSION_SIZE], "big"
-        )
+        key_version = Kek.extract_key_version(encrypted_dek)
         kek = await self._get_kek(session, tenant_id, key_version)
         return kek.decrypt(encrypted_dek)
 

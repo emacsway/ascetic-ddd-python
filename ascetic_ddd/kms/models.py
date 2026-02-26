@@ -81,6 +81,10 @@ class BaseKey:
         version_bytes = self._version.to_bytes(self._KEY_VERSION_SIZE, "big")
         return version_bytes + self._cipher.encrypt(plaintext)
 
+    @classmethod
+    def extract_key_version(cls, ciphertext: bytes) -> int:
+        return int.from_bytes(ciphertext[:cls._KEY_VERSION_SIZE], "big")
+
     def decrypt(self, ciphertext: bytes) -> bytes:
         return self._cipher.decrypt(ciphertext[self._KEY_VERSION_SIZE:])
 

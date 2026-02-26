@@ -60,6 +60,14 @@ PLACEHOLDER_MARKER_STR = "__JSONPATH_PLACEHOLDER_a1b2c3d4__"
 
 
 @dataclass
+class _PlaceholderInfo:
+    """Information about a placeholder in the template."""
+    name: str
+    format_type: str
+    positional: bool
+
+
+@dataclass
 class _ConvertContext:
     """
     Immutable context for AST conversion.
@@ -68,17 +76,9 @@ class _ConvertContext:
     by avoiding shared mutable state during concurrent match() calls.
     """
     params: Union[Tuple[Any, ...], Dict[str, Any]]
-    placeholder_info: List[Dict[str, Any]]
+    placeholder_info: List[_PlaceholderInfo]
     in_item_context: bool = False
     placeholder_bind_index: int = 0
-
-
-@dataclass
-class _PlaceholderInfo:
-    """Information about a placeholder in the template."""
-    name: str
-    format_type: str
-    positional: bool
 
 
 # Pre-compiled regex patterns for better performance
@@ -163,7 +163,7 @@ class ParametrizedSpecificationJsonPath2:
             template: JSONPath with %s, %d, %f or %(name)s placeholders
         """
         self.template = template
-        self._placeholder_info: List[Dict[str, Any]] = []
+        self._placeholder_info: List[_PlaceholderInfo] = []
 
         # Extract placeholders before parsing
         self._extract_placeholders()
@@ -254,11 +254,11 @@ class ParametrizedSpecificationJsonPath2:
         for match in _NAMED_PLACEHOLDER_PATTERN.finditer(self.template):
             name = match.group(1)
             format_type = match.group(2)
-            self._placeholder_info.append({
-                "name": name,
-                "format_type": format_type,
-                "positional": False,
-            })
+            self._placeholder_info.append(_PlaceholderInfo(
+                name=name,
+                format_type=format_type,
+                positional=False,
+            ))
 
         # Find positional placeholders: %s, %d, %f
         # Create a temp string without named placeholders
@@ -266,11 +266,11 @@ class ParametrizedSpecificationJsonPath2:
         position = 0
         for match in _POSITIONAL_PLACEHOLDER_PATTERN.finditer(temp):
             format_type = match.group(1)
-            self._placeholder_info.append({
-                "name": str(position),
-                "format_type": format_type,
-                "positional": True,
-            })
+            self._placeholder_info.append(_PlaceholderInfo(
+                name=str(position),
+                format_type=format_type,
+                positional=True,
+            ))
             position += 1
 
     def _add_parentheses_to_filter(self, template: str) -> str:
@@ -620,19 +620,19 @@ class ParametrizedSpecificationJsonPath2:
             if ctx.placeholder_bind_index < len(ctx.placeholder_info):
                 ph = ctx.placeholder_info[ctx.placeholder_bind_index]
 
-                if _is_placeholder_marker(node_or_value, ph["format_type"]):
+                if _is_placeholder_marker(node_or_value, ph.format_type):
                     # Get actual value from params
-                    if ph["positional"]:
-                        param_idx = int(ph["name"])
+                    if ph.positional:
+                        param_idx = int(ph.name)
                         if isinstance(ctx.params, (list, tuple)) and param_idx < len(ctx.params):
                             actual_value = ctx.params[param_idx]
                         else:
                             raise ValueError(f"Missing positional parameter at index {param_idx}")
                     else:
-                        if isinstance(ctx.params, dict) and ph["name"] in ctx.params:
-                            actual_value = ctx.params[ph["name"]]
+                        if isinstance(ctx.params, dict) and ph.name in ctx.params:
+                            actual_value = ctx.params[ph.name]
                         else:
-                            raise ValueError(f"Missing named parameter: {ph['name']}")
+                            raise ValueError(f"Missing named parameter: {ph.name}")
 
                     new_ctx = _ConvertContext(
                         params=ctx.params,

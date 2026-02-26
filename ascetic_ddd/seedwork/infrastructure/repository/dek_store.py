@@ -59,7 +59,6 @@ class DekStore(IDekStore):
     _extract_connection = staticmethod(extract_connection)
     _table = "stream_deks"
     _ALGORITHM = Algorithm.AES_256_GCM
-    _VERSION_SIZE = _VersionedCipher._VERSION_SIZE
 
     _select_latest_sql = """
         SELECT version, encrypted_dek, algorithm FROM %s

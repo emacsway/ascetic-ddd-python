@@ -18,8 +18,7 @@ class HashableEntity(Hashable, metaclass=ABCMeta):
 
     def __hash__(self):
         id_ = self.id
-        if id_ is None:
-            raise TypeError("Model instances without primary key value are unhashable")
+        assert id_ is not None, "Model instances without primary key value are unhashable"
         return hash(id_)
 
     def __eq__(self, other: IEqualOperand):

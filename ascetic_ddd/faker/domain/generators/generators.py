@@ -89,8 +89,8 @@ class CallableGenerator(typing.Generic[T]):
         signature = inspect.signature(callable_)
         self._num_params = len(signature.parameters)
         self._is_async = (
-            asyncio.iscoroutinefunction(callable_) or
-            asyncio.iscoroutinefunction(getattr(callable_, '__call__', None))
+            inspect.iscoroutinefunction(callable_) or
+            inspect.iscoroutinefunction(getattr(callable_, '__call__', None))
         )
 
     async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> T:

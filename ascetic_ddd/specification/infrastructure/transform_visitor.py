@@ -3,7 +3,7 @@ from typing import Any, List, Protocol
 
 from ascetic_ddd.specification.domain.nodes import (
     Visitor, Collection, Field, GlobalScope, Infix, Item, Object, Prefix, Value, Visitable, And,
-    extract_field_path, Infix, Not, Postfix,
+    extract_field_path, Not, Postfix,
 )
 from ascetic_ddd.specification.domain.constants import OPERATOR, OPERATOR_MAPPING
 

@@ -9,6 +9,39 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import re
 
 from jsonpath_rfc9535 import JSONPathEnvironment
+from jsonpath_rfc9535.selectors import NameSelector, WildcardSelector, FilterSelector
+from jsonpath_rfc9535.filter_expressions import (
+    ComparisonExpression,
+    LogicalExpression,
+    PrefixExpression,
+    RelativeFilterQuery,
+    IntegerLiteral,
+    FloatLiteral,
+    StringLiteral,
+    BooleanLiteral,
+    NullLiteral,
+)
+
+from ascetic_ddd.specification.domain.evaluate_visitor import EvaluateVisitor
+from ascetic_ddd.specification.domain.nodes import (
+    And,
+    EmptiableObject,
+    Equal,
+    Field,
+    GlobalScope,
+    GreaterThan,
+    GreaterThanEqual,
+    Item,
+    LessThan,
+    LessThanEqual,
+    Not,
+    NotEqual,
+    Object,
+    Or,
+    Value,
+    Visitable,
+    Wildcard,
+)
 
 # Import shared exceptions from native parser
 from ascetic_ddd.specification.domain.jsonpath.jsonpath_parser import (
@@ -35,39 +68,6 @@ class _ConvertContext:
     """
     placeholder_bind_index: int = field(default=0)
     in_item_context: bool = field(default=False)
-from jsonpath_rfc9535.selectors import NameSelector, WildcardSelector, FilterSelector
-from jsonpath_rfc9535.filter_expressions import (
-    ComparisonExpression,
-    LogicalExpression,
-    PrefixExpression,
-    RelativeFilterQuery,
-    IntegerLiteral,
-    FloatLiteral,
-    StringLiteral,
-    BooleanLiteral,
-    NullLiteral,
-)
-
-from ascetic_ddd.specification.domain.nodes import (
-    And,
-    EmptiableObject,
-    Equal,
-    Field,
-    GlobalScope,
-    GreaterThan,
-    GreaterThanEqual,
-    Item,
-    LessThan,
-    LessThanEqual,
-    Not,
-    NotEqual,
-    Object,
-    Or,
-    Value,
-    Visitable,
-    Wildcard,
-)
-from ascetic_ddd.specification.domain.evaluate_visitor import EvaluateVisitor
 
 
 class ParametrizedSpecificationRFC9535:

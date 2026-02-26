@@ -55,7 +55,7 @@ class PgSpecificationVisitor(ISpecificationVisitor):
 
         # object_pattern may not be a dict — use simple @> containment
         # (scalar value or composite object without provider metadata)
-        if not isinstance(object_pattern, dict):
+        if not isinstance(object_pattern, dict):  # pyright: ignore[reportUnnecessaryIsInstance]
             self._sql += "%s @> %%s" % self._target_value_expr
             self._params += (self._encode(object_pattern),)
             return
