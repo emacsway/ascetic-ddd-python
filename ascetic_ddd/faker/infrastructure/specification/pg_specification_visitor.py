@@ -3,7 +3,7 @@ import typing
 from ascetic_ddd.faker.domain.query.operators import IQueryOperator
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecificationVisitor
 from ascetic_ddd.faker.infrastructure.query.pg_query_compiler import PgQueryCompiler
-from ascetic_ddd.faker.infrastructure.query.relation_resolver import ProviderRelationResolver
+from ascetic_ddd.faker.infrastructure.specification.relation_resolver import ProviderRelationResolver
 
 __all__ = ("PgSpecificationVisitor",)
 
