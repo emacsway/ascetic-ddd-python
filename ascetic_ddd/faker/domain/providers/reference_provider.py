@@ -93,7 +93,7 @@ class ReferenceProvider(
                 agg = result.unwrap()
                 agg_state = self.aggregate_provider._output_exporter(agg)  # type: ignore[attr-defined]
                 # self.aggregate_provider.require(dict_to_query(agg_state))
-                id_ = agg_state[self.aggregate_provider._id_attr]  # type: ignore[attr-defined]
+                id_ = agg_state[self._id_attr]
                 self.aggregate_provider.id_provider.require({'$eq': id_})
                 await self.aggregate_provider.populate(session)
                 await self.aggregate_provider.create(session)
@@ -139,7 +139,7 @@ class ReferenceProvider(
 
         # Wrap non-$rel into $rel with id
         if not isinstance(new_criteria, RelOperator):
-            id_attr = self.aggregate_provider._id_attr  # type: ignore[attr-defined]
+            id_attr = self._id_attr
             new_criteria = RelOperator(CompositeQuery({id_attr: new_criteria}))
 
         if self._criteria is not None:
@@ -197,6 +197,10 @@ class ReferenceProvider(
     def _do_reset(self, visited: set) -> None:
         self._aggregate_provider_accessor.reset(visited)
         super()._do_reset(visited)
+
+    @property
+    def _id_attr(self) -> str:
+        return self.aggregate_provider.id_provider.provider_name.rsplit(".", 1).pop()
 
     async def setup(self, session: ISession):
         await super().setup(session)
