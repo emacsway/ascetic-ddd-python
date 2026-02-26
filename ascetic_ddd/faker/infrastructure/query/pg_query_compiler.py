@@ -13,6 +13,7 @@ import dataclasses
 import functools
 import json
 import typing
+from abc import ABCMeta, abstractmethod
 
 from psycopg.types.json import Jsonb
 
@@ -20,10 +21,31 @@ from ascetic_ddd.faker.domain.query.operators import (
     IQueryVisitor, IQueryOperator, EqOperator, ComparisonOperator, InOperator,
     IsNullOperator, AndOperator, OrOperator, RelOperator, CompositeQuery
 )
-from ascetic_ddd.faker.infrastructure.query.relation_resolver import IRelationResolver
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
 
-__all__ = ('PgQueryCompiler',)
+
+__all__ = ('PgQueryCompiler', 'RelationInfo', 'IRelationResolver',)
+
+
+class RelationInfo(typing.NamedTuple):
+    """Result of resolving a relation field."""
+    table: str
+    pk_field: str
+    nested_resolver: 'IRelationResolver | None'
+
+
+class IRelationResolver(metaclass=ABCMeta):
+    """Resolves a field name to relation metadata for SQL compilation."""
+
+    @abstractmethod
+    def resolve(self, field: str) -> RelationInfo | None:
+        """
+        Resolve field to relation info.
+
+        Returns RelationInfo if field is a reference (FK) to another aggregate,
+        None if field is a regular (non-reference) field.
+        """
+        raise NotImplementedError
 
 
 class PgQueryCompiler(IQueryVisitor[None]):

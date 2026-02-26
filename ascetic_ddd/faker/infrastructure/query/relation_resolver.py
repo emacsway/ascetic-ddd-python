@@ -5,32 +5,12 @@ IRelationResolver abstracts away provider/repository details,
 allowing PgQueryCompiler to resolve field names to SQL table info.
 """
 import typing
-from abc import ABCMeta, abstractmethod
 
 from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
-
-__all__ = ('IRelationResolver', 'ProviderRelationResolver')
-
-
-class RelationInfo(typing.NamedTuple):
-    """Result of resolving a relation field."""
-    table: str
-    pk_field: str
-    nested_resolver: 'IRelationResolver | None'
+from ascetic_ddd.faker.infrastructure.query.pg_query_compiler import RelationInfo, IRelationResolver
 
 
-class IRelationResolver(metaclass=ABCMeta):
-    """Resolves a field name to relation metadata for SQL compilation."""
-
-    @abstractmethod
-    def resolve(self, field: str) -> RelationInfo | None:
-        """
-        Resolve field to relation info.
-
-        Returns RelationInfo if field is a reference (FK) to another aggregate,
-        None if field is a regular (non-reference) field.
-        """
-        raise NotImplementedError
+__all__ = ('ProviderRelationResolver',)
 
 
 class ProviderRelationResolver(IRelationResolver):

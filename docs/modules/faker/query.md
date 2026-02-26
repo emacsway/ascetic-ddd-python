@@ -370,9 +370,9 @@ Interface for resolving field names to SQL table metadata (used by
 `PgQueryCompiler` for `$rel` → `EXISTS` subqueries):
 
 ```python
-from ascetic_ddd.faker.infrastructure.query.relation_resolver import (
-    IRelationResolver, RelationInfo
-)
+
+from ascetic_ddd.faker.infrastructure.query.pg_query_compiler import RelationInfo, IRelationResolver
+
 
 class MyResolver(IRelationResolver):
     def resolve(self, field):
