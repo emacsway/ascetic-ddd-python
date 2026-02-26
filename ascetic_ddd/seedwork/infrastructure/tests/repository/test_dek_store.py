@@ -5,6 +5,9 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ascetic_ddd.kms.kms import PgKeyManagementService
 from ascetic_ddd.seedwork.infrastructure.repository.dek_store import DekStore
+
+# Version prefix size in bytes (matches _VersionedCipher._VERSION_SIZE)
+_VERSION_SIZE = 4
 from ascetic_ddd.seedwork.infrastructure.repository.exceptions import DekNotFound
 from ascetic_ddd.seedwork.infrastructure.repository.stream_id import StreamId
 from ascetic_ddd.utils.tests.db import make_pg_session_pool
@@ -53,7 +56,7 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 encrypted = cipher.encrypt(plaintext)
                 self.assertNotEqual(encrypted, plaintext)
                 # Version prefix is 4 bytes, version 1
-                version = int.from_bytes(encrypted[:DekStore._VERSION_SIZE], "big")
+                version = int.from_bytes(encrypted[:_VERSION_SIZE], "big")
                 self.assertEqual(version, 1)
 
     async def test_get_or_create_returns_same_cipher(self):
@@ -74,7 +77,7 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 cipher = await self._dek_store.get_or_create(session, stream_id)
                 plaintext = b"hello"
                 encrypted = cipher.encrypt(plaintext)
-                version = int.from_bytes(encrypted[:DekStore._VERSION_SIZE], "big")
+                version = int.from_bytes(encrypted[:_VERSION_SIZE], "big")
                 loaded_cipher = await self._dek_store.get(session, stream_id, version)
                 decrypted = loaded_cipher.decrypt(encrypted)
                 self.assertEqual(decrypted, plaintext)
@@ -118,7 +121,7 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 plaintext = b"hello"
                 encrypted = cipher.encrypt(plaintext)
                 await self._kms.rotate_kek(session, stream_id.tenant_id)
-                version = int.from_bytes(encrypted[:DekStore._VERSION_SIZE], "big")
+                version = int.from_bytes(encrypted[:_VERSION_SIZE], "big")
                 loaded_cipher = await self._dek_store.get(session, stream_id, version)
                 decrypted = loaded_cipher.decrypt(encrypted)
                 self.assertEqual(decrypted, plaintext)
@@ -145,8 +148,8 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 await self._kms.rotate_kek(session, "1")
                 count = await self._dek_store.rewrap(session, "1")
                 self.assertEqual(count, 2)
-                v1 = int.from_bytes(encrypted1[:DekStore._VERSION_SIZE], "big")
-                v2 = int.from_bytes(encrypted2[:DekStore._VERSION_SIZE], "big")
+                v1 = int.from_bytes(encrypted1[:_VERSION_SIZE], "big")
+                v2 = int.from_bytes(encrypted2[:_VERSION_SIZE], "big")
                 loaded1 = await self._dek_store.get(session, stream_id_1, v1)
                 loaded2 = await self._dek_store.get(session, stream_id_2, v2)
                 self.assertEqual(loaded1.decrypt(encrypted1), plaintext)
@@ -170,7 +173,7 @@ class DekStoreIntegrationTestCase(IsolatedAsyncioTestCase):
                 composite = await self._dek_store.get_all(session, stream_id)
                 plaintext = b"hello"
                 encrypted = composite.encrypt(plaintext)
-                version = int.from_bytes(encrypted[:DekStore._VERSION_SIZE], "big")
+                version = int.from_bytes(encrypted[:_VERSION_SIZE], "big")
                 self.assertEqual(version, 1)
                 self.assertEqual(composite.decrypt(encrypted), plaintext)
 
