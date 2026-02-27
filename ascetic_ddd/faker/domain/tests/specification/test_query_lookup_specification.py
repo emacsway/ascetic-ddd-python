@@ -432,7 +432,7 @@ class QueryLookupSpecificationNestedLookupTestCase(IsolatedAsyncioTestCase):
 
     async def test_nested_lookup_matches(self):
         """Nested lookup should match when foreign object satisfies pattern."""
-        query = QueryParser().parse({'status_id': {'name': 'Active'}})
+        query = QueryParser().parse({'status_id': {'$rel': {'name': 'Active'}}})
         spec = QueryLookupSpecification(
             query,
             lambda u: {'id': u.id.value, 'status_id': u.status_id.value, 'name': u.name},
@@ -446,7 +446,7 @@ class QueryLookupSpecificationNestedLookupTestCase(IsolatedAsyncioTestCase):
 
     async def test_nested_lookup_returns_false_when_fk_is_none(self):
         """Nested lookup should return False when fk_id is None."""
-        query = QueryParser().parse({'status_id': {'name': 'Active'}})
+        query = QueryParser().parse({'status_id': {'$rel': {'name': 'Active'}}})
         spec = QueryLookupSpecification(
             query,
             lambda u: {'id': u.id.value, 'status_id': None, 'name': u.name},
@@ -459,7 +459,7 @@ class QueryLookupSpecificationNestedLookupTestCase(IsolatedAsyncioTestCase):
         """Nested lookup should return False when foreign object not found."""
         user_with_unknown_status = User(UserId(3), StatusId("unknown"), "Charlie")
 
-        query = QueryParser().parse({'status_id': {'name': 'Active'}})
+        query = QueryParser().parse({'status_id': {'$rel': {'name': 'Active'}}})
         spec = QueryLookupSpecification(
             query,
             lambda u: {'id': u.id.value, 'status_id': u.status_id.value, 'name': u.name},
@@ -470,7 +470,7 @@ class QueryLookupSpecificationNestedLookupTestCase(IsolatedAsyncioTestCase):
 
     async def test_simple_value_comparison_with_provider(self):
         """Simple value comparison should work alongside nested lookup."""
-        query = QueryParser().parse({'name': 'Alice', 'status_id': {'name': 'Active'}})
+        query = QueryParser().parse({'name': 'Alice', 'status_id': {'$rel': {'name': 'Active'}}})
         spec = QueryLookupSpecification(
             query,
             lambda u: {'id': u.id.value, 'status_id': u.status_id.value, 'name': u.name},
@@ -481,64 +481,6 @@ class QueryLookupSpecificationNestedLookupTestCase(IsolatedAsyncioTestCase):
         self.assertTrue(await spec.is_satisfied_by(self.session, self.user_alice))
         # Bob doesn't match name
         self.assertFalse(await spec.is_satisfied_by(self.session, self.user_bob))
-
-
-# =============================================================================
-# Tests for QueryLookupSpecification - Cache
-# =============================================================================
-
-class QueryLookupSpecificationCacheTestCase(IsolatedAsyncioTestCase):
-    """Tests for cache behavior."""
-
-    def setUp(self):
-        self.status_active = Status(StatusId("active"), "Active")
-        self.status_repo = MockRepository()
-        self.status_repo.add(self.status_active)
-
-        self.status_provider = MockAggregateProvider(
-            output_exporter=lambda s: {'id': s.id.value, 'name': s.name},
-            repository=self.status_repo
-        )
-
-        self.user_alice = User(UserId(1), StatusId("active"), "Alice")
-
-        self.status_ref_provider = MockReferenceProvider(
-            self.status_repo, self.status_provider
-        )
-
-        self.user_provider = MockAggregateProvider(
-            providers={'status_id': self.status_ref_provider},
-            output_exporter=lambda u: {'id': u.id.value, 'status_id': u.status_id.value, 'name': u.name}
-        )
-        self.session = MockSession()
-
-    async def test_cache_stores_result(self):
-        """Cache should store lookup result."""
-        query = QueryParser().parse({'status_id': {'name': 'Active'}})
-        spec = QueryLookupSpecification(
-            query,
-            lambda u: {'id': u.id.value, 'status_id': u.status_id.value, 'name': u.name},
-            aggregate_provider_accessor=lambda: self.user_provider
-        )
-
-        self.assertEqual(len(spec._nested_cache), 0)
-        await spec.is_satisfied_by(self.session, self.user_alice)
-        self.assertEqual(len(spec._nested_cache), 1)
-
-    async def test_clear_cache(self):
-        """clear_cache() should clear the cache."""
-        query = QueryParser().parse({'status_id': {'name': 'Active'}})
-        spec = QueryLookupSpecification(
-            query,
-            lambda u: {'id': u.id.value, 'status_id': u.status_id.value, 'name': u.name},
-            aggregate_provider_accessor=lambda: self.user_provider
-        )
-
-        await spec.is_satisfied_by(self.session, self.user_alice)
-        self.assertEqual(len(spec._nested_cache), 1)
-
-        spec.clear_cache()
-        self.assertEqual(len(spec._nested_cache), 0)
 
 
 # =============================================================================
@@ -653,7 +595,7 @@ class QueryLookupSpecificationSociableTestCase(IsolatedAsyncioTestCase):
 
     async def test_nested_lookup_with_real_providers(self):
         """Nested lookup should work with real AggregateProvider and ReferenceProvider."""
-        query = QueryParser().parse({'status_id': {'name': 'Active'}})
+        query = QueryParser().parse({'status_id': {'$rel': {'name': 'Active'}}})
         spec = QueryLookupSpecification(
             query,
             UserFaker._export,
@@ -668,7 +610,7 @@ class QueryLookupSpecificationSociableTestCase(IsolatedAsyncioTestCase):
 
     async def test_combined_pattern_with_real_providers(self):
         """Combined simple and nested pattern should work with real providers."""
-        query = QueryParser().parse({'name': 'Alice', 'status_id': {'name': 'Active'}})
+        query = QueryParser().parse({'name': 'Alice', 'status_id': {'$rel': {'name': 'Active'}}})
         spec = QueryLookupSpecification(
             query,
             UserFaker._export,
