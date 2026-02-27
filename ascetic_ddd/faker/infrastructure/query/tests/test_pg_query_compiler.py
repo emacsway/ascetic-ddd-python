@@ -5,8 +5,7 @@ from ascetic_ddd.faker.domain.query.operators import (
     EqOperator, ComparisonOperator, InOperator, IsNullOperator, AndOperator,
     OrOperator, RelOperator, CompositeQuery
 )
-from ascetic_ddd.faker.infrastructure.query.pg_query_compiler import PgQueryCompiler
-from ascetic_ddd.faker.infrastructure.query import RelationInfo, IRelationResolver
+from ascetic_ddd.faker.infrastructure.query.pg_query_compiler import PgQueryCompiler, RelationInfo, IRelationResolver
 
 
 class StubRelationResolver(IRelationResolver):
