@@ -5,6 +5,7 @@ import typing
 from collections.abc import Callable
 
 from ascetic_ddd.faker.domain.providers.interfaces import IReferenceProvider
+from ascetic_ddd.faker.domain.query.evaluate_visitor import EvaluateWalker
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, EqOperator, RelOperator, CompositeQuery
 )
@@ -181,27 +182,8 @@ class QueryResolvableSpecification(IResolvableSpecification[T], typing.Generic[T
             )
 
         state = self._object_exporter(obj)
-        return self._matches(self._resolved_query, state)
-
-    def _matches(self, query: IQueryOperator, state: typing.Any) -> bool:
-        """Check if state matches query."""
-        if isinstance(query, EqOperator):
-            return state == query.value
-
-        elif isinstance(query, CompositeQuery):
-            for field, field_op in query.fields.items():
-                if isinstance(state, dict):
-                    field_value = state.get(field)
-                else:
-                    field_value = getattr(state, field, None)
-                if not self._matches(field_op, field_value):
-                    return False
-            return True
-
-        elif isinstance(query, RelOperator):
-            return self._matches(query.query, state)
-
-        return False
+        walker = EvaluateWalker()
+        return walker.evaluate_sync(self._resolved_query, state)
 
     def accept(self, visitor: ISpecificationVisitor) -> None:
         """Accept visitor for SQL compilation."""
