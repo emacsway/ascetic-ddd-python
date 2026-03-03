@@ -8,7 +8,8 @@ import typing
 
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryVisitor, IQueryOperator, EqOperator, ComparisonOperator, InOperator,
-    IsNullOperator, AndOperator, OrOperator, RelOperator, CompositeQuery
+    IsNullOperator, NotOperator, AnyElementOperator, AllElementsOperator,
+    LenOperator, AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 
 __all__ = (
@@ -47,6 +48,18 @@ class QueryToDictVisitor(IQueryVisitor[dict]):
 
     def visit_is_null(self, op: IsNullOperator) -> dict:
         return {'$is_null': op.value}
+
+    def visit_not(self, op: NotOperator) -> dict:
+        return {'$not': op.operand.accept(self)}
+
+    def visit_any_element(self, op: AnyElementOperator) -> dict:
+        return {'$any': op.query.accept(self)}
+
+    def visit_all_elements(self, op: AllElementsOperator) -> dict:
+        return {'$all': op.query.accept(self)}
+
+    def visit_len(self, op: LenOperator) -> dict:
+        return {'$len': op.query.accept(self)}
 
     def visit_and(self, op: AndOperator) -> dict:
         result: dict = {}
@@ -94,6 +107,18 @@ class QueryToPlainValueVisitor(IQueryVisitor[typing.Any]):
 
     def visit_is_null(self, op: IsNullOperator) -> typing.Any:
         return {'$is_null': op.value}
+
+    def visit_not(self, op: NotOperator) -> typing.Any:
+        return {'$not': op.operand.accept(self)}
+
+    def visit_any_element(self, op: AnyElementOperator) -> typing.Any:
+        return {'$any': op.query.accept(self)}
+
+    def visit_all_elements(self, op: AllElementsOperator) -> typing.Any:
+        return {'$all': op.query.accept(self)}
+
+    def visit_len(self, op: LenOperator) -> typing.Any:
+        return {'$len': op.query.accept(self)}
 
     def visit_and(self, op: AndOperator) -> typing.Any:
         result: dict = {}

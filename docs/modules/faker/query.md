@@ -83,10 +83,53 @@ Multiple operators at the same level are combined with implicit AND:
 ```
 
 
+### Logical NOT
+
+Negates the result of the inner expression:
+
+```python
+{'$not': {'$eq': 'deleted'}}        # NOT equal to 'deleted'
+{'$not': {'$gt': 65}}               # NOT greater than 65
+{'status': {'$not': {'$eq': 'deleted'}}}  # in composite
+```
+
+
 ### Logical OR
 
 ```python
 {'$or': [{'$eq': 'active'}, {'$eq': 'pending'}]}
+```
+
+
+### Array Quantifiers (`$any`, `$all`)
+
+`$any` — existential quantifier: at least one array element matches:
+
+```python
+{'items': {'$any': {'status': {'$eq': 'shipped'}}}}
+```
+
+`$all` — universal quantifier: every array element matches:
+
+```python
+{'items': {'$all': {'status': {'$eq': 'active'}}}}
+```
+
+
+### Array Length (`$len`)
+
+Applies a predicate to the array length:
+
+```python
+{'items': {'$len': {'$gt': 2}}}      # more than 2 items
+{'items': {'$len': {'$eq': 0}}}      # empty array
+{'items': {'$len': {'$gte': 1}}}     # at least 1 item
+```
+
+Can be combined with `$any` at the same level via implicit AND:
+
+```python
+{'items': {'$any': {'price': {'$gt': 100}}, '$len': {'$gte': 1}}}
 ```
 
 
@@ -176,6 +219,10 @@ The parser converts queries into an AST of `IQueryOperator` nodes:
 | `$gt`, `$gte`, `$lt`, `$lte` | `{'$gt': 5}` | `ComparisonOperator(op, value)` |
 | `$in` | `{'$in': [1, 2]}` | `InOperator(values)` |
 | `$is_null` | `{'$is_null': True}` | `IsNullOperator(value)` |
+| `$not` | `{'$not': {...}}` | `NotOperator(operand)` |
+| `$any` | `{'$any': {...}}` | `AnyElementOperator(query)` |
+| `$all` | `{'$all': {...}}` | `AllElementsOperator(query)` |
+| `$len` | `{'$len': {...}}` | `LenOperator(query)` |
 | `$or` | `{'$or': [...]}` | `OrOperator(operands)` |
 | implicit AND | `{'$gt': 5, '$lt': 10}` | `AndOperator(operands)` |
 | `$rel` | `{'$rel': {...}}` | `RelOperator(query)` |
@@ -357,6 +404,10 @@ Compilation rules:
 | `$gt`, `$gte`, `$lt`, `$lte` | `value->'field' > %s` |
 | `$in` | `(value @> %s OR value @> %s OR ...)` |
 | `$is_null` | `value->'field' IS NULL` / `IS NOT NULL` |
+| `$not` | `NOT (inner_sql)` |
+| `$any` | `EXISTS (SELECT 1 FROM jsonb_array_elements(...) AS rt WHERE inner_sql)` |
+| `$all` | `NOT EXISTS (SELECT 1 FROM jsonb_array_elements(...) AS rt WHERE NOT (inner_sql))` |
+| `$len` | `jsonb_array_length(json_path) op %s` (standard SQL comparison) |
 | `$or` | `(sub1 OR sub2 OR ...)` |
 | `$rel` (with resolver) | `EXISTS (SELECT 1 FROM related_table rt1 WHERE ...)` |
 

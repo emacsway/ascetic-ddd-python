@@ -2,8 +2,9 @@
 import unittest
 
 from ascetic_ddd.faker.domain.query.operators import (
-    EqOperator, ComparisonOperator, InOperator, IsNullOperator, AndOperator,
-    OrOperator, RelOperator, CompositeQuery
+    EqOperator, ComparisonOperator, InOperator, IsNullOperator,
+    NotOperator, AnyElementOperator, AllElementsOperator, LenOperator,
+    AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.domain.query.visitors import (
     QueryToDictVisitor,
@@ -449,6 +450,134 @@ class TestQueryToPlainValueVisitorOr(unittest.TestCase):
         self.assertEqual(result, {
             'status': {'$or': ['active', 'pending']}
         })
+
+
+class TestQueryToDictVisitorNot(unittest.TestCase):
+    """Tests for QueryToDictVisitor with NotOperator."""
+
+    def test_visit_not_with_eq(self):
+        visitor = QueryToDictVisitor()
+        result = visitor.visit(NotOperator(EqOperator('deleted')))
+        self.assertEqual(result, {'$not': {'$eq': 'deleted'}})
+
+    def test_visit_not_with_gt(self):
+        visitor = QueryToDictVisitor()
+        result = visitor.visit(NotOperator(ComparisonOperator('$gt', 65)))
+        self.assertEqual(result, {'$not': {'$gt': 65}})
+
+    def test_visit_not_in_composite(self):
+        visitor = QueryToDictVisitor()
+        query = CompositeQuery({
+            'status': NotOperator(EqOperator('deleted'))
+        })
+        result = visitor.visit(query)
+        self.assertEqual(result, {'status': {'$not': {'$eq': 'deleted'}}})
+
+
+class TestQueryToDictVisitorAnyElement(unittest.TestCase):
+    """Tests for QueryToDictVisitor with AnyElementOperator."""
+
+    def test_visit_any(self):
+        visitor = QueryToDictVisitor()
+        query = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        result = visitor.visit(query)
+        self.assertEqual(result, {'$any': {'status': {'$eq': 'shipped'}}})
+
+    def test_visit_any_in_composite(self):
+        visitor = QueryToDictVisitor()
+        query = CompositeQuery({
+            'items': AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        })
+        result = visitor.visit(query)
+        self.assertEqual(result, {'items': {'$any': {'status': {'$eq': 'shipped'}}}})
+
+
+class TestQueryToDictVisitorAllElements(unittest.TestCase):
+    """Tests for QueryToDictVisitor with AllElementsOperator."""
+
+    def test_visit_all(self):
+        visitor = QueryToDictVisitor()
+        query = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        result = visitor.visit(query)
+        self.assertEqual(result, {'$all': {'status': {'$eq': 'active'}}})
+
+    def test_visit_all_in_composite(self):
+        visitor = QueryToDictVisitor()
+        query = CompositeQuery({
+            'items': AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        })
+        result = visitor.visit(query)
+        self.assertEqual(result, {'items': {'$all': {'status': {'$eq': 'active'}}}})
+
+
+class TestQueryToDictVisitorLen(unittest.TestCase):
+    """Tests for QueryToDictVisitor with LenOperator."""
+
+    def test_visit_len_with_gt(self):
+        visitor = QueryToDictVisitor()
+        result = visitor.visit(LenOperator(ComparisonOperator('$gt', 2)))
+        self.assertEqual(result, {'$len': {'$gt': 2}})
+
+    def test_visit_len_with_eq(self):
+        visitor = QueryToDictVisitor()
+        result = visitor.visit(LenOperator(EqOperator(0)))
+        self.assertEqual(result, {'$len': {'$eq': 0}})
+
+    def test_visit_len_in_composite(self):
+        visitor = QueryToDictVisitor()
+        query = CompositeQuery({
+            'items': LenOperator(ComparisonOperator('$gte', 1))
+        })
+        result = visitor.visit(query)
+        self.assertEqual(result, {'items': {'$len': {'$gte': 1}}})
+
+
+class TestQueryToPlainValueVisitorNot(unittest.TestCase):
+    """Tests for QueryToPlainValueVisitor with NotOperator."""
+
+    def test_visit_not_with_eq(self):
+        visitor = QueryToPlainValueVisitor()
+        result = visitor.visit(NotOperator(EqOperator('deleted')))
+        self.assertEqual(result, {'$not': 'deleted'})
+
+    def test_visit_not_with_gt(self):
+        visitor = QueryToPlainValueVisitor()
+        result = visitor.visit(NotOperator(ComparisonOperator('$gt', 65)))
+        self.assertEqual(result, {'$not': {'$gt': 65}})
+
+
+class TestQueryToPlainValueVisitorAnyElement(unittest.TestCase):
+    """Tests for QueryToPlainValueVisitor with AnyElementOperator."""
+
+    def test_visit_any(self):
+        visitor = QueryToPlainValueVisitor()
+        query = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        result = visitor.visit(query)
+        self.assertEqual(result, {'$any': {'status': 'shipped'}})
+
+
+class TestQueryToPlainValueVisitorAllElements(unittest.TestCase):
+    """Tests for QueryToPlainValueVisitor with AllElementsOperator."""
+
+    def test_visit_all(self):
+        visitor = QueryToPlainValueVisitor()
+        query = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        result = visitor.visit(query)
+        self.assertEqual(result, {'$all': {'status': 'active'}})
+
+
+class TestQueryToPlainValueVisitorLen(unittest.TestCase):
+    """Tests for QueryToPlainValueVisitor with LenOperator."""
+
+    def test_visit_len_with_gt(self):
+        visitor = QueryToPlainValueVisitor()
+        result = visitor.visit(LenOperator(ComparisonOperator('$gt', 2)))
+        self.assertEqual(result, {'$len': {'$gt': 2}})
+
+    def test_visit_len_with_eq(self):
+        visitor = QueryToPlainValueVisitor()
+        result = visitor.visit(LenOperator(EqOperator(0)))
+        self.assertEqual(result, {'$len': 0})
 
 
 class TestConvenienceFunctions(unittest.TestCase):

@@ -6,6 +6,10 @@ This module provides a query DSL for specifying criteria:
 - $ne, $gt, $gte, $lt, $lte: comparison operators
 - $in: value in list
 - $is_null: null check
+- $not: logical negation
+- $any: existential quantifier (at least one array element matches)
+- $all: universal quantifier (every array element matches)
+- $len: array length predicate
 - $rel: constraints for related aggregate (ReferenceProvider)
 - $or: logical OR of expressions
 
@@ -19,6 +23,18 @@ Examples:
     # Null check
     {'deleted_at': {'$is_null': True}}
 
+    # Negation
+    {'status': {'$not': {'$eq': 'deleted'}}}
+
+    # Any array element matches
+    {'items': {'$any': {'status': {'$eq': 'shipped'}}}}
+
+    # All array elements match
+    {'items': {'$all': {'status': {'$eq': 'active'}}}}
+
+    # Array length predicate
+    {'items': {'$len': {'$gt': 2}}}
+
     # Related aggregate criteria
     {'$rel': {'is_active': {'$eq': True}, 'status': {'$eq': 'active'}}}
 
@@ -31,6 +47,10 @@ from ascetic_ddd.faker.domain.query.operators import (
     IQueryVisitor,
     EqOperator,
     IsNullOperator,
+    NotOperator,
+    AnyElementOperator,
+    AllElementsOperator,
+    LenOperator,
     RelOperator,
     CompositeQuery,
 )
@@ -53,6 +73,10 @@ __all__ = (
     'IQueryVisitor',
     'EqOperator',
     'IsNullOperator',
+    'NotOperator',
+    'AnyElementOperator',
+    'AllElementsOperator',
+    'LenOperator',
     'RelOperator',
     'CompositeQuery',
     'MergeConflict',

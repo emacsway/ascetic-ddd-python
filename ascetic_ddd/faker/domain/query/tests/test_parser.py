@@ -3,8 +3,9 @@ import unittest
 
 from ascetic_ddd.faker.domain.query.parser import QueryParser
 from ascetic_ddd.faker.domain.query.operators import (
-    EqOperator, ComparisonOperator, InOperator, IsNullOperator, AndOperator,
-    OrOperator, RelOperator, CompositeQuery
+    EqOperator, ComparisonOperator, InOperator, IsNullOperator,
+    NotOperator, AnyElementOperator, AllElementsOperator, LenOperator,
+    AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 
 
@@ -373,6 +374,142 @@ class TestQueryParserAnd(unittest.TestCase):
         self.assertEqual(len(result.operands), 2)
 
 
+class TestQueryParserNot(unittest.TestCase):
+    """Tests for QueryParser.parse() with $not operator."""
+
+    def setUp(self):
+        self.parser = QueryParser()
+
+    def test_parse_not_with_eq(self):
+        result = self.parser.parse({'$not': {'$eq': 'deleted'}})
+        self.assertIsInstance(result, NotOperator)
+        self.assertIsInstance(result.operand, EqOperator)
+        self.assertEqual(result.operand.value, 'deleted')
+
+    def test_parse_not_with_gt(self):
+        result = self.parser.parse({'$not': {'$gt': 65}})
+        self.assertIsInstance(result, NotOperator)
+        self.assertIsInstance(result.operand, ComparisonOperator)
+        self.assertEqual(result.operand.op, '$gt')
+        self.assertEqual(result.operand.value, 65)
+
+    def test_parse_not_in_composite(self):
+        result = self.parser.parse({
+            'status': {'$not': {'$eq': 'deleted'}}
+        })
+        self.assertIsInstance(result, CompositeQuery)
+        self.assertIsInstance(result.fields['status'], NotOperator)
+        self.assertIsInstance(result.fields['status'].operand, EqOperator)
+        self.assertEqual(result.fields['status'].operand.value, 'deleted')
+
+    def test_parse_not_nested(self):
+        """$not can wrap another $not."""
+        result = self.parser.parse({'$not': {'$not': {'$eq': 5}}})
+        self.assertIsInstance(result, NotOperator)
+        self.assertIsInstance(result.operand, NotOperator)
+        self.assertIsInstance(result.operand.operand, EqOperator)
+
+    def test_parse_not_with_scalar(self):
+        """$not with scalar uses implicit $eq."""
+        result = self.parser.parse({'$not': 'deleted'})
+        self.assertIsInstance(result, NotOperator)
+        self.assertIsInstance(result.operand, EqOperator)
+        self.assertEqual(result.operand.value, 'deleted')
+
+
+class TestQueryParserAnyElement(unittest.TestCase):
+    """Tests for QueryParser.parse() with $any operator."""
+
+    def setUp(self):
+        self.parser = QueryParser()
+
+    def test_parse_any_simple(self):
+        result = self.parser.parse({'$any': {'status': {'$eq': 'shipped'}}})
+        self.assertIsInstance(result, AnyElementOperator)
+        self.assertIsInstance(result.query, CompositeQuery)
+        self.assertEqual(result.query.fields['status'].value, 'shipped')
+
+    def test_parse_any_in_composite(self):
+        result = self.parser.parse({
+            'items': {'$any': {'status': {'$eq': 'shipped'}}}
+        })
+        self.assertIsInstance(result, CompositeQuery)
+        self.assertIsInstance(result.fields['items'], AnyElementOperator)
+
+    def test_parse_any_non_dict_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            self.parser.parse({'$any': 'invalid'})
+        self.assertIn("$any value must be dict", str(cm.exception))
+
+    def test_parse_any_non_dict_list_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            self.parser.parse({'$any': [1, 2]})
+        self.assertIn("$any value must be dict", str(cm.exception))
+
+
+class TestQueryParserAllElements(unittest.TestCase):
+    """Tests for QueryParser.parse() with $all operator."""
+
+    def setUp(self):
+        self.parser = QueryParser()
+
+    def test_parse_all_simple(self):
+        result = self.parser.parse({'$all': {'status': {'$eq': 'active'}}})
+        self.assertIsInstance(result, AllElementsOperator)
+        self.assertIsInstance(result.query, CompositeQuery)
+        self.assertEqual(result.query.fields['status'].value, 'active')
+
+    def test_parse_all_in_composite(self):
+        result = self.parser.parse({
+            'items': {'$all': {'status': {'$eq': 'active'}}}
+        })
+        self.assertIsInstance(result, CompositeQuery)
+        self.assertIsInstance(result.fields['items'], AllElementsOperator)
+
+    def test_parse_all_non_dict_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            self.parser.parse({'$all': 42})
+        self.assertIn("$all value must be dict", str(cm.exception))
+
+
+class TestQueryParserLen(unittest.TestCase):
+    """Tests for QueryParser.parse() with $len operator."""
+
+    def setUp(self):
+        self.parser = QueryParser()
+
+    def test_parse_len_with_gt(self):
+        result = self.parser.parse({'$len': {'$gt': 2}})
+        self.assertIsInstance(result, LenOperator)
+        self.assertIsInstance(result.query, ComparisonOperator)
+        self.assertEqual(result.query.op, '$gt')
+        self.assertEqual(result.query.value, 2)
+
+    def test_parse_len_with_eq(self):
+        result = self.parser.parse({'$len': {'$eq': 0}})
+        self.assertIsInstance(result, LenOperator)
+        self.assertIsInstance(result.query, EqOperator)
+        self.assertEqual(result.query.value, 0)
+
+    def test_parse_len_in_composite(self):
+        result = self.parser.parse({
+            'items': {'$len': {'$gte': 1}}
+        })
+        self.assertIsInstance(result, CompositeQuery)
+        self.assertIsInstance(result.fields['items'], LenOperator)
+        self.assertIsInstance(result.fields['items'].query, ComparisonOperator)
+
+    def test_parse_any_and_len_combined(self):
+        """$any + $len at same level via implicit AND."""
+        result = self.parser.parse({
+            'items': {'$any': {'price': {'$gt': 100}}, '$len': {'$gte': 1}}
+        })
+        self.assertIsInstance(result, CompositeQuery)
+        items_op = result.fields['items']
+        self.assertIsInstance(items_op, AndOperator)
+        self.assertEqual(len(items_op.operands), 2)
+
+
 class TestQueryParserErrors(unittest.TestCase):
     """Tests for QueryParser.parse() error cases."""
 
@@ -467,6 +604,82 @@ class TestCompositeQueryEquality(unittest.TestCase):
         cq1 = CompositeQuery({'a': EqOperator(1), 'b': EqOperator(2)})
         cq2 = CompositeQuery({'a': EqOperator(1), 'b': EqOperator(2)})
         self.assertEqual(hash(cq1), hash(cq2))
+
+
+class TestNotOperatorEquality(unittest.TestCase):
+    """Tests for NotOperator equality and hashing."""
+
+    def test_not_operators_equal(self):
+        op1 = NotOperator(EqOperator('deleted'))
+        op2 = NotOperator(EqOperator('deleted'))
+        self.assertEqual(op1, op2)
+
+    def test_not_operators_not_equal(self):
+        op1 = NotOperator(EqOperator('deleted'))
+        op2 = NotOperator(EqOperator('active'))
+        self.assertNotEqual(op1, op2)
+
+    def test_not_operators_hashable(self):
+        op1 = NotOperator(EqOperator('deleted'))
+        op2 = NotOperator(EqOperator('deleted'))
+        self.assertEqual(hash(op1), hash(op2))
+
+
+class TestAnyElementOperatorEquality(unittest.TestCase):
+    """Tests for AnyElementOperator equality and hashing."""
+
+    def test_any_operators_equal(self):
+        op1 = AnyElementOperator(CompositeQuery({'status': EqOperator('active')}))
+        op2 = AnyElementOperator(CompositeQuery({'status': EqOperator('active')}))
+        self.assertEqual(op1, op2)
+
+    def test_any_operators_not_equal(self):
+        op1 = AnyElementOperator(CompositeQuery({'status': EqOperator('active')}))
+        op2 = AnyElementOperator(CompositeQuery({'status': EqOperator('deleted')}))
+        self.assertNotEqual(op1, op2)
+
+    def test_any_operators_hashable(self):
+        op1 = AnyElementOperator(CompositeQuery({'status': EqOperator('active')}))
+        op2 = AnyElementOperator(CompositeQuery({'status': EqOperator('active')}))
+        self.assertEqual(hash(op1), hash(op2))
+
+
+class TestAllElementsOperatorEquality(unittest.TestCase):
+    """Tests for AllElementsOperator equality and hashing."""
+
+    def test_all_operators_equal(self):
+        op1 = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        op2 = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        self.assertEqual(op1, op2)
+
+    def test_all_operators_not_equal(self):
+        op1 = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        op2 = AllElementsOperator(CompositeQuery({'status': EqOperator('deleted')}))
+        self.assertNotEqual(op1, op2)
+
+    def test_all_operators_hashable(self):
+        op1 = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        op2 = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        self.assertEqual(hash(op1), hash(op2))
+
+
+class TestLenOperatorEquality(unittest.TestCase):
+    """Tests for LenOperator equality and hashing."""
+
+    def test_len_operators_equal(self):
+        op1 = LenOperator(ComparisonOperator('$gt', 2))
+        op2 = LenOperator(ComparisonOperator('$gt', 2))
+        self.assertEqual(op1, op2)
+
+    def test_len_operators_not_equal(self):
+        op1 = LenOperator(ComparisonOperator('$gt', 2))
+        op2 = LenOperator(ComparisonOperator('$gt', 5))
+        self.assertNotEqual(op1, op2)
+
+    def test_len_operators_hashable(self):
+        op1 = LenOperator(ComparisonOperator('$gt', 2))
+        op2 = LenOperator(ComparisonOperator('$gt', 2))
+        self.assertEqual(hash(op1), hash(op2))
 
 
 if __name__ == '__main__':

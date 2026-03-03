@@ -7,6 +7,10 @@ Operators:
 - $gt, $gte, $lt, $lte: comparison operators
 - $in: value in list
 - $is_null: null check
+- $not: logical negation
+- $any: existential quantifier (at least one array element matches)
+- $all: universal quantifier (every array element matches)
+- $len: array length predicate
 - $rel: constraints for related aggregate
 - $or: logical OR of expressions
 
@@ -20,6 +24,10 @@ Examples:
     {'$in': ['active', 'pending']}                 # value in list
     {'$is_null': True}                             # null check
     {'$is_null': False}                            # not null check
+    {'status': {'$not': {'$eq': 'deleted'}}}       # negation
+    {'items': {'$any': {'status': {'$eq': 'shipped'}}}}  # any element matches
+    {'items': {'$all': {'status': {'$eq': 'active'}}}}   # all elements match
+    {'items': {'$len': {'$gt': 2}}}                # array length predicate
     {'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}}  # composite PK
     {'$rel': {'is_active': {'$eq': True}}}         # related aggregate criteria
     {'$or': [{'status': {'$eq': 'active'}}, {'status': {'$eq': 'pending'}}]}
@@ -37,6 +45,10 @@ __all__ = (
     'ComparisonOperator',
     'InOperator',
     'IsNullOperator',
+    'NotOperator',
+    'AnyElementOperator',
+    'AllElementsOperator',
+    'LenOperator',
     'AndOperator',
     'OrOperator',
     'RelOperator',
@@ -81,6 +93,22 @@ class IQueryVisitor(typing.Generic[T], metaclass=ABCMeta):
 
     @abstractmethod
     def visit_or(self, op: 'OrOperator') -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def visit_not(self, op: 'NotOperator') -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def visit_any_element(self, op: 'AnyElementOperator') -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def visit_all_elements(self, op: 'AllElementsOperator') -> T:
+        raise NotImplementedError
+
+    @abstractmethod
+    def visit_len(self, op: 'LenOperator') -> T:
         raise NotImplementedError
 
     @abstractmethod
@@ -296,6 +324,150 @@ class IsNullOperator(IQueryOperator):
 
     def __repr__(self) -> str:
         return "IsNullOperator(%r)" % self.value
+
+
+class NotOperator(IQueryOperator):
+    """
+    Logical NOT: {'$not': expr}
+
+    Negates the result of the inner operator.
+    """
+    __slots__ = ('operand', '_hash')
+
+    def __init__(self, operand: IQueryOperator):
+        self.operand = operand
+        self._hash: int | None = None
+
+    def accept(self, visitor: IQueryVisitor[T]) -> T:
+        return visitor.visit_not(self)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, NotOperator):
+            return False
+        return self.operand == other.operand
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(('$not', hash(self.operand)))
+        return self._hash
+
+    def __add__(self, other: 'IQueryOperator') -> 'NotOperator':
+        if not isinstance(other, NotOperator):
+            return NotImplemented
+        if self.operand == other.operand:
+            return self
+        raise MergeConflict(self.operand, other.operand)
+
+    def __repr__(self) -> str:
+        return "NotOperator(%r)" % self.operand
+
+
+class AnyElementOperator(IQueryOperator):
+    """
+    Existential quantifier: {'$any': expr}
+
+    At least one array element matches the inner query.
+    """
+    __slots__ = ('query', '_hash')
+
+    def __init__(self, query: IQueryOperator):
+        self.query = query
+        self._hash: int | None = None
+
+    def accept(self, visitor: IQueryVisitor[T]) -> T:
+        return visitor.visit_any_element(self)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, AnyElementOperator):
+            return False
+        return self.query == other.query
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(('$any', hash(self.query)))
+        return self._hash
+
+    def __add__(self, other: 'IQueryOperator') -> 'AnyElementOperator':
+        if not isinstance(other, AnyElementOperator):
+            return NotImplemented
+        if self.query == other.query:
+            return self
+        raise MergeConflict(self.query, other.query)
+
+    def __repr__(self) -> str:
+        return "AnyElementOperator(%r)" % self.query
+
+
+class AllElementsOperator(IQueryOperator):
+    """
+    Universal quantifier: {'$all': expr}
+
+    Every array element matches the inner query.
+    """
+    __slots__ = ('query', '_hash')
+
+    def __init__(self, query: IQueryOperator):
+        self.query = query
+        self._hash: int | None = None
+
+    def accept(self, visitor: IQueryVisitor[T]) -> T:
+        return visitor.visit_all_elements(self)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, AllElementsOperator):
+            return False
+        return self.query == other.query
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(('$all', hash(self.query)))
+        return self._hash
+
+    def __add__(self, other: 'IQueryOperator') -> 'AllElementsOperator':
+        if not isinstance(other, AllElementsOperator):
+            return NotImplemented
+        if self.query == other.query:
+            return self
+        raise MergeConflict(self.query, other.query)
+
+    def __repr__(self) -> str:
+        return "AllElementsOperator(%r)" % self.query
+
+
+class LenOperator(IQueryOperator):
+    """
+    Array length predicate: {'$len': expr}
+
+    Applies the inner query (e.g. ComparisonOperator) to the array length.
+    """
+    __slots__ = ('query', '_hash')
+
+    def __init__(self, query: IQueryOperator):
+        self.query = query
+        self._hash: int | None = None
+
+    def accept(self, visitor: IQueryVisitor[T]) -> T:
+        return visitor.visit_len(self)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, LenOperator):
+            return False
+        return self.query == other.query
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(('$len', hash(self.query)))
+        return self._hash
+
+    def __add__(self, other: 'IQueryOperator') -> 'LenOperator':
+        if not isinstance(other, LenOperator):
+            return NotImplemented
+        if self.query == other.query:
+            return self
+        raise MergeConflict(self.query, other.query)
+
+    def __repr__(self) -> str:
+        return "LenOperator(%r)" % self.query
 
 
 class AndOperator(IQueryOperator):

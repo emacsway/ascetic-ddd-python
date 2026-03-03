@@ -19,7 +19,8 @@ from psycopg.types.json import Jsonb
 
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryVisitor, IQueryOperator, EqOperator, ComparisonOperator, InOperator,
-    IsNullOperator, AndOperator, OrOperator, RelOperator, CompositeQuery
+    IsNullOperator, NotOperator, AnyElementOperator, AllElementsOperator,
+    LenOperator, AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
 
@@ -184,6 +185,126 @@ class PgQueryCompiler(IQueryVisitor[None]):
                 self._params.extend(sub_compiler.params)
         if or_parts:
             self._sql_parts.append(f"({' OR '.join(or_parts)})")
+
+    def visit_not(self, op: NotOperator) -> None:
+        sub_compiler = PgQueryCompiler(
+            target_value_expr=self._target_value_expr,
+            relation_resolver=self._relation_resolver,
+            _alias_seq=self._alias_seq,
+        )
+        sub_compiler._field_path = list(self._field_path)
+        op.operand.accept(sub_compiler)
+        sub_compiler._flush_eq()
+        if sub_compiler.sql:
+            self._sql_parts.append("NOT (%s)" % sub_compiler.sql)
+            self._params.extend(sub_compiler.params)
+
+    def visit_any_element(self, op: AnyElementOperator) -> None:
+        json_path = self._json_path_expr() if self._field_path else self._target_value_expr
+        alias = self._next_alias()
+        sub_compiler = PgQueryCompiler(
+            target_value_expr=alias,
+            relation_resolver=self._relation_resolver,
+            _alias_seq=self._alias_seq,
+        )
+        op.query.accept(sub_compiler)
+        sub_compiler._flush_eq()
+        if sub_compiler.sql:
+            sql = (
+                "EXISTS (SELECT 1 FROM jsonb_array_elements(%s) AS %s "
+                "WHERE %s)"
+                % (json_path, alias, sub_compiler.sql)
+            )
+            self._sql_parts.append(sql)
+            self._params.extend(sub_compiler.params)
+
+    def visit_all_elements(self, op: AllElementsOperator) -> None:
+        json_path = self._json_path_expr() if self._field_path else self._target_value_expr
+        alias = self._next_alias()
+        sub_compiler = PgQueryCompiler(
+            target_value_expr=alias,
+            relation_resolver=self._relation_resolver,
+            _alias_seq=self._alias_seq,
+        )
+        op.query.accept(sub_compiler)
+        sub_compiler._flush_eq()
+        if sub_compiler.sql:
+            sql = (
+                "NOT EXISTS (SELECT 1 FROM jsonb_array_elements(%s) AS %s "
+                "WHERE NOT (%s))"
+                % (json_path, alias, sub_compiler.sql)
+            )
+            self._sql_parts.append(sql)
+            self._params.extend(sub_compiler.params)
+
+    def visit_len(self, op: LenOperator) -> None:
+        json_path = self._json_path_expr() if self._field_path else self._target_value_expr
+        len_expr = "jsonb_array_length(%s)" % json_path
+        self._compile_scalar_predicate(len_expr, op.query)
+
+    def _compile_scalar_predicate(self, expr: str, query: IQueryOperator) -> None:
+        """Compile a predicate against a scalar SQL expression (e.g. jsonb_array_length).
+
+        Unlike visit_eq/visit_comparison which use JSONB containment (@>),
+        this generates standard SQL comparisons (=, >, <, etc.) for plain values.
+        """
+        if isinstance(query, EqOperator):
+            self._sql_parts.append("%s = %%s" % expr)
+            self._params.append(query.value)
+        elif isinstance(query, ComparisonOperator):
+            if query.op == '$ne':
+                self._sql_parts.append("%s != %%s" % expr)
+                self._params.append(query.value)
+            else:
+                sql_op = self._SQL_OPS[query.op]
+                self._sql_parts.append("%s %s %%s" % (expr, sql_op))
+                self._params.append(query.value)
+        elif isinstance(query, InOperator):
+            or_parts = ["%s = %%s" % expr for _ in query.values]
+            self._params.extend(query.values)
+            if len(or_parts) == 1:
+                self._sql_parts.append(or_parts[0])
+            else:
+                self._sql_parts.append("(%s)" % " OR ".join(or_parts))
+        elif isinstance(query, IsNullOperator):
+            if query.value:
+                self._sql_parts.append("%s IS NULL" % expr)
+            else:
+                self._sql_parts.append("%s IS NOT NULL" % expr)
+        elif isinstance(query, NotOperator):
+            self._compile_scalar_predicate_not(expr, query)
+        elif isinstance(query, AndOperator):
+            for operand in query.operands:
+                self._compile_scalar_predicate(expr, operand)
+        elif isinstance(query, OrOperator):
+            or_parts_list: list[str] = []
+            saved_sql = list(self._sql_parts)
+            saved_params = list(self._params)
+            for operand in query.operands:
+                self._sql_parts = []
+                self._params = []
+                self._compile_scalar_predicate(expr, operand)
+                if self._sql_parts:
+                    or_parts_list.append(" AND ".join(self._sql_parts))
+                    saved_params.extend(self._params)
+            self._sql_parts = saved_sql
+            self._params = saved_params
+            if or_parts_list:
+                self._sql_parts.append("(%s)" % " OR ".join(or_parts_list))
+
+    def _compile_scalar_predicate_not(self, expr: str, query: NotOperator) -> None:
+        """Compile NOT for scalar predicate."""
+        saved_sql = list(self._sql_parts)
+        saved_params = list(self._params)
+        self._sql_parts = []
+        self._params = []
+        self._compile_scalar_predicate(expr, query.operand)
+        if self._sql_parts:
+            inner = " AND ".join(self._sql_parts)
+            saved_sql.append("NOT (%s)" % inner)
+            saved_params.extend(self._params)
+        self._sql_parts = saved_sql
+        self._params = saved_params
 
     def visit_composite(self, op: CompositeQuery) -> None:
         for field, field_op in op.fields.items():

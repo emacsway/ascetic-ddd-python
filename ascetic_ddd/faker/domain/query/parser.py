@@ -20,6 +20,10 @@ from ascetic_ddd.faker.domain.query.operators import (
     ComparisonOperator,
     InOperator,
     IsNullOperator,
+    NotOperator,
+    AnyElementOperator,
+    AllElementsOperator,
+    LenOperator,
     AndOperator,
     OrOperator,
     RelOperator,
@@ -106,6 +110,14 @@ class QueryParser:
             return self._parse_or(op_value)
         elif op_name == '$is_null':
             return self._parse_is_null(op_value)
+        elif op_name == '$not':
+            return self._parse_not(op_value)
+        elif op_name == '$any':
+            return self._parse_any(op_value)
+        elif op_name == '$all':
+            return self._parse_all(op_value)
+        elif op_name == '$len':
+            return self._parse_len(op_value)
         elif op_name == '$rel':
             return self._parse_rel(op_value)
         else:
@@ -146,6 +158,26 @@ class QueryParser:
             raise ValueError("$is_null value must be bool, got: %s" % type(value).__name__)
         return IsNullOperator(value)
 
+    def _parse_not(self, value: typing.Any) -> NotOperator:
+        """Parse $not operator value into NotOperator."""
+        return NotOperator(self.parse(value))
+
+    def _parse_any(self, value: typing.Any) -> AnyElementOperator:
+        """Parse $any operator value into AnyElementOperator."""
+        if not isinstance(value, dict):
+            raise ValueError("$any value must be dict, got: %s" % type(value).__name__)
+        return AnyElementOperator(self.parse(value))
+
+    def _parse_all(self, value: typing.Any) -> AllElementsOperator:
+        """Parse $all operator value into AllElementsOperator."""
+        if not isinstance(value, dict):
+            raise ValueError("$all value must be dict, got: %s" % type(value).__name__)
+        return AllElementsOperator(self.parse(value))
+
+    def _parse_len(self, value: typing.Any) -> LenOperator:
+        """Parse $len operator value into LenOperator."""
+        return LenOperator(self.parse(value))
+
     def _parse_rel(self, constraints: typing.Any) -> RelOperator:
         """Parse $rel operator value into RelOperator."""
         if not isinstance(constraints, dict):
@@ -179,6 +211,18 @@ def normalize_query(op: IQueryOperator) -> IQueryOperator:
         normalized = normalize_query(op.query)
         assert isinstance(normalized, CompositeQuery)
         return RelOperator(normalized)
+
+    if isinstance(op, NotOperator):
+        return NotOperator(normalize_query(op.operand))
+
+    if isinstance(op, AnyElementOperator):
+        return AnyElementOperator(normalize_query(op.query))
+
+    if isinstance(op, AllElementsOperator):
+        return AllElementsOperator(normalize_query(op.query))
+
+    if isinstance(op, LenOperator):
+        return LenOperator(normalize_query(op.query))
 
     if isinstance(op, AndOperator):
         return AndOperator(tuple(normalize_query(operand) for operand in op.operands))

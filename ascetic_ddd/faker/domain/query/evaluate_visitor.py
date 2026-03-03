@@ -9,7 +9,8 @@ from abc import ABCMeta, abstractmethod
 
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, IQueryVisitor, EqOperator, ComparisonOperator, InOperator,
-    IsNullOperator, AndOperator, OrOperator, RelOperator, CompositeQuery
+    IsNullOperator, NotOperator, AnyElementOperator, AllElementsOperator,
+    LenOperator, AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 
 __all__ = ('IObjectResolver', 'EvaluateWalker', 'EvaluateVisitor')
@@ -81,6 +82,30 @@ class EvaluateWalker:
                     return True
             return False
 
+        if isinstance(query, NotOperator):
+            return not await self.evaluate(session, query.operand, state, _field_context)
+
+        if isinstance(query, AnyElementOperator):
+            if not isinstance(state, list):
+                return False
+            for element in state:
+                if await self.evaluate(session, query.query, element, _field_context):
+                    return True
+            return False
+
+        if isinstance(query, AllElementsOperator):
+            if not isinstance(state, list):
+                return False
+            for element in state:
+                if not await self.evaluate(session, query.query, element, _field_context):
+                    return False
+            return True
+
+        if isinstance(query, LenOperator):
+            if not isinstance(state, list):
+                return False
+            return await self.evaluate(session, query.query, len(state), _field_context)
+
         if isinstance(query, CompositeQuery):
             return await self._evaluate_composite(session, query, state)
 
@@ -133,6 +158,30 @@ class EvaluateWalker:
                 if self.evaluate_sync(operand, state, _field_context):
                     return True
             return False
+
+        if isinstance(query, NotOperator):
+            return not self.evaluate_sync(query.operand, state, _field_context)
+
+        if isinstance(query, AnyElementOperator):
+            if not isinstance(state, list):
+                return False
+            for element in state:
+                if self.evaluate_sync(query.query, element, _field_context):
+                    return True
+            return False
+
+        if isinstance(query, AllElementsOperator):
+            if not isinstance(state, list):
+                return False
+            for element in state:
+                if not self.evaluate_sync(query.query, element, _field_context):
+                    return False
+            return True
+
+        if isinstance(query, LenOperator):
+            if not isinstance(state, list):
+                return False
+            return self.evaluate_sync(query.query, len(state), _field_context)
 
         if isinstance(query, CompositeQuery):
             return self._evaluate_composite_sync(query, state)
@@ -288,6 +337,36 @@ class EvaluateVisitor(IQueryVisitor[typing.Awaitable[bool]]):
 
     async def visit_is_null(self, op: IsNullOperator) -> bool:
         return (self._state is None) == op.value
+
+    async def visit_not(self, op: NotOperator) -> bool:
+        evaluator = self._with_state(
+            self._state, _field_context=self._field_context
+        )
+        return not await op.operand.accept(evaluator)
+
+    async def visit_any_element(self, op: AnyElementOperator) -> bool:
+        if not isinstance(self._state, list):
+            return False
+        for element in self._state:
+            evaluator = self._with_state(element)
+            if await op.query.accept(evaluator):
+                return True
+        return False
+
+    async def visit_all_elements(self, op: AllElementsOperator) -> bool:
+        if not isinstance(self._state, list):
+            return False
+        for element in self._state:
+            evaluator = self._with_state(element)
+            if not await op.query.accept(evaluator):
+                return False
+        return True
+
+    async def visit_len(self, op: LenOperator) -> bool:
+        if not isinstance(self._state, list):
+            return False
+        evaluator = self._with_state(len(self._state))
+        return await op.query.accept(evaluator)
 
     async def visit_and(self, op: AndOperator) -> bool:
         for operand in op.operands:

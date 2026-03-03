@@ -2,8 +2,9 @@
 import unittest
 
 from ascetic_ddd.faker.domain.query.operators import (
-    EqOperator, ComparisonOperator, InOperator, IsNullOperator, AndOperator,
-    OrOperator, RelOperator, CompositeQuery
+    EqOperator, ComparisonOperator, InOperator, IsNullOperator,
+    NotOperator, AnyElementOperator, AllElementsOperator, LenOperator,
+    AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.infrastructure.query.pg_query_compiler import PgQueryCompiler, RelationInfo, IRelationResolver
 
@@ -619,6 +620,182 @@ class TestCascadingRelations(unittest.TestCase):
         self.assertEqual(sql.count("FROM countries"), 2)
         # Both should be inside OR
         self.assertIn(" OR ", sql)
+
+
+class TestVisitNot(unittest.TestCase):
+
+    def test_not_bare_eq(self):
+        """NOT wraps the inner expression."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(NotOperator(EqOperator('deleted')))
+        self.assertEqual(sql, "NOT (value @> %s)")
+        self.assertEqual(params[0].obj, 'deleted')
+
+    def test_not_in_composite(self):
+        """$not inside CompositeQuery."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'status': NotOperator(EqOperator('deleted')),
+        }))
+        self.assertEqual(sql, "NOT (value @> %s)")
+        self.assertEqual(params[0].obj, {'status': 'deleted'})
+
+    def test_not_with_comparison(self):
+        """$not wrapping $gt."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'age': NotOperator(ComparisonOperator('$gt', 65)),
+        }))
+        self.assertEqual(sql, "NOT (value->'age' > %s)")
+        self.assertEqual(params, (65,))
+
+    def test_not_mixed_with_eq(self):
+        """$not alongside regular $eq field."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'status': EqOperator('active'),
+            'role': NotOperator(EqOperator('admin')),
+        }))
+        self.assertIn("value @> %s", sql)
+        self.assertIn("NOT (value @> %s)", sql)
+
+
+class TestVisitAnyElement(unittest.TestCase):
+
+    def test_any_bare(self):
+        """$any generates EXISTS + jsonb_array_elements."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(
+            AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        )
+        self.assertIn("EXISTS", sql)
+        self.assertIn("jsonb_array_elements", sql)
+        self.assertIn("rt1", sql)
+
+    def test_any_in_composite(self):
+        """$any inside CompositeQuery."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'items': AnyElementOperator(CompositeQuery({
+                'status': EqOperator('shipped'),
+            }))
+        }))
+        self.assertIn("EXISTS", sql)
+        self.assertIn("jsonb_array_elements(value->'items')", sql)
+        self.assertIn("rt1", sql)
+        self.assertEqual(params[0].obj, {'status': 'shipped'})
+
+    def test_any_with_comparison(self):
+        """$any with $gt inside."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'prices': AnyElementOperator(CompositeQuery({
+                'amount': ComparisonOperator('$gt', 100),
+            }))
+        }))
+        self.assertIn("EXISTS", sql)
+        self.assertIn("jsonb_array_elements(value->'prices')", sql)
+        self.assertIn("> %s", sql)
+        self.assertEqual(params[0], 100)
+
+
+class TestVisitAllElements(unittest.TestCase):
+
+    def test_all_bare(self):
+        """$all generates NOT EXISTS + jsonb_array_elements + NOT."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(
+            AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        )
+        self.assertIn("NOT EXISTS", sql)
+        self.assertIn("jsonb_array_elements", sql)
+        self.assertIn("WHERE NOT", sql)
+
+    def test_all_in_composite(self):
+        """$all inside CompositeQuery."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'items': AllElementsOperator(CompositeQuery({
+                'status': EqOperator('active'),
+            }))
+        }))
+        self.assertIn("NOT EXISTS", sql)
+        self.assertIn("jsonb_array_elements(value->'items')", sql)
+        self.assertIn("WHERE NOT", sql)
+        self.assertEqual(params[0].obj, {'status': 'active'})
+
+
+class TestVisitLen(unittest.TestCase):
+
+    def test_len_gt(self):
+        """$len with $gt."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'items': LenOperator(ComparisonOperator('$gt', 2)),
+        }))
+        self.assertEqual(sql, "jsonb_array_length(value->'items') > %s")
+        self.assertEqual(params, (2,))
+
+    def test_len_eq(self):
+        """$len with $eq."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'items': LenOperator(EqOperator(0)),
+        }))
+        self.assertEqual(sql, "jsonb_array_length(value->'items') = %s")
+        self.assertEqual(params, (0,))
+
+    def test_len_gte(self):
+        """$len with $gte."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'items': LenOperator(ComparisonOperator('$gte', 1)),
+        }))
+        self.assertEqual(sql, "jsonb_array_length(value->'items') >= %s")
+        self.assertEqual(params, (1,))
+
+    def test_len_ne(self):
+        """$len with $ne."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'items': LenOperator(ComparisonOperator('$ne', 0)),
+        }))
+        self.assertEqual(sql, "jsonb_array_length(value->'items') != %s")
+        self.assertEqual(params, (0,))
+
+    def test_len_bare(self):
+        """$len without field context."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(LenOperator(ComparisonOperator('$gt', 2)))
+        self.assertEqual(sql, "jsonb_array_length(value) > %s")
+        self.assertEqual(params, (2,))
+
+
+class TestCombinedNewOperators(unittest.TestCase):
+
+    def test_any_and_len_at_same_level(self):
+        """$any + $len at same level (implicit AND)."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'items': AndOperator((
+                AnyElementOperator(CompositeQuery({
+                    'price': ComparisonOperator('$gt', 100),
+                })),
+                LenOperator(ComparisonOperator('$gte', 1)),
+            ))
+        }))
+        self.assertIn("EXISTS", sql)
+        self.assertIn("jsonb_array_length", sql)
+        self.assertIn("AND", sql)
+
+    def test_not_with_len(self):
+        """$not wrapping $len."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'items': NotOperator(LenOperator(ComparisonOperator('$gt', 5))),
+        }))
+        self.assertIn("NOT (", sql)
+        self.assertIn("jsonb_array_length", sql)
 
 
 if __name__ == '__main__':

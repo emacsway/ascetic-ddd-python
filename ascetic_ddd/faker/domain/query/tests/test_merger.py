@@ -3,7 +3,9 @@ import unittest
 
 from ascetic_ddd.faker.domain.query.parser import normalize_query
 from ascetic_ddd.faker.domain.query.operators import (
-    MergeConflict, EqOperator, IsNullOperator, RelOperator, CompositeQuery
+    MergeConflict, EqOperator, ComparisonOperator, IsNullOperator,
+    NotOperator, AnyElementOperator, AllElementsOperator, LenOperator,
+    RelOperator, CompositeQuery
 )
 
 
@@ -171,6 +173,89 @@ class TestIsNullOperatorAdd(unittest.TestCase):
         self.assertIs(result, NotImplemented)
 
 
+class TestNotOperatorAdd(unittest.TestCase):
+    """Tests for NotOperator.__add__."""
+
+    def test_add_same_operand(self):
+        left = NotOperator(EqOperator('deleted'))
+        right = NotOperator(EqOperator('deleted'))
+        result = left + right
+        self.assertIsInstance(result, NotOperator)
+        self.assertEqual(result.operand, EqOperator('deleted'))
+
+    def test_add_different_operand_raises(self):
+        left = NotOperator(EqOperator('deleted'))
+        right = NotOperator(EqOperator('active'))
+        with self.assertRaises(MergeConflict):
+            left + right
+
+    def test_add_wrong_type_returns_not_implemented(self):
+        result = NotOperator(EqOperator('deleted')).__add__(EqOperator(5))
+        self.assertIs(result, NotImplemented)
+
+
+class TestAnyElementOperatorAdd(unittest.TestCase):
+    """Tests for AnyElementOperator.__add__."""
+
+    def test_add_same_query(self):
+        inner = CompositeQuery({'status': EqOperator('active')})
+        left = AnyElementOperator(inner)
+        right = AnyElementOperator(CompositeQuery({'status': EqOperator('active')}))
+        result = left + right
+        self.assertIsInstance(result, AnyElementOperator)
+
+    def test_add_different_query_raises(self):
+        left = AnyElementOperator(CompositeQuery({'status': EqOperator('active')}))
+        right = AnyElementOperator(CompositeQuery({'status': EqOperator('deleted')}))
+        with self.assertRaises(MergeConflict):
+            left + right
+
+    def test_add_wrong_type_returns_not_implemented(self):
+        result = AnyElementOperator(EqOperator(1)).__add__(EqOperator(5))
+        self.assertIs(result, NotImplemented)
+
+
+class TestAllElementsOperatorAdd(unittest.TestCase):
+    """Tests for AllElementsOperator.__add__."""
+
+    def test_add_same_query(self):
+        inner = CompositeQuery({'status': EqOperator('active')})
+        left = AllElementsOperator(inner)
+        right = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        result = left + right
+        self.assertIsInstance(result, AllElementsOperator)
+
+    def test_add_different_query_raises(self):
+        left = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        right = AllElementsOperator(CompositeQuery({'status': EqOperator('deleted')}))
+        with self.assertRaises(MergeConflict):
+            left + right
+
+    def test_add_wrong_type_returns_not_implemented(self):
+        result = AllElementsOperator(EqOperator(1)).__add__(EqOperator(5))
+        self.assertIs(result, NotImplemented)
+
+
+class TestLenOperatorAdd(unittest.TestCase):
+    """Tests for LenOperator.__add__."""
+
+    def test_add_same_query(self):
+        left = LenOperator(ComparisonOperator('$gt', 2))
+        right = LenOperator(ComparisonOperator('$gt', 2))
+        result = left + right
+        self.assertIsInstance(result, LenOperator)
+
+    def test_add_different_query_raises(self):
+        left = LenOperator(ComparisonOperator('$gt', 2))
+        right = LenOperator(ComparisonOperator('$gt', 5))
+        with self.assertRaises(MergeConflict):
+            left + right
+
+    def test_add_wrong_type_returns_not_implemented(self):
+        result = LenOperator(EqOperator(0)).__add__(EqOperator(5))
+        self.assertIs(result, NotImplemented)
+
+
 class TestCrossTypeAdd(unittest.TestCase):
     """Tests for cross-type __add__ raises TypeError."""
 
@@ -248,6 +333,41 @@ class TestNormalizeQuery(unittest.TestCase):
         a = result.fields['a']
         self.assertIsInstance(a, CompositeQuery)
         self.assertEqual(a.fields['nested'].value, 'value')
+
+    def test_normalize_not_with_nested_eq_wrapping_composite(self):
+        """NotOperator normalizes inner operand."""
+        inner = CompositeQuery({'status': EqOperator('deleted')})
+        op = NotOperator(EqOperator(inner))
+        result = normalize_query(op)
+
+        self.assertIsInstance(result, NotOperator)
+        self.assertIsInstance(result.operand, CompositeQuery)
+
+    def test_normalize_any_element(self):
+        """AnyElementOperator normalizes inner query."""
+        inner = CompositeQuery({'status': EqOperator('active')})
+        op = AnyElementOperator(EqOperator(inner))
+        result = normalize_query(op)
+
+        self.assertIsInstance(result, AnyElementOperator)
+        self.assertIsInstance(result.query, CompositeQuery)
+
+    def test_normalize_all_elements(self):
+        """AllElementsOperator normalizes inner query."""
+        inner = CompositeQuery({'status': EqOperator('active')})
+        op = AllElementsOperator(EqOperator(inner))
+        result = normalize_query(op)
+
+        self.assertIsInstance(result, AllElementsOperator)
+        self.assertIsInstance(result.query, CompositeQuery)
+
+    def test_normalize_len(self):
+        """LenOperator normalizes inner query."""
+        op = LenOperator(ComparisonOperator('$gt', 2))
+        result = normalize_query(op)
+
+        self.assertIsInstance(result, LenOperator)
+        self.assertIsInstance(result.query, ComparisonOperator)
 
 
 if __name__ == '__main__':

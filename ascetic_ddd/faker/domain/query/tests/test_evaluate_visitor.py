@@ -6,8 +6,9 @@ from ascetic_ddd.faker.domain.query.evaluate_visitor import (
     EvaluateWalker, EvaluateVisitor, IObjectResolver
 )
 from ascetic_ddd.faker.domain.query.operators import (
-    EqOperator, ComparisonOperator, InOperator, IsNullOperator, AndOperator,
-    OrOperator, RelOperator, CompositeQuery
+    EqOperator, ComparisonOperator, InOperator, IsNullOperator,
+    NotOperator, AnyElementOperator, AllElementsOperator, LenOperator,
+    AndOperator, OrOperator, RelOperator, CompositeQuery
 )
 from ascetic_ddd.faker.domain.query.parser import QueryParser
 
@@ -1215,6 +1216,309 @@ class EvaluateWalkerSyncBasicTestCase(IsolatedAsyncioTestCase):
 
         state_wrong = {'id': {'id': 'local-pk', 'first_model_id': 'uuid-B'}, 'attr2': 'foo'}
         self.assertFalse(self.walker.evaluate_sync(query, state_wrong))
+
+
+# =============================================================================
+# Tests for $not, $any, $all, $len operators
+# =============================================================================
+
+class EvaluateWalkerNotTestCase(IsolatedAsyncioTestCase):
+    """Tests for $not operator with EvaluateWalker."""
+
+    def setUp(self):
+        self.walker = EvaluateWalker()
+        self.session = MockSession()
+
+    async def test_not_eq_matches(self):
+        """$not negates: NOT (state == 'deleted') when state != 'deleted'."""
+        op = NotOperator(EqOperator('deleted'))
+        self.assertTrue(await self.walker.evaluate(self.session, op, 'active'))
+
+    async def test_not_eq_not_matches(self):
+        """$not negates: NOT (state == 'deleted') when state == 'deleted'."""
+        op = NotOperator(EqOperator('deleted'))
+        self.assertFalse(await self.walker.evaluate(self.session, op, 'deleted'))
+
+    async def test_not_gt(self):
+        """$not with $gt."""
+        op = NotOperator(ComparisonOperator('$gt', 65))
+        self.assertTrue(await self.walker.evaluate(self.session, op, 50))
+        self.assertFalse(await self.walker.evaluate(self.session, op, 70))
+
+    async def test_not_in_composite(self):
+        """$not inside CompositeQuery."""
+        query = CompositeQuery({
+            'status': NotOperator(EqOperator('deleted'))
+        })
+        self.assertTrue(await self.walker.evaluate(
+            self.session, query, {'status': 'active'}
+        ))
+        self.assertFalse(await self.walker.evaluate(
+            self.session, query, {'status': 'deleted'}
+        ))
+
+    def test_not_sync(self):
+        """$not with evaluate_sync."""
+        op = NotOperator(EqOperator('deleted'))
+        self.assertTrue(self.walker.evaluate_sync(op, 'active'))
+        self.assertFalse(self.walker.evaluate_sync(op, 'deleted'))
+
+
+class EvaluateWalkerAnyElementTestCase(IsolatedAsyncioTestCase):
+    """Tests for $any operator with EvaluateWalker."""
+
+    def setUp(self):
+        self.walker = EvaluateWalker()
+        self.session = MockSession()
+
+    async def test_any_matches(self):
+        """$any matches when at least one element matches."""
+        op = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        state = [
+            {'status': 'pending', 'id': 1},
+            {'status': 'shipped', 'id': 2},
+            {'status': 'pending', 'id': 3},
+        ]
+        self.assertTrue(await self.walker.evaluate(self.session, op, state))
+
+    async def test_any_not_matches(self):
+        """$any fails when no element matches."""
+        op = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        state = [
+            {'status': 'pending', 'id': 1},
+            {'status': 'pending', 'id': 2},
+        ]
+        self.assertFalse(await self.walker.evaluate(self.session, op, state))
+
+    async def test_any_empty_list(self):
+        """$any on empty list returns False."""
+        op = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        self.assertFalse(await self.walker.evaluate(self.session, op, []))
+
+    async def test_any_non_list(self):
+        """$any on non-list returns False."""
+        op = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        self.assertFalse(await self.walker.evaluate(self.session, op, 'not a list'))
+
+    async def test_any_in_composite(self):
+        """$any inside CompositeQuery field."""
+        query = CompositeQuery({
+            'items': AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        })
+        state = {
+            'items': [
+                {'status': 'pending'},
+                {'status': 'shipped'},
+            ]
+        }
+        self.assertTrue(await self.walker.evaluate(self.session, query, state))
+
+    def test_any_sync(self):
+        """$any with evaluate_sync."""
+        op = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        state = [{'status': 'shipped'}, {'status': 'pending'}]
+        self.assertTrue(self.walker.evaluate_sync(op, state))
+
+        state_none = [{'status': 'pending'}, {'status': 'pending'}]
+        self.assertFalse(self.walker.evaluate_sync(op, state_none))
+
+
+class EvaluateWalkerAllElementsTestCase(IsolatedAsyncioTestCase):
+    """Tests for $all operator with EvaluateWalker."""
+
+    def setUp(self):
+        self.walker = EvaluateWalker()
+        self.session = MockSession()
+
+    async def test_all_matches(self):
+        """$all matches when every element matches."""
+        op = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        state = [
+            {'status': 'active', 'id': 1},
+            {'status': 'active', 'id': 2},
+        ]
+        self.assertTrue(await self.walker.evaluate(self.session, op, state))
+
+    async def test_all_not_matches(self):
+        """$all fails when any element doesn't match."""
+        op = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        state = [
+            {'status': 'active', 'id': 1},
+            {'status': 'deleted', 'id': 2},
+        ]
+        self.assertFalse(await self.walker.evaluate(self.session, op, state))
+
+    async def test_all_empty_list(self):
+        """$all on empty list returns True (vacuous truth)."""
+        op = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        self.assertTrue(await self.walker.evaluate(self.session, op, []))
+
+    async def test_all_non_list(self):
+        """$all on non-list returns False."""
+        op = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        self.assertFalse(await self.walker.evaluate(self.session, op, 'not a list'))
+
+    def test_all_sync(self):
+        """$all with evaluate_sync."""
+        op = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        state_ok = [{'status': 'active'}, {'status': 'active'}]
+        self.assertTrue(self.walker.evaluate_sync(op, state_ok))
+
+        state_fail = [{'status': 'active'}, {'status': 'deleted'}]
+        self.assertFalse(self.walker.evaluate_sync(op, state_fail))
+
+
+class EvaluateWalkerLenTestCase(IsolatedAsyncioTestCase):
+    """Tests for $len operator with EvaluateWalker."""
+
+    def setUp(self):
+        self.walker = EvaluateWalker()
+        self.session = MockSession()
+
+    async def test_len_gt(self):
+        """$len with $gt."""
+        op = LenOperator(ComparisonOperator('$gt', 2))
+        self.assertTrue(await self.walker.evaluate(self.session, op, [1, 2, 3]))
+        self.assertFalse(await self.walker.evaluate(self.session, op, [1, 2]))
+
+    async def test_len_eq_zero(self):
+        """$len with $eq 0."""
+        op = LenOperator(EqOperator(0))
+        self.assertTrue(await self.walker.evaluate(self.session, op, []))
+        self.assertFalse(await self.walker.evaluate(self.session, op, [1]))
+
+    async def test_len_non_list(self):
+        """$len on non-list returns False."""
+        op = LenOperator(ComparisonOperator('$gt', 0))
+        self.assertFalse(await self.walker.evaluate(self.session, op, 'not a list'))
+
+    async def test_len_in_composite(self):
+        """$len inside CompositeQuery field."""
+        query = CompositeQuery({
+            'items': LenOperator(ComparisonOperator('$gte', 2))
+        })
+        self.assertTrue(await self.walker.evaluate(
+            self.session, query, {'items': [1, 2, 3]}
+        ))
+        self.assertFalse(await self.walker.evaluate(
+            self.session, query, {'items': [1]}
+        ))
+
+    def test_len_sync(self):
+        """$len with evaluate_sync."""
+        op = LenOperator(ComparisonOperator('$gt', 1))
+        self.assertTrue(self.walker.evaluate_sync(op, [1, 2]))
+        self.assertFalse(self.walker.evaluate_sync(op, [1]))
+
+
+class EvaluateWalkerCombinedTestCase(IsolatedAsyncioTestCase):
+    """Tests for combined new operators with EvaluateWalker."""
+
+    def setUp(self):
+        self.walker = EvaluateWalker()
+        self.session = MockSession()
+
+    async def test_any_with_not(self):
+        """$any + $not: any element where status != 'deleted'."""
+        op = AnyElementOperator(CompositeQuery({
+            'status': NotOperator(EqOperator('deleted'))
+        }))
+        state = [{'status': 'deleted'}, {'status': 'active'}]
+        self.assertTrue(await self.walker.evaluate(self.session, op, state))
+
+        state_all_deleted = [{'status': 'deleted'}, {'status': 'deleted'}]
+        self.assertFalse(await self.walker.evaluate(self.session, op, state_all_deleted))
+
+    async def test_len_with_not(self):
+        """$not + $len: NOT (len > 5)."""
+        op = NotOperator(LenOperator(ComparisonOperator('$gt', 5)))
+        self.assertTrue(await self.walker.evaluate(self.session, op, [1, 2, 3]))
+        self.assertFalse(await self.walker.evaluate(self.session, op, [1, 2, 3, 4, 5, 6]))
+
+
+class EvaluateVisitorNotTestCase(IsolatedAsyncioTestCase):
+    """Tests for $not operator with EvaluateVisitor."""
+
+    async def test_not_eq_matches(self):
+        evaluator = EvaluateVisitor('active', MockSession())
+        result = await NotOperator(EqOperator('deleted')).accept(evaluator)
+        self.assertTrue(result)
+
+    async def test_not_eq_not_matches(self):
+        evaluator = EvaluateVisitor('deleted', MockSession())
+        result = await NotOperator(EqOperator('deleted')).accept(evaluator)
+        self.assertFalse(result)
+
+
+class EvaluateVisitorAnyElementTestCase(IsolatedAsyncioTestCase):
+    """Tests for $any operator with EvaluateVisitor."""
+
+    async def test_any_matches(self):
+        state = [{'status': 'pending'}, {'status': 'shipped'}]
+        evaluator = EvaluateVisitor(state, MockSession())
+        op = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        result = await op.accept(evaluator)
+        self.assertTrue(result)
+
+    async def test_any_not_matches(self):
+        state = [{'status': 'pending'}, {'status': 'pending'}]
+        evaluator = EvaluateVisitor(state, MockSession())
+        op = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        result = await op.accept(evaluator)
+        self.assertFalse(result)
+
+    async def test_any_empty_list(self):
+        evaluator = EvaluateVisitor([], MockSession())
+        op = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
+        result = await op.accept(evaluator)
+        self.assertFalse(result)
+
+
+class EvaluateVisitorAllElementsTestCase(IsolatedAsyncioTestCase):
+    """Tests for $all operator with EvaluateVisitor."""
+
+    async def test_all_matches(self):
+        state = [{'status': 'active'}, {'status': 'active'}]
+        evaluator = EvaluateVisitor(state, MockSession())
+        op = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        result = await op.accept(evaluator)
+        self.assertTrue(result)
+
+    async def test_all_not_matches(self):
+        state = [{'status': 'active'}, {'status': 'deleted'}]
+        evaluator = EvaluateVisitor(state, MockSession())
+        op = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        result = await op.accept(evaluator)
+        self.assertFalse(result)
+
+    async def test_all_empty_list(self):
+        """Empty list -> True (vacuous truth)."""
+        evaluator = EvaluateVisitor([], MockSession())
+        op = AllElementsOperator(CompositeQuery({'status': EqOperator('active')}))
+        result = await op.accept(evaluator)
+        self.assertTrue(result)
+
+
+class EvaluateVisitorLenTestCase(IsolatedAsyncioTestCase):
+    """Tests for $len operator with EvaluateVisitor."""
+
+    async def test_len_gt(self):
+        evaluator = EvaluateVisitor([1, 2, 3], MockSession())
+        op = LenOperator(ComparisonOperator('$gt', 2))
+        result = await op.accept(evaluator)
+        self.assertTrue(result)
+
+    async def test_len_not_matches(self):
+        evaluator = EvaluateVisitor([1, 2], MockSession())
+        op = LenOperator(ComparisonOperator('$gt', 2))
+        result = await op.accept(evaluator)
+        self.assertFalse(result)
+
+    async def test_len_eq_zero(self):
+        evaluator = EvaluateVisitor([], MockSession())
+        op = LenOperator(EqOperator(0))
+        result = await op.accept(evaluator)
+        self.assertTrue(result)
 
 
 if __name__ == '__main__':
