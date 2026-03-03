@@ -25,7 +25,15 @@ from ascetic_ddd.faker.domain.query.operators import (
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
 
 
-__all__ = ('PgQueryCompiler', 'RelationInfo', 'IRelationResolver',)
+__all__ = ('PgQueryCompiler', 'ScalarPgQueryCompiler', 'RelationInfo', 'IRelationResolver',)
+
+# Shared mapping: query comparison operator -> SQL operator
+_SQL_OPS: dict[str, str] = {
+    '$gt': '>',
+    '$gte': '>=',
+    '$lt': '<',
+    '$lte': '<=',
+}
 
 
 class RelationInfo(typing.NamedTuple):
@@ -107,18 +115,11 @@ class PgQueryCompiler(IQueryVisitor[None]):
             self._sql_parts.append(f"{self._target_value_expr} @> %s")
             self._params.append(self._encode(op.value))
 
-    _SQL_OPS: typing.ClassVar[dict[str, str]] = {
-        '$gt': '>',
-        '$gte': '>=',
-        '$lt': '<',
-        '$lte': '<=',
-    }
-
     def visit_comparison(self, op: ComparisonOperator) -> None:
         if op.op == '$ne':
             self._compile_ne(op.value)
         else:
-            sql_op = self._SQL_OPS[op.op]
+            sql_op = _SQL_OPS[op.op]
             json_path = self._json_path_expr()
             self._sql_parts.append(f"{json_path} {sql_op} %s")
             self._params.append(op.value)
@@ -240,71 +241,11 @@ class PgQueryCompiler(IQueryVisitor[None]):
     def visit_len(self, op: LenOperator) -> None:
         json_path = self._json_path_expr() if self._field_path else self._target_value_expr
         len_expr = "jsonb_array_length(%s)" % json_path
-        self._compile_scalar_predicate(len_expr, op.query)
-
-    def _compile_scalar_predicate(self, expr: str, query: IQueryOperator) -> None:
-        """Compile a predicate against a scalar SQL expression (e.g. jsonb_array_length).
-
-        Unlike visit_eq/visit_comparison which use JSONB containment (@>),
-        this generates standard SQL comparisons (=, >, <, etc.) for plain values.
-        """
-        if isinstance(query, EqOperator):
-            self._sql_parts.append("%s = %%s" % expr)
-            self._params.append(query.value)
-        elif isinstance(query, ComparisonOperator):
-            if query.op == '$ne':
-                self._sql_parts.append("%s != %%s" % expr)
-                self._params.append(query.value)
-            else:
-                sql_op = self._SQL_OPS[query.op]
-                self._sql_parts.append("%s %s %%s" % (expr, sql_op))
-                self._params.append(query.value)
-        elif isinstance(query, InOperator):
-            or_parts = ["%s = %%s" % expr for _ in query.values]
-            self._params.extend(query.values)
-            if len(or_parts) == 1:
-                self._sql_parts.append(or_parts[0])
-            else:
-                self._sql_parts.append("(%s)" % " OR ".join(or_parts))
-        elif isinstance(query, IsNullOperator):
-            if query.value:
-                self._sql_parts.append("%s IS NULL" % expr)
-            else:
-                self._sql_parts.append("%s IS NOT NULL" % expr)
-        elif isinstance(query, NotOperator):
-            self._compile_scalar_predicate_not(expr, query)
-        elif isinstance(query, AndOperator):
-            for operand in query.operands:
-                self._compile_scalar_predicate(expr, operand)
-        elif isinstance(query, OrOperator):
-            or_parts_list: list[str] = []
-            saved_sql = list(self._sql_parts)
-            saved_params = list(self._params)
-            for operand in query.operands:
-                self._sql_parts = []
-                self._params = []
-                self._compile_scalar_predicate(expr, operand)
-                if self._sql_parts:
-                    or_parts_list.append(" AND ".join(self._sql_parts))
-                    saved_params.extend(self._params)
-            self._sql_parts = saved_sql
-            self._params = saved_params
-            if or_parts_list:
-                self._sql_parts.append("(%s)" % " OR ".join(or_parts_list))
-
-    def _compile_scalar_predicate_not(self, expr: str, query: NotOperator) -> None:
-        """Compile NOT for scalar predicate."""
-        saved_sql = list(self._sql_parts)
-        saved_params = list(self._params)
-        self._sql_parts = []
-        self._params = []
-        self._compile_scalar_predicate(expr, query.operand)
-        if self._sql_parts:
-            inner = " AND ".join(self._sql_parts)
-            saved_sql.append("NOT (%s)" % inner)
-            saved_params.extend(self._params)
-        self._sql_parts = saved_sql
-        self._params = saved_params
+        scalar = ScalarPgQueryCompiler(len_expr)
+        op.query.accept(scalar)
+        if scalar.sql:
+            self._sql_parts.append(scalar.sql)
+            self._params.extend(scalar.params)
 
     def visit_composite(self, op: CompositeQuery) -> None:
         for field, field_op in op.fields.items():
@@ -414,3 +355,98 @@ class PgQueryCompiler(IQueryVisitor[None]):
             obj = dataclasses.asdict(obj)
         dumps = functools.partial(json.dumps, cls=JSONEncoder)
         return Jsonb(obj, dumps)
+
+
+class ScalarPgQueryCompiler(IQueryVisitor[None]):
+    """
+    Compiles IQueryOperator tree against a scalar SQL expression.
+
+    Unlike PgQueryCompiler which uses JSONB containment (@>),
+    this generates standard SQL comparisons (=, >, <, etc.)
+    for plain values like jsonb_array_length().
+    """
+
+    __slots__ = ('_target_expr', '_sql_parts', '_params')
+
+    def __init__(self, target_expr: str):
+        self._target_expr = target_expr
+        self._sql_parts: list[str] = []
+        self._params: list[typing.Any] = []
+
+    @property
+    def sql(self) -> str:
+        return " AND ".join(self._sql_parts) if self._sql_parts else ""
+
+    @property
+    def params(self) -> tuple[typing.Any, ...]:
+        return tuple(self._params)
+
+    def compile(self, query: IQueryOperator) -> tuple[str, tuple[typing.Any, ...]]:
+        self._sql_parts = []
+        self._params = []
+        query.accept(self)
+        return self.sql, self.params
+
+    def visit_eq(self, op: EqOperator) -> None:
+        self._sql_parts.append("%s = %%s" % self._target_expr)
+        self._params.append(op.value)
+
+    def visit_comparison(self, op: ComparisonOperator) -> None:
+        if op.op == '$ne':
+            self._sql_parts.append("%s != %%s" % self._target_expr)
+            self._params.append(op.value)
+        else:
+            sql_op = _SQL_OPS[op.op]
+            self._sql_parts.append("%s %s %%s" % (self._target_expr, sql_op))
+            self._params.append(op.value)
+
+    def visit_in(self, op: InOperator) -> None:
+        or_parts = ["%s = %%s" % self._target_expr for _ in op.values]
+        self._params.extend(op.values)
+        if len(or_parts) == 1:
+            self._sql_parts.append(or_parts[0])
+        else:
+            self._sql_parts.append("(%s)" % " OR ".join(or_parts))
+
+    def visit_is_null(self, op: IsNullOperator) -> None:
+        if op.value:
+            self._sql_parts.append("%s IS NULL" % self._target_expr)
+        else:
+            self._sql_parts.append("%s IS NOT NULL" % self._target_expr)
+
+    def visit_not(self, op: NotOperator) -> None:
+        sub = ScalarPgQueryCompiler(self._target_expr)
+        op.operand.accept(sub)
+        if sub.sql:
+            self._sql_parts.append("NOT (%s)" % sub.sql)
+            self._params.extend(sub.params)
+
+    def visit_and(self, op: AndOperator) -> None:
+        for operand in op.operands:
+            operand.accept(self)
+
+    def visit_or(self, op: OrOperator) -> None:
+        or_parts: list[str] = []
+        for operand in op.operands:
+            sub = ScalarPgQueryCompiler(self._target_expr)
+            operand.accept(sub)
+            if sub.sql:
+                or_parts.append(sub.sql)
+                self._params.extend(sub.params)
+        if or_parts:
+            self._sql_parts.append("(%s)" % " OR ".join(or_parts))
+
+    def visit_any_element(self, op: AnyElementOperator) -> None:
+        raise TypeError("$any is not supported in scalar predicate context")
+
+    def visit_all_elements(self, op: AllElementsOperator) -> None:
+        raise TypeError("$all is not supported in scalar predicate context")
+
+    def visit_len(self, op: LenOperator) -> None:
+        raise TypeError("$len is not supported in scalar predicate context")
+
+    def visit_rel(self, op: RelOperator) -> None:
+        raise TypeError("$rel is not supported in scalar predicate context")
+
+    def visit_composite(self, op: CompositeQuery) -> None:
+        raise TypeError("CompositeQuery is not supported in scalar predicate context")
