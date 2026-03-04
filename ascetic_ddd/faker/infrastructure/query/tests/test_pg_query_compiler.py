@@ -698,6 +698,22 @@ class TestVisitAnyElement(unittest.TestCase):
         self.assertIn("> %s", sql)
         self.assertEqual(params[0], 100)
 
+    def test_nested_any(self):
+        """Nested $any: items -> tags, two levels of jsonb_array_elements."""
+        compiler = PgQueryCompiler()
+        sql, params = compiler.compile(CompositeQuery({
+            'items': AnyElementOperator(CompositeQuery({
+                'tags': AnyElementOperator(EqOperator('urgent')),
+            }))
+        }))
+        self.assertIn("jsonb_array_elements(value->'items')", sql)
+        self.assertIn("rt1", sql)
+        self.assertIn("jsonb_array_elements(rt1->'tags')", sql)
+        self.assertIn("rt2", sql)
+        # Two nested EXISTS
+        self.assertEqual(sql.count("EXISTS"), 2)
+        self.assertEqual(params[0].obj, 'urgent')
+
 
 class TestVisitAllElements(unittest.TestCase):
 

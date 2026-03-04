@@ -1322,6 +1322,51 @@ class EvaluateWalkerAnyElementTestCase(IsolatedAsyncioTestCase):
         state_none = [{'status': 'pending'}, {'status': 'pending'}]
         self.assertFalse(self.walker.evaluate_sync(op, state_none))
 
+    async def test_nested_any_matches(self):
+        """Nested $any: items -> tags, at least one item has at least one matching tag."""
+        query = CompositeQuery({
+            'items': AnyElementOperator(CompositeQuery({
+                'tags': AnyElementOperator(EqOperator('urgent')),
+            }))
+        })
+        state = {
+            'items': [
+                {'tags': ['normal', 'low']},
+                {'tags': ['normal', 'urgent']},
+            ]
+        }
+        self.assertTrue(await self.walker.evaluate(self.session, query, state))
+
+    async def test_nested_any_not_matches(self):
+        """Nested $any: no item has a matching tag."""
+        query = CompositeQuery({
+            'items': AnyElementOperator(CompositeQuery({
+                'tags': AnyElementOperator(EqOperator('urgent')),
+            }))
+        })
+        state = {
+            'items': [
+                {'tags': ['normal', 'low']},
+                {'tags': ['normal']},
+            ]
+        }
+        self.assertFalse(await self.walker.evaluate(self.session, query, state))
+
+    def test_nested_any_sync(self):
+        """Nested $any with evaluate_sync."""
+        query = CompositeQuery({
+            'items': AnyElementOperator(CompositeQuery({
+                'tags': AnyElementOperator(EqOperator('urgent')),
+            }))
+        })
+        state = {
+            'items': [
+                {'tags': ['normal']},
+                {'tags': ['urgent']},
+            ]
+        }
+        self.assertTrue(self.walker.evaluate_sync(query, state))
+
 
 class EvaluateWalkerAllElementsTestCase(IsolatedAsyncioTestCase):
     """Tests for $all operator with EvaluateWalker."""
@@ -1471,6 +1516,40 @@ class EvaluateVisitorAnyElementTestCase(IsolatedAsyncioTestCase):
         evaluator = EvaluateVisitor([], MockSession())
         op = AnyElementOperator(CompositeQuery({'status': EqOperator('shipped')}))
         result = await op.accept(evaluator)
+        self.assertFalse(result)
+
+    async def test_nested_any_matches(self):
+        """Nested $any: items -> tags."""
+        state = {
+            'items': [
+                {'tags': ['normal', 'low']},
+                {'tags': ['normal', 'urgent']},
+            ]
+        }
+        evaluator = EvaluateVisitor(state, MockSession())
+        query = CompositeQuery({
+            'items': AnyElementOperator(CompositeQuery({
+                'tags': AnyElementOperator(EqOperator('urgent')),
+            }))
+        })
+        result = await query.accept(evaluator)
+        self.assertTrue(result)
+
+    async def test_nested_any_not_matches(self):
+        """Nested $any: no item has a matching tag."""
+        state = {
+            'items': [
+                {'tags': ['normal', 'low']},
+                {'tags': ['normal']},
+            ]
+        }
+        evaluator = EvaluateVisitor(state, MockSession())
+        query = CompositeQuery({
+            'items': AnyElementOperator(CompositeQuery({
+                'tags': AnyElementOperator(EqOperator('urgent')),
+            }))
+        })
+        result = await query.accept(evaluator)
         self.assertFalse(result)
 
 
