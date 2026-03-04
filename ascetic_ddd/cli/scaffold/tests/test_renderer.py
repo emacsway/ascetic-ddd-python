@@ -126,7 +126,7 @@ class TestRenderer(unittest.TestCase):
         with open(path) as f:
             content = f.read()
         self.assertIn('@dataclass(frozen=True, kw_only=True)', content)
-        self.assertIn('class CreateResumeCommand:', content)
+        self.assertIn('class CreateResumeCommand(IRequest[None]):', content)
         self.assertIn('user_id: int', content)
         self.assertIn('title: str', content)
         # Must NOT contain domain types

@@ -6,9 +6,11 @@ from datetime import datetime
 from decimal import Decimal
 {% endif %}
 
+from ascetic_ddd.mediator.interfaces import IRequest
+
 
 @dataclass(frozen=True, kw_only=True)
-class {{ cmd.class_name }}Command:
+class {{ cmd.class_name }}Command(IRequest[None]):
 {% for f in cmd.fields %}
     {{ f.param_name }}: {{ f.type_name }}
 {% endfor %}

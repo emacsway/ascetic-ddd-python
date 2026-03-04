@@ -1,8 +1,8 @@
-import typing
+from ascetic_ddd.session.interfaces import ISession
 
 from {{ commands_package }}.{{ cmd.snake_name }}_command import {{ cmd.class_name }}Command
 
 
 class {{ cmd.class_name }}CommandHandler:
-    async def __call__(self, command: {{ cmd.class_name }}Command) -> typing.Any:
+    async def __call__(self, session: ISession, command: {{ cmd.class_name }}Command) -> None:
         raise NotImplementedError  # TODO: implement
