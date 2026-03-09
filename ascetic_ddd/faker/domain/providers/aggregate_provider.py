@@ -63,59 +63,58 @@ class AggregateProvider(
         super().require(criteria)
 
     async def create(self, session: ISession) -> AggOutputT:
-        if self._output.is_some():
-            return typing.cast(AggOutputT, self._output.unwrap())
-        output = await self._default_factory(session)
-        await self._repository.insert(session, output)
-        state = self._output_exporter(output)
-        id_value = state.get(self._id_attr)
-        self.id_provider.require(dict_to_query(id_value))
-        await self.id_provider.populate(session)
-        # Auto-increment PK uses DummyDistributor which doesn't store values,
-        # so append() is no-op. For composite PK with weighted distributor,
-        # append() would add the new PK to the pool. Currently not needed
-        # since PK providers don't use distribution-based distributors.
-        # Note: ReferenceProvider observers listen to repository events
-        # (via SubscriptionAggregateProviderAccessor), not to distributor.append().
-        # await self.id_provider.append(session, getattr(result, self._id_attr))
-
-        # self.require() could reset self._output
-        self._set_output(output)
-
-        # Create dependent entities AFTER this aggregate is created (they need its ID for FK)
-        if self.dependent_providers:
-            dependency_id = self.id_provider.state()
-            for attr, dep_provider in self.dependent_providers.items():
-                dep_provider.set_dependency_id(dependency_id)
-                await dep_provider.populate(session)
-                await dep_provider.create(session)
-
-        return output
-
-    async def populate(self, session: ISession) -> None:
         # Prevent diamond problem (cycles in FK)
         # See also https://github.com/mikeboers/C3Linearize
-        if self.is_complete():
-            return
+        if self._output.is_nothing():
 
-        await self.id_provider.populate(session)
-        if self.id_provider.is_complete() and not self.id_provider.is_transient():
-            # id_ may still be unknown here, since the aggregate has not been created yet.
-            # But it may also be known, if its id_ came from a ReferenceProvider.
-            # Skip repository lookup if id contains empty fields (auto-increment PKs)
-            id_ = await self.id_provider.create(session)
-            output = await self._repository.get(session, id_)
-            if output is not None:
-                input_ = self._output_exporter(output)
-                self._set_input(input_)
-                for attr, provider in self.providers.items():
-                    await provider.populate(session)
-                self._set_output(output)
-                return
+            await self.id_provider.populate(session)
+            if self.id_provider.is_complete() and not self.id_provider.is_transient():
+                # id_ may still be unknown here, since the aggregate has not been created yet.
+                # But it may also be known, if its id_ came from a ReferenceProvider.
+                # Skip repository lookup if id contains empty fields (auto-increment PKs)
+                id_ = await self.id_provider.create(session)
+                output = await self._repository.get(session, id_)
+                if output is not None:
+                    input_ = self._output_exporter(output)
+                    self._set_input(input_)
+                    for attr, provider in self.providers.items():
+                        await provider.populate(session)
+                    self._set_output(output)
+                    return typing.cast(AggOutputT, self._output.unwrap())
 
-        await self.do_populate(session)
-        for attr, provider in self.providers.items():
-            await provider.populate(session)
+            await self.do_populate(session)
+            for attr, provider in self.providers.items():
+                await provider.populate(session)
+
+            output = await self._default_factory(session)
+            await self._repository.insert(session, output)
+            state = self._output_exporter(output)
+            id_value = state.get(self._id_attr)
+            self.id_provider.require(dict_to_query(id_value))
+            await self.id_provider.populate(session)
+            # Auto-increment PK uses DummyDistributor which doesn't store values,
+            # so append() is no-op. For composite PK with weighted distributor,
+            # append() would add the new PK to the pool. Currently not needed
+            # since PK providers don't use distribution-based distributors.
+            # Note: ReferenceProvider observers listen to repository events
+            # (via SubscriptionAggregateProviderAccessor), not to distributor.append().
+            # await self.id_provider.append(session, getattr(result, self._id_attr))
+
+            # self.require() could reset self._output
+            self._set_output(output)
+
+            # Create dependent entities AFTER this aggregate is created (they need its ID for FK)
+            if self.dependent_providers:
+                dependency_id = self.id_provider.state()
+                for attr, dep_provider in self.dependent_providers.items():
+                    dep_provider.set_dependency_id(dependency_id)
+                    await dep_provider.populate(session)
+                    await dep_provider.create(session)
+
+        return typing.cast(AggOutputT, self._output.unwrap())
+
+    async def populate(self, session: ISession) -> None:
+        await self.create(session)
 
     async def do_populate(self, session: ISession) -> None:
         pass
