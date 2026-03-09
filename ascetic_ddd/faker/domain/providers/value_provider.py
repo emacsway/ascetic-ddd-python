@@ -82,6 +82,7 @@ class ValueProvider(
 
             self._output_exporter = output_exporter
 
+        self._specification_factory = specification_factory
         super().__init__(distributor=distributor)
 
     async def populate(self, session: ISession) -> None:
@@ -94,7 +95,7 @@ class ValueProvider(
                 # await cursor.append(session, self._output.unwrap())
             else:
                 if self._criteria is not None:
-                    specification = self._specification_factory(self._criteria)
+                    specification = self._specification_factory(self._criteria, self.export)
                 else:
                     specification = EmptySpecification()
                 specification = EmptySpecification()  # FIXE: check how it works
