@@ -35,21 +35,15 @@ class EntityProvider(
             output_exporter=output_exporter,
         )
 
-    async def create(self, session: ISession) -> EntOutputT:
-        if self._output.is_nothing():
-            self._set_output(await self._default_factory(session))
-        return typing.cast(EntOutputT, self._output.unwrap())
-
     @property
     def id_provider(self):
         return getattr(self, self._id_attr)
 
     async def populate(self, session: ISession) -> None:
-        if self.is_complete():
-            return
-        await self.do_populate(session)
-        for attr, provider in self.providers.items():
-            await provider.populate(session)
+        if not self.is_complete():
+            await self.do_populate(session)
+            for attr, provider in self.providers.items():
+                await provider.populate(session)
 
     async def do_populate(self, session: ISession) -> None:
         pass
