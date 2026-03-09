@@ -812,7 +812,7 @@ class ReferenceProviderAutoIncrementMultiLevelTestCase(IsolatedAsyncioTestCase):
         resume_provider1.provider_name = 'resume1'
 
         # Pre-populate with existing user reference
-        resume_provider1.user_id._distributor._values.append(user1)
+        resume_provider1.user_id._distributor._values.append(user1.id)
         resume_provider1.user_id._distributor._raise_cursor_at = None
 
         await resume_provider1.populate(session)
@@ -891,7 +891,7 @@ class ReferenceProviderPresetPKBasicTestCase(IsolatedAsyncioTestCase):
         user_provider.provider_name = 'user'
 
         # Pre-populate distributor with existing tenant
-        user_provider.tenant_id._distributor._values.append(existing_tenant)
+        user_provider.tenant_id._distributor._values.append(existing_tenant.id)
         user_provider.tenant_id._distributor._raise_cursor_at = None
 
         await user_provider.populate(session)
