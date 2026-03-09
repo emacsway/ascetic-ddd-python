@@ -190,6 +190,9 @@ class MockReferenceProvider(IReferenceProvider):
     def output(self):
         return self._output
 
+    def export(self, output):
+        return output
+
     async def append(self, session, value):
         pass
 
