@@ -9,7 +9,7 @@ from ascetic_ddd.faker.domain.providers._mixins import (
 )
 from ascetic_ddd.signals.interfaces import ISyncSignal
 from ascetic_ddd.signals.signal import SyncSignal
-from ascetic_ddd.faker.domain.providers.events import DependentCriteriaRequiredEvent, InputPopulatedEvent
+from ascetic_ddd.faker.domain.providers.events import DependentCriteriaRequiredEvent, OutputPopulatedEvent
 from ascetic_ddd.faker.domain.providers.interfaces import (
     IDependentProvider, ICloningShunt, ISetupable,
     IAggregateProvider,
@@ -123,7 +123,7 @@ class DependentProvider(
         self._value_selector = None
         self._dependency_id = None
         self._on_required = SyncSignal[DependentCriteriaRequiredEvent]()
-        self._on_populated = SyncSignal[InputPopulatedEvent]()
+        self._on_populated = SyncSignal[OutputPopulatedEvent]()
         super()._do_init()
 
     @property
@@ -131,7 +131,7 @@ class DependentProvider(
         return self._on_required
 
     @property
-    def on_populated(self) -> ISyncSignal[InputPopulatedEvent]:
+    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent]:
         # DependentProvider doesn't use input signal, but interface requires it
         return self._on_populated
 

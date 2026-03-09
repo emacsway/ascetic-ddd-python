@@ -9,7 +9,7 @@ from ascetic_ddd.signals.interfaces import ISyncSignal, IAsyncSignal
 from ascetic_ddd.faker.domain.providers.events import (
     CriteriaRequiredEvent,
     DependentCriteriaRequiredEvent,
-    InputPopulatedEvent,
+    OutputPopulatedEvent,
     AggregateInsertedEvent,
     AggregateUpdatedEvent,
 )
@@ -126,7 +126,7 @@ class IInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def on_populated(self) -> ISyncSignal[InputPopulatedEvent[InputT]]:
+    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent[InputT]]:
         raise NotImplementedError
 
     @abstractmethod
@@ -267,7 +267,7 @@ class IDependentInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def on_populated(self) -> ISyncSignal[InputPopulatedEvent[list[InputT]]]:
+    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent[list[InputT]]]:
         raise NotImplementedError
 
     @abstractmethod

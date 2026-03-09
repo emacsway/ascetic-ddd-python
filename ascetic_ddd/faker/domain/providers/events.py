@@ -35,5 +35,5 @@ class DependentCriteriaRequiredEvent:
 
 
 @dataclasses.dataclass(frozen=True)
-class InputPopulatedEvent(typing.Generic[T]):
-    input: T
+class OutputPopulatedEvent(typing.Generic[T]):
+    output: T

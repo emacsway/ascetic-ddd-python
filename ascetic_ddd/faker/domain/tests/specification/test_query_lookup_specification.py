@@ -19,7 +19,7 @@ from ascetic_ddd.faker.domain.specification.query_lookup_specification import (
 from ascetic_ddd.faker.infrastructure.repositories.in_memory_repository import InMemoryRepository
 from ascetic_ddd.signals.signal import AsyncSignal, SyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
-from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, InputPopulatedEvent
+from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, OutputPopulatedEvent
 
 
 # =============================================================================
@@ -151,7 +151,7 @@ class MockReferenceProvider(IReferenceProvider):
         self._output_defined = False
         self._provider_name = None
         self._on_required = SyncSignal[CriteriaRequiredEvent]()
-        self._on_populated = SyncSignal[InputPopulatedEvent]()
+        self._on_populated = SyncSignal[OutputPopulatedEvent]()
 
     # Signal properties
     @property
