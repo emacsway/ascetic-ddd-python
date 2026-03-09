@@ -259,7 +259,7 @@ class DependentProvider(
         return [provider.id_provider.state() for provider in self.aggregate_providers]
 
     def export(self, output: IdOutputT) -> IdInputT:
-        return self._aggregate_providers_accessor._template_provider.id_provider.export(output)
+        return self._aggregate_providers_accessor._template_provider.id_provider.export(output)  # type: ignore[attr-defined]
 
     def is_complete(self) -> bool:
         return self._outputs_defined
