@@ -23,11 +23,17 @@ class IObjectResolver(metaclass=ABCMeta):
     async def resolve(
             self,
             session: typing.Any,
-            field: str,
+            field: str | None,
             fk_value: typing.Any
     ) -> tuple[dict | None, 'IObjectResolver | None']:
         """
         Resolve a relation field to foreign object state.
+
+        Args:
+            session: Current session.
+            field: Field name for field-level resolution,
+                or None for top-level resolution (resolve the root aggregate).
+            fk_value: Foreign key value to resolve.
 
         Returns (foreign_state_dict, nested_resolver) if found,
         (None, None) if field is not a relation or object not found.
@@ -110,8 +116,11 @@ class EvaluateWalker:
             return await self._evaluate_composite(session, query, state)
 
         if isinstance(query, RelOperator):
-            if _field_context is not None and self._object_resolver is not None:
-                field, fk_value = _field_context
+            if self._object_resolver is not None:
+                if _field_context is not None:
+                    field, fk_value = _field_context
+                else:
+                    field, fk_value = None, state
                 foreign_state, nested_resolver = await self._object_resolver.resolve(
                     session, field, fk_value
                 )
@@ -119,7 +128,7 @@ class EvaluateWalker:
                     return False
                 nested = EvaluateWalker(nested_resolver)
                 return await nested.evaluate(session, query.query, foreign_state)
-            # RelOperator without field context — delegate to inner query
+            # No resolver — delegate to inner query
             return await self.evaluate(session, query.query, state)
 
         return False
@@ -387,8 +396,11 @@ class EvaluateVisitor(IQueryVisitor[typing.Awaitable[bool]]):
         return False
 
     async def visit_rel(self, op: RelOperator) -> bool:
-        if self._field_context is not None and self._object_resolver is not None:
-            field, fk_value = self._field_context
+        if self._object_resolver is not None:
+            if self._field_context is not None:
+                field, fk_value = self._field_context
+            else:
+                field, fk_value = None, self._state
             foreign_state, nested_resolver = await self._object_resolver.resolve(
                 self._session, field, fk_value
             )
@@ -396,7 +408,7 @@ class EvaluateVisitor(IQueryVisitor[typing.Awaitable[bool]]):
                 return False
             nested = self._with_state(foreign_state, object_resolver=nested_resolver)
             return await op.query.accept(nested)
-        # RelOperator without field context — delegate to inner query
+        # No resolver — delegate to inner query
         return await op.query.accept(self)
 
     async def visit_composite(self, op: CompositeQuery) -> bool:

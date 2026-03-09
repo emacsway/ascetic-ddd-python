@@ -23,19 +23,23 @@ class ProviderObjectResolver(IObjectResolver):
     async def resolve(
             self,
             session: typing.Any,
-            field: str,
+            field: str | None,
             fk_value: typing.Any
     ) -> tuple[dict | None, 'IObjectResolver | None']:
-        aggregate_provider = self._aggregate_provider_accessor()
-        provider = aggregate_provider.providers.get(field)
-
-        if not isinstance(provider, IReferenceProvider):
-            return None, None
 
         if fk_value is None:
             return None, None
 
-        related_provider = provider.aggregate_provider
+        aggregate_provider = self._aggregate_provider_accessor()
+
+        if field is None:
+            related_provider = aggregate_provider
+        else:
+            provider = aggregate_provider.providers.get(field)
+            if not isinstance(provider, IReferenceProvider):
+                return None, None
+            related_provider = provider.aggregate_provider
+
         obj = await related_provider.repository.get(session, fk_value)
 
         if obj is None:

@@ -39,12 +39,15 @@ class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
         )
         # One index for all objects with active fk
         # is_satisfied_by() checks fk.status == 'active' via lookup
+
+    object_exporter converts distributor object to state for matching.
+    aggregate_provider_accessor enables $rel resolution via EvaluateWalker.
     """
 
     _query: IQueryOperator
     _hash: int | None
     _str: str | None
-    _object_exporter: typing.Callable[[T], dict]
+    _object_exporter: typing.Callable[[T], typing.Any]
     _aggregate_provider_accessor: typing.Callable[[], typing.Any] | None
 
     __slots__ = (
@@ -58,7 +61,7 @@ class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
     def __init__(
             self,
             query: IQueryOperator,
-            object_exporter: typing.Callable[[T], dict],
+            object_exporter: typing.Callable[[T], typing.Any],
             aggregate_provider_accessor: typing.Callable[[], typing.Any] | None = None,
     ):
         self._query = query
@@ -85,7 +88,9 @@ class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
     async def is_satisfied_by(self, session: ISession, obj: T) -> bool:
         """Check if object satisfies the query."""
         state = self._object_exporter(obj)
-        resolver = ProviderObjectResolver(self._aggregate_provider_accessor) if self._aggregate_provider_accessor else None
+        resolver: ProviderObjectResolver | None = (
+            ProviderObjectResolver(self._aggregate_provider_accessor) if self._aggregate_provider_accessor else None
+        )
         walker = EvaluateWalker(resolver)
         return await walker.evaluate(session, self._query, state)
 
