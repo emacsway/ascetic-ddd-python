@@ -25,7 +25,7 @@ class MockSession:
 class StubObjectResolver(IObjectResolver):
     """Test stub: resolves field names to foreign object state via a dict."""
 
-    def __init__(self, relations: dict[str, tuple[dict, 'StubObjectResolver | None']]):
+    def __init__(self, relations: dict[str | None, tuple[dict, 'StubObjectResolver | None']]):
         # relations: {field: (storage_dict, nested_resolver)}
         # storage_dict: {fk_value: state_dict}
         self._relations = relations
@@ -1598,6 +1598,196 @@ class EvaluateVisitorLenTestCase(IsolatedAsyncioTestCase):
         op = LenOperator(EqOperator(0))
         result = await op.accept(evaluator)
         self.assertTrue(result)
+
+
+class EvaluateWalkerRootAndThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
+    """Root-level $rel + Three-table cascade: ID -> Employee -> Company -> Country.
+
+    Simulates ReferenceProvider distributor scenario where distributor stores IDs
+    and top-level $rel resolves ID -> aggregate via resolver(field=None).
+    """
+
+    def setUp(self):
+        self.session = MockSession()
+
+        # Country storage
+        self.country_storage = {
+            'US': {'id': 'US', 'code': 'US', 'continent': 'America'},
+            'UK': {'id': 'UK', 'code': 'UK', 'continent': 'Europe'},
+            'JP': {'id': 'JP', 'code': 'JP', 'continent': 'Asia'},
+        }
+
+        # Company storage
+        self.company_storage = {
+            1: {
+                'id': 1, 'country_id': 'US', 'name': 'Acme',
+                'type': 'tech', 'revenue': 2000000,
+            },
+            2: {
+                'id': 2, 'country_id': 'UK', 'name': 'BritCo',
+                'type': 'finance', 'revenue': 500000,
+            },
+            3: {
+                'id': 3, 'country_id': 'JP', 'name': 'TokyoTech',
+                'type': 'tech', 'revenue': 800000,
+            },
+        }
+
+        # Employee storage (resolved by field=None at root level)
+        self.employee_storage = {
+            1: {
+                'id': 1, 'company_id': 1, 'name': 'John',
+                'age': 30, 'status': 'active',
+            },
+            2: {
+                'id': 2, 'company_id': 2, 'name': 'Jane',
+                'age': 25, 'status': 'active',
+            },
+            3: {
+                'id': 3, 'company_id': 3, 'name': 'Yuki',
+                'age': 28, 'status': 'active',
+            },
+            5: {
+                'id': 5, 'company_id': 999, 'name': 'Ghost',
+                'age': 0, 'status': 'unknown',
+            },
+        }
+
+        # Build resolvers (Country has no FK fields)
+        country_resolver = StubObjectResolver({})
+        company_resolver = StubObjectResolver({
+            'country_id': (self.country_storage, country_resolver),
+        })
+        employee_resolver = StubObjectResolver({
+            'company_id': (self.company_storage, company_resolver),
+        })
+        # Root resolver: field=None resolves ID -> employee state
+        self.resolver = StubObjectResolver({
+            None: (self.employee_storage, employee_resolver),
+        })
+        self.walker = EvaluateWalker(self.resolver)
+
+    async def test_root_rel_matches(self):
+        """Top-level $rel should resolve ID -> aggregate and match."""
+        # ID 1 -> John (active) -> Acme (tech) -> US
+        query = RelOperator(CompositeQuery({
+            'name': EqOperator('John'),
+            'status': EqOperator('active'),
+        }))
+
+        self.assertTrue(await self.walker.evaluate(self.session, query, 1))
+
+    async def test_root_rel_not_matches(self):
+        """Top-level $rel should fail when aggregate doesn't match."""
+        query = RelOperator(CompositeQuery({
+            'name': EqOperator('John'),
+        }))
+
+        # ID 2 -> Jane, not John
+        self.assertFalse(await self.walker.evaluate(self.session, query, 2))
+
+    async def test_root_rel_not_found(self):
+        """Top-level $rel should fail when ID not found in storage."""
+        query = RelOperator(CompositeQuery({
+            'name': EqOperator('John'),
+        }))
+
+        # ID 999 -> not in employee_storage
+        self.assertFalse(await self.walker.evaluate(self.session, query, 999))
+
+    async def test_root_rel_with_nested_cascade(self):
+        """Top-level $rel with three-table cascade: ID -> Employee -> Company -> Country."""
+        query = RelOperator(CompositeQuery({
+            'name': EqOperator('John'),
+            'company_id': RelOperator(CompositeQuery({
+                'type': EqOperator('tech'),
+                'country_id': RelOperator(CompositeQuery({
+                    'code': EqOperator('US'),
+                })),
+            })),
+        }))
+
+        # ID 1 -> John -> Acme (tech) -> US — all match
+        self.assertTrue(await self.walker.evaluate(self.session, query, 1))
+
+    async def test_root_rel_cascade_not_matches_middle(self):
+        """Root cascade should fail when middle level doesn't match."""
+        query = RelOperator(CompositeQuery({
+            'company_id': RelOperator(CompositeQuery({
+                'type': EqOperator('tech'),
+            })),
+        }))
+
+        # ID 2 -> Jane -> BritCo (finance) — doesn't match
+        self.assertFalse(await self.walker.evaluate(self.session, query, 2))
+
+    async def test_root_rel_cascade_not_matches_deepest(self):
+        """Root cascade should fail when deepest level doesn't match."""
+        query = RelOperator(CompositeQuery({
+            'company_id': RelOperator(CompositeQuery({
+                'country_id': RelOperator(CompositeQuery({
+                    'code': EqOperator('UK'),
+                })),
+            })),
+        }))
+
+        # ID 1 -> John -> Acme -> US — query asks for UK
+        self.assertFalse(await self.walker.evaluate(self.session, query, 1))
+
+        # ID 2 -> Jane -> BritCo -> UK — matches
+        self.assertTrue(await self.walker.evaluate(self.session, query, 2))
+
+    async def test_root_rel_or_in_cascade(self):
+        """Root $rel with $or at company level."""
+        query = RelOperator(CompositeQuery({
+            'company_id': RelOperator(CompositeQuery({
+                'country_id': OrOperator((
+                    RelOperator(CompositeQuery({
+                        'code': EqOperator('US'),
+                    })),
+                    RelOperator(CompositeQuery({
+                        'code': EqOperator('UK'),
+                    })),
+                )),
+            })),
+        }))
+
+        # ID 1 -> Acme -> US — matches
+        self.assertTrue(await self.walker.evaluate(self.session, query, 1))
+
+        # ID 2 -> BritCo -> UK — matches
+        self.assertTrue(await self.walker.evaluate(self.session, query, 2))
+
+        # ID 3 -> TokyoTech -> JP — doesn't match
+        self.assertFalse(await self.walker.evaluate(self.session, query, 3))
+
+    async def test_root_rel_with_mixed_operators(self):
+        """Root $rel with mixed operators at each cascade level."""
+        query = RelOperator(CompositeQuery({
+            'name': EqOperator('John'),
+            'age': ComparisonOperator('$gt', 25),
+            'company_id': RelOperator(CompositeQuery({
+                'type': EqOperator('tech'),
+                'revenue': ComparisonOperator('$gte', 1000000),
+                'country_id': RelOperator(CompositeQuery({
+                    'code': EqOperator('US'),
+                })),
+            })),
+        }))
+
+        # ID 1 -> John, age 30, Acme (tech, revenue 2M, US) — all match
+        self.assertTrue(await self.walker.evaluate(self.session, query, 1))
+
+    async def test_root_rel_cascade_company_not_found(self):
+        """Root cascade should fail when FK points to non-existent object."""
+        query = RelOperator(CompositeQuery({
+            'company_id': RelOperator(CompositeQuery({
+                'type': EqOperator('tech'),
+            })),
+        }))
+
+        # ID 5 -> Ghost -> company_id=999 (not found)
+        self.assertFalse(await self.walker.evaluate(self.session, query, 5))
 
 
 if __name__ == '__main__':
