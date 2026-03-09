@@ -270,7 +270,7 @@ class DependentProviderBasicTestCase(IsolatedAsyncioTestCase):
         session = MockSession()
 
         await provider.populate(session)
-        ids = await provider.create(session)
+        ids = provider.create()
 
         self.assertEqual(len(ids), 2)
         self.assertEqual(ids[0].value, 10)
@@ -657,7 +657,7 @@ class DependentProviderAsAggregateMemberTestCase(IsolatedAsyncioTestCase):
 
         Problem: AggregateProvider._default_factory() iterates over _providers
         and calls create() on each, but:
-        1. DependentProvider.create() returns list, not a single value
+        1. DependentProvider.create() returns list of IDs, not a single value
         2. Company dataclass doesn't have 'employees' field
         3. employees need company_id FK, but company might not have ID yet
         """
@@ -675,7 +675,7 @@ class DependentProviderAsAggregateMemberTestCase(IsolatedAsyncioTestCase):
 
         # This should create a company with 3 employees
         await provider.populate(session)
-        company = await provider.create(session)
+        company = provider.output()
 
         # Verify company was created
         self.assertIsInstance(company, Company)

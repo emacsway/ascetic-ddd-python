@@ -432,7 +432,7 @@ class ProviderChangeManagerDiamondTestCase(IsolatedAsyncioTestCase):
         cm = ProviderChangeManager()
         await cm.populate(self.session, self.book_provider)
 
-        book = await self.book_provider.create(self.session)
+        book = self.book_provider.output()
 
         self.assertIsInstance(book, Book)
         self.assertEqual(len(self.tenant_repo._inserted), 1)
@@ -449,8 +449,8 @@ class ProviderChangeManagerDiamondTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(len(self.tenant_repo._inserted), 1)
 
         # Both Author and Publisher reference the same Tenant
-        author = await self.author_provider.create(self.session)
-        publisher = await self.publisher_provider.create(self.session)
+        author = self.author_provider.output()
+        publisher = self.publisher_provider.output()
         self.assertEqual(author.tenant_id, publisher.tenant_id)
 
     async def test_topological_order(self):
@@ -487,7 +487,7 @@ class ProviderChangeManagerLinearChainTestCase(IsolatedAsyncioTestCase):
         cm = ProviderChangeManager()
         await cm.populate(session, author_provider)
 
-        author = await author_provider.create(session)
+        author = author_provider.output()
 
         self.assertIsInstance(author, Author)
         self.assertEqual(len(tenant_repo._inserted), 1)
@@ -507,7 +507,7 @@ class ProviderChangeManagerSingleProviderTestCase(IsolatedAsyncioTestCase):
         cm = ProviderChangeManager()
         await cm.populate(session, tenant_provider)
 
-        tenant = await tenant_provider.create(session)
+        tenant = tenant_provider.output()
 
         self.assertIsInstance(tenant, Tenant)
         self.assertEqual(len(tenant_repo._inserted), 1)

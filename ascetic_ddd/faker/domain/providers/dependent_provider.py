@@ -139,19 +139,19 @@ class DependentProvider(
         """Set dependency's ID to be used for related_field in dependents."""
         self._dependency_id = dependency_id
 
-    async def create(self, session: ISession) -> list[IdOutputT]:
+    def create(self) -> list[IdOutputT]:
         """
         Returns list of IDs of created children.
         """
         if not self._outputs_defined:
             return []
 
-        results = []
+        outputs = []
         for provider in self.aggregate_providers:
             if provider.is_complete():
-                id_result = await provider.id_provider.create(session)
-                results.append(id_result)
-        return results
+                id_output = provider.id_provider.output()
+                outputs.append(id_output)
+        return outputs
 
     async def populate(self, session: ISession) -> None:
         """
@@ -205,7 +205,7 @@ class DependentProvider(
         self._outputs = []
         self._outputs_defined = True
         for provider in providers:
-            result = await provider.create(session)
+            result = provider.output()
             self._outputs.append(result)
 
     def require(self, criteria: list[dict], weights: list[float] | None = None) -> None:

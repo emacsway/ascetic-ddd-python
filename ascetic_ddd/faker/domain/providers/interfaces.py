@@ -112,7 +112,7 @@ class IProvidable(metaclass=ABCMeta):
 
 class IInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
     @abstractmethod
-    async def create(self, session: ISession) -> OutputT:
+    def output(self) -> OutputT:
         raise NotImplementedError
 
     @abstractmethod
@@ -253,7 +253,7 @@ class IReferenceProvider(
 class IDependentInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @abstractmethod
-    async def create(self, session: ISession) -> list[OutputT]:
+    def create(self) -> list[OutputT]:
         raise NotImplementedError
 
     @abstractmethod

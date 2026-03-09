@@ -138,8 +138,8 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(first_result, second_result)
         self.assertEqual(distributor._index, 1)
 
-    async def test_create_returns_output(self):
-        """create() should return the output result."""
+    async def test_output_returns_output(self):
+        """output() should return the output result."""
         distributor = MockDistributor(values=['test_output'])
         generator = AsyncMock()
         session = MockSession()
@@ -151,7 +151,7 @@ class ValueProviderBasicTestCase(IsolatedAsyncioTestCase):
         provider.provider_name = 'test_provider'
 
         await provider.populate(session)
-        result = await provider.create(session)
+        result = provider.output()
 
         self.assertEqual(result, 'test_output')
 

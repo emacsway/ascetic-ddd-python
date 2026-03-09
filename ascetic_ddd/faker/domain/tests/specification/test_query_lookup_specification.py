@@ -187,7 +187,7 @@ class MockReferenceProvider(IReferenceProvider):
     def state(self):
         return self._output
 
-    async def create(self, session):
+    def output(self):
         return self._output
 
     async def append(self, session, value):

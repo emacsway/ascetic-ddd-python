@@ -655,7 +655,7 @@ class ReferenceProviderAutoIncrementBasicTestCase(IsolatedAsyncioTestCase):
         user_provider.provider_name = 'user'
 
         await user_provider.populate(session)
-        user = await user_provider.create(session)
+        user = user_provider.output()
 
         self.assertIsInstance(user, User)
         self.assertIsInstance(user.tenant_id, TenantId)
@@ -674,7 +674,7 @@ class ReferenceProviderAutoIncrementBasicTestCase(IsolatedAsyncioTestCase):
         user_provider.provider_name = 'user'
 
         await user_provider.populate(session)
-        await user_provider.create(session)
+        user_provider.output()
 
         # The actual Tenant aggregate gets auto-increment ID from repository
         tenant = user_provider.tenant_id.aggregate_provider._output.unwrap()
@@ -696,7 +696,7 @@ class ReferenceProviderAutoIncrementBasicTestCase(IsolatedAsyncioTestCase):
         user_provider.provider_name = 'user'
 
         await user_provider.populate(session)
-        await user_provider.create(session)
+        user_provider.output()
 
         # The referenced Tenant aggregate has the auto-incremented ID
         tenant = user_provider.tenant_id.aggregate_provider._output.unwrap()
@@ -748,7 +748,7 @@ class ReferenceProviderAutoIncrementMultiLevelTestCase(IsolatedAsyncioTestCase):
         resume_provider.provider_name = 'resume'
 
         await resume_provider.populate(session)
-        resume = await resume_provider.create(session)
+        resume = resume_provider.output()
 
         # Verify structure
         self.assertIsInstance(resume, Resume)
@@ -776,7 +776,7 @@ class ReferenceProviderAutoIncrementMultiLevelTestCase(IsolatedAsyncioTestCase):
         resume_provider.provider_name = 'resume'
 
         await resume_provider.populate(session)
-        resume = await resume_provider.create(session)
+        resume = resume_provider.output()
 
         # Verify all aggregates were inserted in repositories
         self.assertEqual(len(tenant_repo._inserted), 1)
@@ -806,7 +806,7 @@ class ReferenceProviderAutoIncrementMultiLevelTestCase(IsolatedAsyncioTestCase):
 
         # Create first user and resume
         await user_provider.populate(session)
-        user1 = await user_provider.create(session)
+        user1 = user_provider.output()
 
         resume_provider1 = ResumeProviderAutoIncrement(resume_repo, user_provider)
         resume_provider1.provider_name = 'resume1'
@@ -816,7 +816,7 @@ class ReferenceProviderAutoIncrementMultiLevelTestCase(IsolatedAsyncioTestCase):
         resume_provider1.user_id._distributor._raise_cursor_at = None
 
         await resume_provider1.populate(session)
-        resume1 = await resume_provider1.create(session)
+        resume1 = resume_provider1.output()
 
         # Both should reference same user
         self.assertEqual(resume1.user_id, user1.id)
@@ -844,7 +844,7 @@ class ReferenceProviderPresetPKBasicTestCase(IsolatedAsyncioTestCase):
         user_provider.provider_name = 'user'
 
         await user_provider.populate(session)
-        user = await user_provider.create(session)
+        user = user_provider.output()
 
         self.assertIsInstance(user, User)
         # Preset ID from generator: 100 + position(0)
@@ -867,7 +867,7 @@ class ReferenceProviderPresetPKBasicTestCase(IsolatedAsyncioTestCase):
         resume_provider.provider_name = 'resume'
 
         await resume_provider.populate(session)
-        resume = await resume_provider.create(session)
+        resume = resume_provider.output()
 
         # Verify preset IDs from generators
         self.assertEqual(resume.user_id.tenant_id.value, 100)  # tenant_id_generator
@@ -884,7 +884,7 @@ class ReferenceProviderPresetPKBasicTestCase(IsolatedAsyncioTestCase):
         tenant_provider = TenantProviderPresetPK(tenant_repo)
         tenant_provider.provider_name = 'tenant'
         await tenant_provider.populate(session)
-        existing_tenant = await tenant_provider.create(session)
+        existing_tenant = tenant_provider.output()
 
         # Create user with reference to existing tenant
         user_provider = UserProviderPresetPK(user_repo, tenant_provider)
@@ -895,7 +895,7 @@ class ReferenceProviderPresetPKBasicTestCase(IsolatedAsyncioTestCase):
         user_provider.tenant_id._distributor._raise_cursor_at = None
 
         await user_provider.populate(session)
-        user = await user_provider.create(session)
+        user = user_provider.output()
 
         # Should reuse existing tenant
         self.assertEqual(user.tenant_id, existing_tenant.id)
@@ -926,7 +926,7 @@ class ReferenceProviderPresetPKMultiLevelTestCase(IsolatedAsyncioTestCase):
         resume_provider.provider_name = 'resume'
 
         await resume_provider.populate(session)
-        resume = await resume_provider.create(session)
+        resume = resume_provider.output()
 
         # Verify complete structure
         self.assertIsInstance(resume, Resume)

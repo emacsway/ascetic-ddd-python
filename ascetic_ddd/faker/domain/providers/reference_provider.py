@@ -92,10 +92,10 @@ class ReferenceProvider(
                 id_ = agg_state[self._id_attr]
                 self.aggregate_provider.id_provider.require({'$eq': id_})
                 await self.aggregate_provider.populate(session)
-                await self.aggregate_provider.create(session)
+                self.aggregate_provider.output()
                 # self._set_input(self.aggregate_provider.id_provider.state())
                 self._set_input(id_)
-                self._set_output(await self.aggregate_provider.id_provider.create(session))
+                self._set_output(self.aggregate_provider.id_provider.output())
             else:
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
                 # self._criteria = None
@@ -106,11 +106,11 @@ class ReferenceProvider(
                 # Propagate constraints to aggregate_provider (already done in require())
                 pass
             await self.aggregate_provider.populate(session)
-            created_agg = await self.aggregate_provider.create(session)
+            created_agg = self.aggregate_provider.output()
             await cursor.append(session, created_agg)
             self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
-            self._set_output(await self.aggregate_provider.id_provider.create(session))
+            self._set_output(self.aggregate_provider.id_provider.output())
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """

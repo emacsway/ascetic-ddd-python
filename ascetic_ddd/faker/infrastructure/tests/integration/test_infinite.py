@@ -438,7 +438,7 @@ class ThirdModelFaker(AggregateProvider[dict, ThirdModel, dict, ThirdModelPk]):
 
     async def do_populate(self, session: ISession) -> None:
         await self.id.populate(session)
-        id_ = await self.id.create(session)
+        id_ = self.id.output()
         self.second_model_id.require({'$rel': {'id': {'first_model_id': {'$eq': id_.first_model_id}}}})
         self.parent_id.require({'$rel': {'id': {'first_model_id': {'$eq': id_.first_model_id}}}})
 
@@ -496,7 +496,7 @@ class RestPgIntegrationTestCase(IsolatedAsyncioTestCase):
             async with session.atomic() as ts_session:
                 await faker.setup(ts_session)
                 await faker.populate(ts_session)
-                agg = await faker.create(ts_session)
+                agg = faker.output()
                 self.assertIsInstance(agg.id, uuid.UUID)
                 await faker.cleanup(ts_session)
 
@@ -505,11 +505,11 @@ class RestPgIntegrationTestCase(IsolatedAsyncioTestCase):
         async with self.session_pool.session() as session, session.atomic() as ts_session:
             await faker.setup(ts_session)
             await faker.populate(ts_session)
-            agg = await faker.create(ts_session)
+            agg = faker.output()
             self.assertIsInstance(agg.id.id, uuid.UUID)
             self.assertIsInstance(agg.id.first_model_id, uuid.UUID)
 
-            id_ = await faker.id_provider.create(ts_session)
+            id_ = faker.id_provider.output()
             self.assertEqual(id_, agg.id)
             await faker.cleanup(ts_session)
 
@@ -518,18 +518,18 @@ class RestPgIntegrationTestCase(IsolatedAsyncioTestCase):
         async with self.session_pool.session() as session, session.atomic() as ts_session:
             await faker.setup(ts_session)
             await faker.populate(ts_session)
-            agg = await faker.create(ts_session)
+            agg = faker.output()
             self.assertIsInstance(agg.id.id, uuid.UUID)
             self.assertIsInstance(agg.id.first_model_id, uuid.UUID)
 
-            id_ = await faker.id_provider.create(ts_session)
+            id_ = faker.id_provider.output()
             self.assertEqual(id_, agg.id)
 
             if agg.second_model_id is not None:
                 self.assertIsInstance(agg.second_model_id.id, uuid.UUID)
                 self.assertIsInstance(agg.second_model_id.first_model_id, uuid.UUID)
 
-            second_model_id = await faker.second_model_id.create(ts_session)
+            second_model_id = faker.second_model_id.output()
             self.assertEqual(second_model_id, agg.second_model_id)
             await faker.cleanup(ts_session)
 
@@ -548,22 +548,22 @@ class RestPgIntegrationTestCase(IsolatedAsyncioTestCase):
             await faker.setup(ts_session)
             for _ in range(1000):
                 await faker.populate(ts_session)
-                agg = await faker.create(ts_session)
+                agg = faker.output()
                 third_model_aggs.append(agg)
                 if agg.second_model_id is not None:
-                    second_model_agg = await faker.second_model_id.aggregate_provider.create(ts_session)
+                    second_model_agg = faker.second_model_id.aggregate_provider.output()
                     second_model_aggs[second_model_agg.id] = second_model_agg
                 self.assertIsInstance(agg.id.id, uuid.UUID)
                 self.assertIsInstance(agg.id.first_model_id, uuid.UUID)
 
-                id_ = await faker.id_provider.create(ts_session)
+                id_ = faker.id_provider.output()
                 self.assertEqual(id_, agg.id)
 
                 if agg.second_model_id is not None:
                     self.assertIsInstance(agg.second_model_id.id, uuid.UUID)
                     self.assertIsInstance(agg.second_model_id.first_model_id, uuid.UUID)
 
-                second_model_id = await faker.second_model_id.create(ts_session)
+                second_model_id = faker.second_model_id.output()
                 self.assertEqual(second_model_id, agg.second_model_id)
 
                 faker.reset()

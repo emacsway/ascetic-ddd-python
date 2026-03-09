@@ -169,9 +169,9 @@ class BaseProvider(
             self._output = Nothing()
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
-    async def create(self, session: ISession) -> OutputT:
+    def output(self) -> OutputT:
         if self._output.is_nothing():
-            raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
+            raise RuntimeError("Provider '%s' has no output. Call populate() before output()." % self.provider_name)
         return typing.cast(OutputT, self._output.unwrap())
 
     def state(self) -> InputT:
@@ -342,9 +342,9 @@ class BaseCompositeProvider(
             provider.require({'$eq': val})
         self._on_populated.notify(InputPopulatedEvent(input_))
 
-    async def create(self, session: ISession) -> CompositeOutputT:
+    def output(self) -> CompositeOutputT:
         if self._output.is_nothing():
-            raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
+            raise RuntimeError("Provider '%s' has no output. Call populate() before output()." % self.provider_name)
         return typing.cast(CompositeOutputT, self._output.unwrap())
 
     def state(self) -> CompositeInputT:
@@ -361,7 +361,7 @@ class BaseCompositeProvider(
     async def _default_factory(self, session: ISession, position: typing.Optional[int] = None):
         data = dict()
         for attr, provider in self.providers.items():
-            data[attr] = await provider.create(session)
+            data[attr] = provider.output()
         return self._output_factory(**data)
 
     def _set_output(self, output: CompositeOutputT | None):

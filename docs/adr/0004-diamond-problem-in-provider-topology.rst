@@ -38,9 +38,9 @@ Step-by-step reproduction
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 1. ``ThirdModelPkFaker.first_model_id`` populate triggers ``Cursor`` ->
-   ``FirstModelFaker.create()`` -> generates ``UUID_A`` ->
+   ``FirstModelFaker.output()`` -> generates ``UUID_A`` ->
    ``id_provider.require(UUID_A)`` -> ``_output = aggregate``.
-   Note: ``create()`` sets ``_criteria`` only on ``id_provider``,
+   Note: ``populate()`` sets ``_criteria`` only on ``id_provider``,
    **not** on ``FirstModelFaker`` itself. So ``FirstModelFaker._criteria``
    remains ``None``.
 
@@ -62,14 +62,14 @@ Step-by-step reproduction
    -> ``_output = empty``.
 
 4. ``SecondModelPkFaker.first_model_id`` populate triggers ``Cursor`` ->
-   ``FirstModelFaker.create()`` -> ``_output is empty`` -> creates a
+   ``FirstModelFaker.output()`` -> ``_output is empty`` -> creates a
    **new** aggregate -> ``UUID_B`` -> ``id_provider.require(UUID_B)``
    -> **conflict** with ``UUID_A``.
 
 Root cause
 ^^^^^^^^^^
 
-``create()`` does not synchronize ``self._criteria`` with the actually created
+``populate()`` does not synchronize ``self._criteria`` with the actually created
 state. A subsequent ``require()`` from path 2 with the same value treats it as
 a new criterion and resets ``_output``.
 

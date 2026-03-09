@@ -72,7 +72,7 @@ class AggregateProvider(
                 # id_ may still be unknown here, since the aggregate has not been created yet.
                 # But it may also be known, if its id_ came from a ReferenceProvider.
                 # Skip repository lookup if id contains empty fields (auto-increment PKs)
-                id_ = await self.id_provider.create(session)
+                id_ = self.id_provider.output()
                 output = await self._repository.get(session, id_)
                 if output is not None:
                     input_ = self._output_exporter(output)
@@ -109,7 +109,7 @@ class AggregateProvider(
                 for attr, dep_provider in self.dependent_providers.items():
                     dep_provider.set_dependency_id(dependency_id)
                     await dep_provider.populate(session)
-                    await dep_provider.create(session)
+                    dep_provider.create()
 
     async def do_populate(self, session: ISession) -> None:
         pass

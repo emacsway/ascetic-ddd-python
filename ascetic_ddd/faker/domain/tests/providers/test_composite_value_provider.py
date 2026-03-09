@@ -209,7 +209,7 @@ class CompositeValueProviderLevel2TestCase(IsolatedAsyncioTestCase):
         await provider.populate(session)
 
         self.assertTrue(provider.is_complete())
-        result = await provider.create(session)
+        result = provider.output()
         self.assertIsInstance(result, UserId)
         self.assertIsInstance(result.tenant_id, TenantId)
         self.assertIsInstance(result.internal_user_id, InternalUserId)
@@ -269,7 +269,7 @@ class CompositeValueProviderLevel2TestCase(IsolatedAsyncioTestCase):
 
         await provider.populate(session)
 
-        result = await provider.create(session)
+        result = provider.output()
         self.assertEqual(result, existing)
 
 
@@ -286,7 +286,7 @@ class CompositeValueProviderLevel3TestCase(IsolatedAsyncioTestCase):
         await provider.populate(session)
 
         self.assertTrue(provider.is_complete())
-        result = await provider.create(session)
+        result = provider.output()
         self.assertIsInstance(result, ResumeId)
         self.assertIsInstance(result.user_id, UserId)
         self.assertIsInstance(result.user_id.tenant_id, TenantId)
@@ -365,7 +365,7 @@ class CompositeValueProviderLevel3TestCase(IsolatedAsyncioTestCase):
 
         await provider.populate(session)
 
-        result = await provider.create(session)
+        result = provider.output()
         self.assertEqual(result, existing)
 
 

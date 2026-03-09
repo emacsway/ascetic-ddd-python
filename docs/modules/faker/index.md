@@ -495,7 +495,7 @@ async def generate_data():
         with session_pool.session() as session, session.atomic() as ts_session:
             book_provider.reset()
             await book_provider.populate(ts_session)
-            book = await book_provider.create(ts_session)
+            book = book_provider.output()
             print(f"Created: {book._title} by {book._author_id}")
 ```
 
