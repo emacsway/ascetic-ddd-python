@@ -21,25 +21,23 @@ class ProviderRelationResolver(IRelationResolver):
     def __init__(self, aggregate_provider_accessor: typing.Callable[[], typing.Any]):
         self._aggregate_provider_accessor = aggregate_provider_accessor
 
-    def resolve(self, field: str) -> RelationInfo | None:
+    def resolve(self, field: str | None) -> RelationInfo | None:
         aggregate_provider = self._aggregate_provider_accessor()
-        provider = aggregate_provider.providers.get(field)
 
-        if not isinstance(provider, IReferenceProvider):
+        if field is None:
+            # Top-level: resolve the root aggregate directly
+            related_provider = aggregate_provider
+        else:
+            provider = aggregate_provider.providers.get(field)
+            if not isinstance(provider, IReferenceProvider):
+                return None
+            related_provider = provider.aggregate_provider
+
+        if not hasattr(related_provider, 'repository'):
             return None
-
-        related_provider = provider.aggregate_provider
-
-        if not hasattr(related_provider, '_repository'):
-            return None
-
-        related_table = related_provider.repository.table
-        pk_field = 'value_id'
-
-        nested_resolver = ProviderRelationResolver(lambda: related_provider)
 
         return RelationInfo(
-            table=related_table,
-            pk_field=pk_field,
-            nested_resolver=nested_resolver,
+            table=related_provider.repository.table,
+            pk_field='value_id',
+            nested_resolver=ProviderRelationResolver(lambda: related_provider),
         )

@@ -12,11 +12,11 @@ from ascetic_ddd.faker.infrastructure.query.pg_query_compiler import PgQueryComp
 class StubRelationResolver(IRelationResolver):
     """Test stub: resolves field names to table/pk info via a dict."""
 
-    def __init__(self, relations: dict[str, tuple[str, str, 'StubRelationResolver | None']]):
+    def __init__(self, relations: dict[str | None, tuple[str, str, 'StubRelationResolver | None']]):
         # relations: {field: (table, pk_field, nested_resolver)}
         self._relations = relations
 
-    def resolve(self, field: str) -> RelationInfo | None:
+    def resolve(self, field: str | None) -> RelationInfo | None:
         info = self._relations.get(field)
         if info is None:
             return None

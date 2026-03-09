@@ -47,9 +47,13 @@ class IRelationResolver(metaclass=ABCMeta):
     """Resolves a field name to relation metadata for SQL compilation."""
 
     @abstractmethod
-    def resolve(self, field: str) -> RelationInfo | None:
+    def resolve(self, field: str | None) -> RelationInfo | None:
         """
         Resolve field to relation info.
+
+        Args:
+            field: Field name for field-level resolution,
+                or None for top-level resolution (resolve the root aggregate).
 
         Returns RelationInfo if field is a reference (FK) to another aggregate,
         None if field is a regular (non-reference) field.
@@ -263,9 +267,9 @@ class PgQueryCompiler(IQueryVisitor[None]):
             )
         if self._field_path:
             field = self._field_path.pop()
-            self._compile_rel_field(field, op)
         else:
-            op.query.accept(self)
+            field = None
+        self._compile_rel_field(field, op)
 
     # --- Eq collection ---
 
@@ -282,7 +286,7 @@ class PgQueryCompiler(IQueryVisitor[None]):
 
     # --- $rel compilation ---
 
-    def _compile_rel_field(self, field: str, op: RelOperator) -> None:
+    def _compile_rel_field(self, field: str | None, op: RelOperator) -> None:
         if self._relation_resolver is None:
             raise TypeError(
                 "Cannot compile $rel without relation_resolver."
@@ -292,7 +296,7 @@ class PgQueryCompiler(IQueryVisitor[None]):
 
         if relation_info is not None:
             self._build_exists_subquery(field, op, relation_info)
-        else:
+        elif field is not None:
             nested = self._to_dict(op.query)
             if nested is not None:
                 self._sql_parts.append(f"{self._target_value_expr} @> %s")
@@ -300,7 +304,7 @@ class PgQueryCompiler(IQueryVisitor[None]):
 
     def _build_exists_subquery(
         self,
-        field: str,
+        field: str | None,
         op: RelOperator,
         relation_info: typing.Any,
     ) -> None:
@@ -315,10 +319,15 @@ class PgQueryCompiler(IQueryVisitor[None]):
         nested_compiler._flush_eq()
 
         if nested_compiler.sql:
+            if field is not None:
+                join_expr = f"{self._target_value_expr}->'{field}'"
+            else:
+                # Top-level: distributor stores IDs, match against value_id directly
+                join_expr = self._target_value_expr
             sql = (
                 f"EXISTS (SELECT 1 FROM {relation_info.table} {alias} "
                 f"WHERE {nested_compiler.sql} AND "
-                f"{alias}.{relation_info.pk_field} = {self._target_value_expr}->'{field}')"
+                f"{alias}.{relation_info.pk_field} = {join_expr})"
             )
             self._sql_parts.append(sql)
             self._params.extend(nested_compiler.params)
