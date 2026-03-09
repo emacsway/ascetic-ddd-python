@@ -43,7 +43,6 @@ class CompositeValueProvider(
         "Σx" means composition of "x",
         "⊆" means subset of a composition.
     """
-    _output_exporter: typing.Callable[[CompositeOutputT], CompositeInputT] = None  # type: ignore[assignment]
     _specification_factory: typing.Callable[..., ISpecification]
 
     def __init__(
@@ -56,16 +55,12 @@ class CompositeValueProvider(
         if distributor is None:
             distributor = DummyDistributor()
 
-        if self._output_exporter is None:
-            if output_exporter is None:
-
-                def output_exporter(value):
-                    return value
-
-            self._output_exporter = output_exporter
-
         self._specification_factory = specification_factory
-        super().__init__(distributor=distributor, output_factory=output_factory)
+        super().__init__(
+            distributor=distributor,
+            output_factory=output_factory,
+            output_exporter=output_exporter,
+        )
 
     async def create(self, session: ISession) -> CompositeOutputT:
         if self._output.is_nothing():

@@ -238,7 +238,9 @@ class BaseCompositeProvider(
 
     _criteria: IQueryOperator | None = None
     _output: Option[CompositeOutputT | None]
-    _output_factory: typing.Callable[..., CompositeOutputT] = None  # type: ignore[assignment]  # CompositeOutputT of each nested Provider.
+    # CompositeOutputT of each nested Provider.
+    _output_factory: typing.Callable[..., CompositeOutputT] = None  # type: ignore[assignment]
+    _output_exporter: typing.Callable[[CompositeOutputT], CompositeInputT] = None  # type: ignore[assignment]
     _provider_name: str | None = None
     _on_required: ISyncSignal[CriteriaRequiredEvent]
     _on_populated: ISyncSignal[InputPopulatedEvent]
@@ -246,6 +248,7 @@ class BaseCompositeProvider(
     def __init__(
             self,
             output_factory: typing.Callable[..., OutputT] | None = None,
+            output_exporter: typing.Callable[[CompositeOutputT], CompositeInputT] | None = None,
     ):
 
         if self._output_factory is None:
@@ -255,6 +258,15 @@ class BaseCompositeProvider(
                     return kwargs
 
             self._output_factory = output_factory  # pyright: ignore[reportAttributeAccessIssue]
+
+        if self._output_exporter is None:
+            if output_exporter is None:
+
+                def output_exporter(value):
+                    return value
+
+            self._output_exporter = output_exporter
+
         super().__init__()
 
     def _do_init(self):
@@ -439,9 +451,13 @@ class BaseCompositeDistributionProvider(
             self,
             distributor: IM2ODistributor[CompositeOutputT],
             output_factory: typing.Callable[..., CompositeOutputT] | None = None,
+            output_exporter: typing.Callable[[CompositeOutputT], CompositeInputT] | None = None,
     ):
         self._distributor = distributor
-        super().__init__(output_factory=output_factory)
+        super().__init__(
+            output_factory=output_factory,
+            output_exporter=output_exporter
+        )
 
     async def append(self, session: ISession, value: CompositeOutputT):
         await self._distributor.append(session, value)

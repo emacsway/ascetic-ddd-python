@@ -28,7 +28,6 @@ class AggregateProvider(
 ):
     _id_attr: str
     _repository: IAggregateRepository[AggOutputT]
-    _output_exporter: typing.Callable[[AggOutputT], AggInputT] = None  # type: ignore[assignment]
 
     def __init__(
             self,
@@ -38,16 +37,10 @@ class AggregateProvider(
             output_exporter: typing.Callable[[AggOutputT], AggInputT] | None = None,
     ):
         self._repository = repository
-
-        if self._output_exporter is None:
-            if output_exporter is None:
-
-                def output_exporter(value):
-                    return value
-
-            self._output_exporter = output_exporter
-
-        super().__init__(output_factory=output_factory)
+        super().__init__(
+            output_factory=output_factory,
+            output_exporter=output_exporter,
+        )
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         new_criteria = parse_query(criteria)

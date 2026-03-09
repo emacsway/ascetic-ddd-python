@@ -23,7 +23,6 @@ class EntityProvider(
     Mutable output - composite Entity. Saved as part of aggregate.
     """
     _id_attr: str
-    _output_exporter: typing.Callable[[EntOutputT], EntInputT] = None  # type: ignore[assignment]
 
     def __init__(
             self,
@@ -31,15 +30,10 @@ class EntityProvider(
             output_exporter: typing.Callable[[EntOutputT], EntInputT] | None = None,
     ):
 
-        if self._output_exporter is None:
-            if output_exporter is None:
-
-                def output_exporter(value):
-                    return value
-
-            self._output_exporter = output_exporter
-
-        super().__init__(output_factory=output_factory)
+        super().__init__(
+            output_factory=output_factory,
+            output_exporter=output_exporter,
+        )
 
     async def create(self, session: ISession) -> EntOutputT:
         if self._output.is_nothing():
