@@ -86,41 +86,38 @@ class ValueProvider(
 
     async def create(self, session: ISession) -> OutputT:
         if self._output.is_nothing():
-            raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
+            if isinstance(self._criteria, EqOperator):
+                # Extract value from EqOperator
+                self._set_input(self._criteria.value)
+            if self._input.is_some():
+                self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
+                # await cursor.append(session, self._output.unwrap())
+            else:
+                if self._criteria is not None:
+                    specification = self._specification_factory(self._criteria)
+                else:
+                    specification = EmptySpecification()
+                specification = EmptySpecification()  # FIXE: check how it works
+
+                try:
+                    # EqOperator would pollute the BaseDistributor index, must not pass it here.
+                    output = (await self._distributor.next(session, specification)).unwrap()
+                    self._set_input(self._output_exporter(output))
+                    self._set_output(output)
+                except ICursor as cursor:
+                    if self._input_generator is None:
+                        self._set_input(None)
+                        self._set_output(self._output_factory(None))
+                        self._is_transient = True
+                    else:
+                        self._set_input(await self._input_generator(session, self._criteria, cursor.position))
+                        self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
+                        await cursor.append(session, self._output.unwrap())
+
         return typing.cast(OutputT, self._output.unwrap())
 
     async def populate(self, session: ISession) -> None:
-        if self.is_complete():
-            return
-
-        if self._criteria is not None:
-            # Extract value from EqOperator
-            self._set_input(self._criteria.value if isinstance(self._criteria, EqOperator) else None)
-        if self._input.is_some():
-            self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
-            # await cursor.append(session, self._output.unwrap())
-            return
-
-        if self._criteria is not None:
-            specification = self._specification_factory(self._criteria)
-        else:
-            specification = EmptySpecification()
-        specification = EmptySpecification()  # FIXE: check how it works
-
-        try:
-            # EqOperator would pollute the BaseDistributor index, must not pass it here.
-            output = (await self._distributor.next(session, specification)).unwrap()
-            self._set_input(self._output_exporter(output))
-            self._set_output(output)
-        except ICursor as cursor:
-            if self._input_generator is None:
-                self._set_input(None)
-                self._set_output(self._output_factory(None))
-                self._is_transient = True
-            else:
-                self._set_input(await self._input_generator(session, self._criteria, cursor.position))
-                self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
-                await cursor.append(session, self._output.unwrap())
+        await self.create(session)
 
     def export(self, output: OutputT) -> InputT:
         return self._output_exporter(output)
