@@ -814,5 +814,134 @@ class TestCombinedNewOperators(unittest.TestCase):
         self.assertIn("jsonb_array_length", sql)
 
 
+class TestRootWithCascadingRelations(unittest.TestCase):
+    """Root-level $rel + Three-table cascade: ID -> employees -> companies -> countries.
+
+    Simulates ReferenceProvider distributor scenario where distributor stores IDs
+    and top-level $rel generates EXISTS subquery via resolver(field=None).
+    """
+
+    def _make_resolvers(self):
+        country_resolver = StubRelationResolver({})
+        company_resolver = StubRelationResolver({
+            'country_id': ('countries', 'value_id', country_resolver),
+        })
+        employee_resolver = StubRelationResolver({
+            'company_id': ('companies', 'value_id', company_resolver),
+        })
+        # Root resolver: field=None resolves to employees table
+        root_resolver = StubRelationResolver({
+            None: ('employees', 'value_id', employee_resolver),
+        })
+        return root_resolver
+
+    def test_root_rel_simple(self):
+        """Top-level $rel should generate EXISTS subquery."""
+        resolver = self._make_resolvers()
+        compiler = PgQueryCompiler(relation_resolver=resolver)
+
+        query = RelOperator(CompositeQuery({
+            'name': EqOperator('John'),
+            'status': EqOperator('active'),
+        }))
+
+        sql, params = compiler.compile(query)
+
+        # EXISTS against employees table
+        self.assertIn("EXISTS (SELECT 1 FROM employees", sql)
+        # Join on value directly (not value->'field')
+        self.assertIn("rt1.value_id = value)", sql)
+
+    def test_root_rel_three_table_cascade(self):
+        """Root $rel with three-table cascade."""
+        resolver = self._make_resolvers()
+        compiler = PgQueryCompiler(relation_resolver=resolver)
+
+        query = RelOperator(CompositeQuery({
+            'name': EqOperator('John'),
+            'status': EqOperator('active'),
+            'age': ComparisonOperator('$gt', 25),
+            'company_id': RelOperator(CompositeQuery({
+                'type': EqOperator('tech'),
+                'size': EqOperator('large'),
+                'revenue': ComparisonOperator('$gte', 1000000),
+                'country_id': OrOperator((
+                    RelOperator(CompositeQuery({
+                        'code': EqOperator('US'),
+                    })),
+                    RelOperator(CompositeQuery({
+                        'code': EqOperator('UK'),
+                    })),
+                )),
+            })),
+        }))
+
+        sql, params = compiler.compile(query)
+
+        # Root level: EXISTS for employees
+        self.assertIn("EXISTS (SELECT 1 FROM employees", sql)
+        # Root join: value directly (top-level)
+        self.assertIn("rt1.value_id = value)", sql)
+
+        # Companies level: nested EXISTS
+        self.assertIn("EXISTS (SELECT 1 FROM companies", sql)
+
+        # Countries level: two nested EXISTS inside OR
+        self.assertEqual(sql.count("EXISTS (SELECT 1 FROM countries"), 2)
+
+        # All aliases must be unique (rt1, rt2, rt3, rt4)
+        self.assertIn("rt1", sql)
+        self.assertIn("rt2", sql)
+        self.assertIn("rt3", sql)
+        self.assertIn("rt4", sql)
+
+    def test_root_rel_unique_aliases(self):
+        """Each nested EXISTS gets a unique alias including root."""
+        resolver = self._make_resolvers()
+        compiler = PgQueryCompiler(relation_resolver=resolver)
+
+        query = RelOperator(CompositeQuery({
+            'company_id': RelOperator(CompositeQuery({
+                'name': EqOperator('Acme'),
+                'country_id': RelOperator(CompositeQuery({
+                    'code': EqOperator('US'),
+                })),
+            })),
+        }))
+
+        sql, params = compiler.compile(query)
+
+        # rt1 = employees, rt2 = companies, rt3 = countries
+        self.assertRegex(sql, r"FROM employees rt1")
+        self.assertRegex(sql, r"FROM companies rt2")
+        self.assertRegex(sql, r"FROM countries rt3")
+
+    def test_root_rel_or_both_branches_reference_same_table(self):
+        """Root $rel with $or where both branches are $rel to same table."""
+        resolver = self._make_resolvers()
+        compiler = PgQueryCompiler(relation_resolver=resolver)
+
+        query = RelOperator(CompositeQuery({
+            'company_id': RelOperator(CompositeQuery({
+                'country_id': OrOperator((
+                    RelOperator(CompositeQuery({
+                        'code': EqOperator('US'),
+                    })),
+                    RelOperator(CompositeQuery({
+                        'code': EqOperator('UK'),
+                    })),
+                )),
+            })),
+        }))
+
+        sql, params = compiler.compile(query)
+
+        # Root EXISTS for employees
+        self.assertIn("EXISTS (SELECT 1 FROM employees", sql)
+        # Two countries EXISTS inside OR
+        self.assertEqual(sql.count("FROM countries"), 2)
+        self.assertIn(" OR ", sql)
+
+
 if __name__ == '__main__':
     unittest.main()
