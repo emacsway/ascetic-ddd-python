@@ -10,10 +10,10 @@ from ascetic_ddd.faker.domain.providers.interfaces import (
     IReferenceProvider, ICloningShunt, ISetupable, IAggregateProvider,
 )
 from ascetic_ddd.faker.domain.query.operators import (
-    IQueryOperator, EqOperator, RelOperator, CompositeQuery, MergeConflict
+    IQueryOperator, EqOperator, RelOperator, MergeConflict
 )
 from ascetic_ddd.faker.domain.query.parser import parse_query
-from ascetic_ddd.faker.domain.query.visitors import query_to_dict, dict_to_query
+from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.option.option import Nothing
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
@@ -60,7 +60,7 @@ class ReferenceProvider(
 
     def __init__(
             self,
-            distributor: IM2ODistributor,
+            distributor: IM2ODistributor[IdOutputT],
             aggregate_provider: (IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT] |
                                  Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]),
             specification_factory: Callable[..., ISpecification[AggOutputT]] = QueryLookupSpecification[AggOutputT],
@@ -77,7 +77,7 @@ class ReferenceProvider(
         if self._criteria is not None:
             specification = self._specification_factory(
                 self._criteria,
-                self.aggregate_provider._output_exporter,  # type: ignore[attr-defined]
+                self.export,
                 aggregate_provider_accessor=lambda: self.aggregate_provider,
             )
         else:
@@ -86,16 +86,14 @@ class ReferenceProvider(
         try:
             result = await self._distributor.next(session, specification)
             if result.is_some():
-                agg = result.unwrap()
-                agg_state = self.aggregate_provider._output_exporter(agg)  # type: ignore[attr-defined]
-                # self.aggregate_provider.require(dict_to_query(agg_state))
-                id_ = agg_state[self._id_attr]
-                self.aggregate_provider.id_provider.require({'$eq': id_})
+                id_output = result.unwrap()
+                id_input = self.export(id_output)
+                # id_input = self.aggregate_provider.id_provider.export(id_output)
+                self.aggregate_provider.id_provider.require({'$eq': id_input})
+                # self.aggregate_provider.require({self._id_attr: {'$eq': id_input}})
                 await self.aggregate_provider.populate(session)
-                self.aggregate_provider.output()
-                # self._set_input(self.aggregate_provider.id_provider.state())
-                self._set_input(id_)
-                self._set_output(self.aggregate_provider.id_provider.output())
+                self._set_input(id_input)
+                self._set_output(id_output)
             else:
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
                 # self._criteria = None
@@ -106,11 +104,11 @@ class ReferenceProvider(
                 # Propagate constraints to aggregate_provider (already done in require())
                 pass
             await self.aggregate_provider.populate(session)
-            created_agg = self.aggregate_provider.output()
-            await cursor.append(session, created_agg)
+            id_output = self.aggregate_provider.id_provider.output()
+            await cursor.append(session, id_output)
             self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
-            self._set_output(self.aggregate_provider.id_provider.output())
+            self._set_output(id_output)
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
@@ -121,7 +119,8 @@ class ReferenceProvider(
         - {'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}} - composite PK
         - {'$rel': {'is_active': {'$eq': True}}} - related aggregate criteria
 
-        Non-$rel values are automatically wrapped into $rel with id.
+        Non-$rel criteria are ID-level constraints for the distributor.
+        $rel criteria are propagated to aggregate_provider.
         """
         new_criteria = parse_query(criteria)
 
@@ -132,11 +131,6 @@ class ReferenceProvider(
             return
 
         old_criteria = self._criteria
-
-        # Wrap non-$rel into $rel with id
-        if not isinstance(new_criteria, RelOperator):
-            id_attr = self._id_attr
-            new_criteria = RelOperator(CompositeQuery({id_attr: new_criteria}))
 
         if self._criteria is not None:
             try:
@@ -157,13 +151,18 @@ class ReferenceProvider(
 
     def _propagate_to_aggregate(self, criteria: IQueryOperator) -> None:
         """
-        Propagate $rel constraints to aggregate_provider.
+        Propagate constraints to aggregate_provider.
+
+        - $rel criteria → propagate to aggregate_provider (field-level constraints)
+        - ID criteria → propagate to id_provider directly
 
         infinite recursion prevention:
         We only propagate once during require(), not recursively.
         """
         if isinstance(criteria, RelOperator):
             self.aggregate_provider.require(query_to_dict(criteria.query))
+        else:
+            self.aggregate_provider.id_provider.require(query_to_dict(criteria))
 
     @property
     def aggregate_provider(self) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
@@ -229,16 +228,11 @@ class SubscriptionAggregateProviderAccessor(
     def __call__(self) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
         aggregate_provider = self._delegate()
         if not self._initialized:
-
-            # Bind repository as external_source for distributor
-            self._reference_provider._distributor.bind_external_source(  # type: ignore[attr-defined]
-                aggregate_provider.repository
-            )
+            id_attr = aggregate_provider.id_provider.provider_name.rsplit(".", 1)[-1]
 
             async def _observer(event: AggregateInsertedEvent):
-                # Needed for in-memory distributor and repository.
-                # For Pg distributor with external_source — this is a no-op (append checks _external_source).
-                await self._reference_provider.append(event.session, event.agg)
+                id_output = getattr(event.agg, id_attr)
+                await self._reference_provider.append(event.session, id_output)
 
             aggregate_provider.repository.on_inserted.attach(
                 _observer, self._reference_provider.provider_name
