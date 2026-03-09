@@ -126,7 +126,7 @@ class IInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent[InputT]]:
+    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent[OutputT]]:
         raise NotImplementedError
 
     @abstractmethod
@@ -267,7 +267,7 @@ class IDependentInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent[list[InputT]]]:
+    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent[list[OutputT]]]:
         raise NotImplementedError
 
     @abstractmethod

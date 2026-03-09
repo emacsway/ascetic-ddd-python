@@ -124,7 +124,7 @@ class BaseProvider(
     _output: Option[OutputT | None]
     _is_transient: bool = False
     _on_required: ISyncSignal[CriteriaRequiredEvent]
-    _on_populated: ISyncSignal[OutputPopulatedEvent[InputT]]
+    _on_populated: ISyncSignal[OutputPopulatedEvent[OutputT]]
 
     def _do_init(self):
         self._criteria = None
@@ -132,7 +132,7 @@ class BaseProvider(
         self._output = Nothing()
         self._is_transient = False
         self._on_required = SyncSignal[CriteriaRequiredEvent]()
-        self._on_populated = SyncSignal[OutputPopulatedEvent[InputT]]()
+        self._on_populated = SyncSignal[OutputPopulatedEvent[OutputT]]()
         super()._do_init()
 
     @property
@@ -140,7 +140,7 @@ class BaseProvider(
         return self._on_required
 
     @property
-    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent[InputT]]:
+    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent[OutputT]]:
         return self._on_populated
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
