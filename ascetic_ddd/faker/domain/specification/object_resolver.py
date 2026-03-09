@@ -41,6 +41,6 @@ class ProviderObjectResolver(IObjectResolver):
         if obj is None:
             return None, None
 
-        state = related_provider._output_exporter(obj)  # type: ignore[attr-defined]
+        state = related_provider.export(obj)
         nested = ProviderObjectResolver(lambda: related_provider)
         return state, nested

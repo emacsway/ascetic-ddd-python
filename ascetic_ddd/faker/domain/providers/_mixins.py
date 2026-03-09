@@ -208,7 +208,7 @@ class BaseDistributionProvider(BaseProvider[InputT, OutputT], typing.Generic[Inp
                                metaclass=abc.ABCMeta):
     _distributor: IM2ODistributor[OutputT]
 
-    def __init__(self, distributor: IM2ODistributor):
+    def __init__(self, distributor: IM2ODistributor[OutputT]):
         self._distributor = distributor
         super().__init__()
 

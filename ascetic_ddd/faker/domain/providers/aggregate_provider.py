@@ -75,7 +75,7 @@ class AggregateProvider(
                 id_ = self.id_provider.output()
                 output = await self._repository.get(session, id_)
                 if output is not None:
-                    input_ = self._output_exporter(output)
+                    input_ = self.export(output)
                     self._set_input(input_)
                     for attr, provider in self.providers.items():
                         await provider.populate(session)
@@ -88,7 +88,7 @@ class AggregateProvider(
 
             output = await self._default_factory(session)
             await self._repository.insert(session, output)
-            state = self._output_exporter(output)
+            state = self.export(output)
             id_value = state.get(self._id_attr)
             self.id_provider.require(dict_to_query(id_value))
             await self.id_provider.populate(session)

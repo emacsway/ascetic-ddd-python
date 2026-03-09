@@ -68,7 +68,7 @@ class CompositeValueProvider(
                 self._set_output(await self._default_factory(session))
             else:
                 if self._criteria is not None:
-                    specification = self._specification_factory(self._criteria, self._output_exporter)
+                    specification = self._specification_factory(self._criteria, self.export)
                 else:
                     specification = EmptySpecification()
 
@@ -76,7 +76,7 @@ class CompositeValueProvider(
                     result = await self._distributor.next(session, specification)
                     if result.is_some():
                         output = result.unwrap()
-                        input_ = self._output_exporter(output)
+                        input_ = self.export(output)
                         self._set_input(input_)
                         for attr, provider in self.providers.items():
                             await provider.populate(session)

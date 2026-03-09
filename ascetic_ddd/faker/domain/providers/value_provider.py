@@ -102,7 +102,7 @@ class ValueProvider(
                 try:
                     # EqOperator would pollute the BaseDistributor index, must not pass it here.
                     output = (await self._distributor.next(session, specification)).unwrap()
-                    self._set_input(self._output_exporter(output))
+                    self._set_input(self.export(output))
                     self._set_output(output)
                 except ICursor as cursor:
                     if self._input_generator is None:
