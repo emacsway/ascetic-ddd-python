@@ -62,41 +62,45 @@ class CompositeValueProvider(
             output_exporter=output_exporter,
         )
 
-    async def create(self, session: ISession) -> CompositeOutputT:
+    async def __create(self, session: ISession) -> CompositeOutputT:
         if self._output.is_nothing():
             raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
         return typing.cast(CompositeOutputT, self._output.unwrap())
 
-    async def populate(self, session: ISession) -> None:
-        if self.is_complete():
-            if self._output.is_nothing():
+    async def create(self, session: ISession) -> CompositeOutputT:
+        if self._output.is_nothing():
+            if self.is_complete():
                 self._set_output(await self._default_factory(session))
-            return
-
-        if self._criteria is not None:
-            specification = self._specification_factory(self._criteria, self._output_exporter)
-        else:
-            specification = EmptySpecification()
-
-        try:
-            result = await self._distributor.next(session, specification)
-            if result.is_some():
-                output = result.unwrap()
-                input_ = self._output_exporter(output)
-                self._set_input(input_)
-                for attr, provider in self.providers.items():
-                    await provider.populate(session)
-                self._set_output(output)
             else:
-                self._set_output(None)
-        except ICursor as cursor:
-            await self.do_populate(session)
-            for attr, provider in self.providers.items():
-                await provider.populate(session)
-            output = await self._default_factory(session, cursor.position)
-            self._set_output(output)
-            if not self.is_transient():
-                await cursor.append(session, self._output.unwrap())
+                if self._criteria is not None:
+                    specification = self._specification_factory(self._criteria, self._output_exporter)
+                else:
+                    specification = EmptySpecification()
+
+                try:
+                    result = await self._distributor.next(session, specification)
+                    if result.is_some():
+                        output = result.unwrap()
+                        input_ = self._output_exporter(output)
+                        self._set_input(input_)
+                        for attr, provider in self.providers.items():
+                            await provider.populate(session)
+                        self._set_output(output)
+                    else:
+                        self._set_output(None)
+                except ICursor as cursor:
+                    await self.do_populate(session)
+                    for attr, provider in self.providers.items():
+                        await provider.populate(session)
+                    output = await self._default_factory(session, cursor.position)
+                    self._set_output(output)
+                    if not self.is_transient():
+                        await cursor.append(session, self._output.unwrap())
+
+        return typing.cast(CompositeOutputT, self._output.unwrap())
+
+    async def populate(self, session: ISession) -> None:
+        await self.create(session)
 
     async def do_populate(self, session: ISession) -> None:
         pass
