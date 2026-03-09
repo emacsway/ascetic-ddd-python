@@ -69,11 +69,6 @@ class ReferenceProvider(
         self._specification_factory = specification_factory
         super().__init__(distributor=distributor)
 
-    async def create(self, session: ISession) -> IdOutputT:
-        if self._output.is_nothing():
-            raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
-        return typing.cast(IdOutputT, self._output.unwrap())
-
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
             return
