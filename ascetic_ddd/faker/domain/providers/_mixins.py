@@ -243,6 +243,20 @@ class BaseCompositeProvider(
     _on_required: ISyncSignal[CriteriaRequiredEvent]
     _on_populated: ISyncSignal[InputPopulatedEvent]
 
+    def __init__(
+            self,
+            output_factory: typing.Callable[..., OutputT] | None = None,
+    ):
+
+        if self._output_factory is None:
+            if output_factory is None:
+
+                def output_factory(**kwargs):
+                    return kwargs
+
+            self._output_factory = output_factory  # pyright: ignore[reportAttributeAccessIssue]
+        super().__init__()
+
     def _do_init(self):
         self._criteria = None
         self._output = Nothing()
@@ -257,20 +271,6 @@ class BaseCompositeProvider(
     @property
     def on_populated(self) -> ISyncSignal[InputPopulatedEvent]:
         return self._on_populated
-
-    def __init__(
-            self,
-            output_factory: typing.Callable[..., OutputT] | None = None,
-    ):
-
-        if self._output_factory is None:
-            if output_factory is None:
-
-                def output_factory(**kwargs):
-                    return kwargs
-
-            self._output_factory = output_factory  # pyright: ignore[reportAttributeAccessIssue]
-        super().__init__()
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """
