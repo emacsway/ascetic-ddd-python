@@ -84,7 +84,7 @@ class ValueProvider(
 
         super().__init__(distributor=distributor)
 
-    async def create(self, session: ISession) -> OutputT:
+    async def populate(self, session: ISession) -> None:
         if self._output.is_nothing():
             if isinstance(self._criteria, EqOperator):
                 # Extract value from EqOperator
@@ -113,11 +113,6 @@ class ValueProvider(
                         self._set_input(await self._input_generator(session, self._criteria, cursor.position))
                         self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
                         await cursor.append(session, self._output.unwrap())
-
-        return typing.cast(OutputT, self._output.unwrap())
-
-    async def populate(self, session: ISession) -> None:
-        await self.create(session)
 
     def export(self, output: OutputT) -> InputT:
         return self._output_exporter(output)

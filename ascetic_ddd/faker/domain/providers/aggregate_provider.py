@@ -62,7 +62,7 @@ class AggregateProvider(
             return
         super().require(criteria)
 
-    async def create(self, session: ISession) -> AggOutputT:
+    async def populate(self, session: ISession) -> None:
         # Prevent diamond problem (cycles in FK)
         # See also https://github.com/mikeboers/C3Linearize
         if self._output.is_nothing():
@@ -80,7 +80,7 @@ class AggregateProvider(
                     for attr, provider in self.providers.items():
                         await provider.populate(session)
                     self._set_output(output)
-                    return typing.cast(AggOutputT, self._output.unwrap())
+                    return
 
             await self.do_populate(session)
             for attr, provider in self.providers.items():
@@ -110,11 +110,6 @@ class AggregateProvider(
                     dep_provider.set_dependency_id(dependency_id)
                     await dep_provider.populate(session)
                     await dep_provider.create(session)
-
-        return typing.cast(AggOutputT, self._output.unwrap())
-
-    async def populate(self, session: ISession) -> None:
-        await self.create(session)
 
     async def do_populate(self, session: ISession) -> None:
         pass

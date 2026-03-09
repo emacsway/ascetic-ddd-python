@@ -169,6 +169,11 @@ class BaseProvider(
             self._output = Nothing()
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
+    async def create(self, session: ISession) -> OutputT:
+        if self._output.is_nothing():
+            raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
+        return typing.cast(OutputT, self._output.unwrap())
+
     def state(self) -> InputT:
         """Return current query as dict format."""
         assert self._input.is_some(), "Provider '%s' not populated" % self._provider_name
@@ -336,6 +341,11 @@ class BaseCompositeProvider(
                 )
             provider.require({'$eq': val})
         self._on_populated.notify(InputPopulatedEvent(input_))
+
+    async def create(self, session: ISession) -> CompositeOutputT:
+        if self._output.is_nothing():
+            raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
+        return typing.cast(CompositeOutputT, self._output.unwrap())
 
     def state(self) -> CompositeInputT:
         """Return current query as dict format, composed from nested providers."""

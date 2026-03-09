@@ -62,12 +62,7 @@ class CompositeValueProvider(
             output_exporter=output_exporter,
         )
 
-    async def __create(self, session: ISession) -> CompositeOutputT:
-        if self._output.is_nothing():
-            raise RuntimeError("Provider '%s' has no output. Call populate() before create()." % self.provider_name)
-        return typing.cast(CompositeOutputT, self._output.unwrap())
-
-    async def create(self, session: ISession) -> CompositeOutputT:
+    async def populate(self, session: ISession) -> None:
         if self._output.is_nothing():
             if self.is_complete():
                 self._set_output(await self._default_factory(session))
@@ -96,11 +91,6 @@ class CompositeValueProvider(
                     self._set_output(output)
                     if not self.is_transient():
                         await cursor.append(session, self._output.unwrap())
-
-        return typing.cast(CompositeOutputT, self._output.unwrap())
-
-    async def populate(self, session: ISession) -> None:
-        await self.create(session)
 
     async def do_populate(self, session: ISession) -> None:
         pass
