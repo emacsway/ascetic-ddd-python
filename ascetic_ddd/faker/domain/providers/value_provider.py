@@ -122,5 +122,8 @@ class ValueProvider(
                 self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
                 await cursor.append(session, self._output.unwrap())
 
+    def export(self, output: OutputT) -> InputT:
+        return self._output_exporter(output)
+
     def _make_specification(self) -> ISpecification | None:
         return None

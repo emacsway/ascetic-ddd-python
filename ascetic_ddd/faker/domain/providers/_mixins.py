@@ -345,6 +345,9 @@ class BaseCompositeProvider(
                 value[attr] = provider.state()
         return typing.cast(CompositeInputT, value)
 
+    def export(self, output: CompositeOutputT) -> CompositeInputT:
+        return self._output_exporter(output)
+
     async def _default_factory(self, session: ISession, position: typing.Optional[int] = None):
         data = dict()
         for attr, provider in self.providers.items():

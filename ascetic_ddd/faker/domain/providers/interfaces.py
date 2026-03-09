@@ -134,6 +134,10 @@ class IInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
+    def export(self, output: OutputT) -> InputT:
+        raise NotImplementedError
+
+    @abstractmethod
     async def append(self, session: ISession, value: OutputT):
         raise NotImplementedError
 
@@ -268,6 +272,10 @@ class IDependentInputOutput(typing.Generic[InputT, OutputT], metaclass=ABCMeta):
 
     @abstractmethod
     def state(self) -> list[InputT]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def export(self, output: OutputT) -> InputT:
         raise NotImplementedError
 
 

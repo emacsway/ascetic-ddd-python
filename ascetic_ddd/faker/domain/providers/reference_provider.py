@@ -157,6 +157,9 @@ class ReferenceProvider(
             self._propagate_to_aggregate(new_criteria)
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
+    def export(self, output: IdOutputT) -> IdInputT:
+        return self.aggregate_provider.id_provider.export(output)
+
     def _propagate_to_aggregate(self, criteria: IQueryOperator) -> None:
         """
         Propagate $rel constraints to aggregate_provider.
