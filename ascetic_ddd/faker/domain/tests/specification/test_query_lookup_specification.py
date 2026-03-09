@@ -233,6 +233,9 @@ class MockAggregateProvider:
         self._output_exporter = output_exporter or (lambda x: x)
         self.repository = repository
 
+    def export(self, output):
+        return self._output_exporter(output)
+
     @property
     def providers(self):
         return self._providers
