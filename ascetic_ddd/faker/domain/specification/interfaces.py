@@ -7,7 +7,6 @@ __all__ = (
     'ISpecificationVisitor',
     'ISpecificationVisitable',
     'ISpecification',
-    'IResolvableSpecification',
 )
 
 T = typing.TypeVar("T")
@@ -48,11 +47,4 @@ class ISpecification(ISpecificationVisitable, typing.Protocol[T_contra]):
         ...
 
     async def is_satisfied_by(self, session: ISession, obj: T_contra) -> bool:
-        ...
-
-
-class IResolvableSpecification(ISpecification[T_contra], typing.Protocol[T_contra]):
-    """Interface for a specification that requires pre-resolve."""
-
-    async def resolve_nested(self, session: ISession) -> None:
         ...

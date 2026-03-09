@@ -19,8 +19,7 @@ class QueryLookupSpecification(ISpecification[T], typing.Generic[T]):
     """
     Specification with nested lookup in is_satisfied_by().
 
-    Unlike QueryResolvableSpecification, does not resolve nested constraints
-    upfront, but performs a lookup on each check (via EvaluateWalker).
+    Performs a lookup on each check via EvaluateWalker + IObjectResolver.
 
     Advantages:
     - One index per logical pattern (efficient indexing)

@@ -172,10 +172,6 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
             session: ISession,
             specification: ISpecification[T],
     ) -> Option[T]:
-        # Resolve nested constraints (if any)
-        if hasattr(specification, 'resolve_nested'):
-            await specification.resolve_nested(session)  # pyright: ignore[reportAttributeAccessIssue]
-
         if specification != self._default_spec:
             if specification not in self._indexes:
                 self._indexes[specification] = self._create_index(specification)

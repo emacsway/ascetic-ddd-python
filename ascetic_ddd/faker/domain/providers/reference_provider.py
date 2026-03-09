@@ -74,7 +74,7 @@ class ReferenceProvider(
         if self.is_complete():
             return
 
-        # Create specification with aggregate_provider_accessor for lazy resolve_nested and subqueries
+        # Create specification with aggregate_provider_accessor for lazy lookup and subqueries
         if self._criteria is not None:
             specification = self._specification_factory(
                 self._criteria,

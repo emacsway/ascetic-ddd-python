@@ -78,10 +78,6 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
         if not self._initialized:
             await self.setup(session)
 
-        # Resolve nested constraints (if any)
-        if hasattr(specification, 'resolve_nested'):
-            await specification.resolve_nested(session)  # pyright: ignore[reportAttributeAccessIssue]
-
         value, should_create_new = await self._get_next_value(session, specification)
         if should_create_new:
             try:

@@ -13,7 +13,7 @@ from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factor
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.query.parser import QueryParser
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
-from ascetic_ddd.faker.domain.specification.query_resolvable_specification import QueryResolvableSpecification
+from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.session.interfaces import ISession
 
 # logging.basicConfig(level="DEBUG")
@@ -186,7 +186,7 @@ class SpecificKeyDistributorTestCase(_BaseDistributorTestCase):
             for i in range(self.count):
                 if i % 200 == 0:
                     factory.another_model_id = uuid.uuid4()
-                spec = QueryResolvableSpecification(
+                spec = QueryLookupSpecification(
                     QueryParser().parse({'another_model_id': {'$eq': factory.another_model_id}}),
                     lambda obj: dataclasses.asdict(obj)
                 )
