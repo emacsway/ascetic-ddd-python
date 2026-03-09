@@ -3,6 +3,7 @@ from collections.abc import Callable
 from abc import ABCMeta, abstractmethod
 from functools import cached_property
 
+from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import ICursor, IM2ODistributor
 from ascetic_ddd.faker.domain.providers._mixins import BaseDistributionProvider
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
@@ -228,13 +229,11 @@ class SubscriptionAggregateProviderAccessor(
     def __call__(self) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
         aggregate_provider = self._delegate()
         if not self._initialized:
-            id_attr = aggregate_provider.id_provider.provider_name.rsplit(".", 1)[-1]
 
-            async def _observer(event: AggregateInsertedEvent):
-                id_output = getattr(event.agg, id_attr)
-                await self._reference_provider.append(event.session, id_output)
+            async def _observer(event: ValueAppendedEvent[IdOutputT]):
+                await self._reference_provider.append(event.session, event.value)
 
-            aggregate_provider.repository.on_inserted.attach(
+            aggregate_provider.id_provider._distributor.on_appended.attach(
                 _observer, self._reference_provider.provider_name
             )
 
