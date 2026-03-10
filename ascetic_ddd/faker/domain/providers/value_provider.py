@@ -50,7 +50,6 @@ class ValueProvider(
     _input_generator: IInputGenerator[InputT] | None = None
     _output_factory: typing.Callable[[InputT | None], OutputT] = None  # type: ignore[assignment]  # OutputT of each nested Provider.
     _output_exporter: typing.Callable[[OutputT], InputT] = None  # type: ignore[assignment]
-    _specification_factory: typing.Callable[..., ISpecification]
 
     def __init__(
             self,
@@ -58,7 +57,6 @@ class ValueProvider(
             input_generator: IInputGenerator[InputT] | None = None,
             output_factory: typing.Callable[[InputT], OutputT] | None = None,
             output_exporter: typing.Callable[[OutputT], InputT] | None = None,
-            specification_factory: typing.Callable[..., ISpecification] = QueryLookupSpecification,
     ):
         if distributor is None:
             distributor = DummyDistributor()
@@ -82,7 +80,6 @@ class ValueProvider(
 
             self._output_exporter = output_exporter
 
-        self._specification_factory = specification_factory
         super().__init__(distributor=distributor)
 
     async def populate(self, session: ISession) -> None:
@@ -94,15 +91,9 @@ class ValueProvider(
                 self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
                 # await cursor.append(session, self._output.unwrap())
             else:
-                if self._criteria is not None:
-                    specification = self._specification_factory(self._criteria, self.export)
-                else:
-                    specification = EmptySpecification()
-                specification = EmptySpecification()  # FIXE: check how it works
-
                 try:
                     # EqOperator would pollute the BaseDistributor index, must not pass it here.
-                    output = (await self._distributor.next(session, specification)).unwrap()
+                    output = (await self._distributor.next(session, self._make_specification())).unwrap()
                     self._set_input(self.export(output))
                     self._set_output(output)
                 except ICursor as cursor:
@@ -118,5 +109,5 @@ class ValueProvider(
     def export(self, output: OutputT) -> InputT:
         return self._output_exporter(output)
 
-    def _make_specification(self) -> ISpecification | None:
-        return None
+    def _make_specification(self) -> ISpecification[OutputT]:
+        return EmptySpecification[OutputT]()

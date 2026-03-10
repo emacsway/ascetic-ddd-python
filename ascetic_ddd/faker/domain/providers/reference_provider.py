@@ -20,7 +20,7 @@ from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
-from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, CriteriaRequiredEvent
+from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent
 
 __all__ = ('ReferenceProvider',)
 
@@ -57,35 +57,22 @@ class ReferenceProvider(
     typing.Generic[IdInputT, IdOutputT, AggInputT, AggOutputT]
 ):
     _aggregate_provider_accessor: IAggregateProviderAccessor[AggInputT, AggOutputT, IdInputT, IdOutputT]
-    _specification_factory: Callable[..., ISpecification]
 
     def __init__(
             self,
             distributor: IM2ODistributor[IdOutputT],
             aggregate_provider: (IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT] |
                                  Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]]),
-            specification_factory: Callable[..., ISpecification[AggOutputT]] = QueryLookupSpecification[AggOutputT],
     ):
         self.aggregate_provider = aggregate_provider
-        self._specification_factory = specification_factory
         super().__init__(distributor=distributor)
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
             return
 
-        # Create specification with aggregate_provider_accessor for lazy lookup and subqueries
-        if self._criteria is not None:
-            specification = self._specification_factory(
-                self._criteria,
-                self.export,
-                aggregate_provider_accessor=lambda: self.aggregate_provider,
-            )
-        else:
-            specification = EmptySpecification()
-
         try:
-            result = await self._distributor.next(session, specification)
+            result = await self._distributor.next(session, self._make_specification())
             if result.is_some():
                 id_output = result.unwrap()
                 id_input = self.export(id_output)
@@ -110,6 +97,16 @@ class ReferenceProvider(
             self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
             self._set_output(id_output)
+
+    def _make_specification(self) -> ISpecification[IdOutputT]:
+        # Create specification with aggregate_provider_accessor for lazy lookup and subqueries
+        if self._criteria is not None:
+            return QueryLookupSpecification[IdOutputT](
+                self._criteria,
+                self.export,
+                aggregate_provider_accessor=lambda: self.aggregate_provider,
+            )
+        return EmptySpecification[IdOutputT]()
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         """

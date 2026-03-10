@@ -17,6 +17,9 @@ from ascetic_ddd.faker.domain.query.operators import (
 from ascetic_ddd.faker.domain.query.parser import parse_query
 from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
+from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
+from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
+from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.option.option import Option, Some, Nothing
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.signals.interfaces import ISyncSignal
@@ -294,7 +297,7 @@ class BaseCompositeProvider(
         Set composite provider value using query format.
 
         Args:
-            query: Query in format {'field': {'$eq': v}, ...}
+            criteria: Query in format {'field': {'$eq': v}, ...}
 
         Examples:
             provider.require({'tenant_id': {'$eq': 15}, 'local_id': {'$eq': 27}})
@@ -476,13 +479,13 @@ class BaseCompositeDistributionProvider(
         await self._distributor.append(session, value)
         await super().append(session, value)
 
-    async def setup(self, session: ISession):
-        await self._distributor.setup(session)
-        await super().setup(session)
-
-    async def cleanup(self, session: ISession):
-        await self._distributor.cleanup(session)
-        await super().cleanup(session)
+    def _make_specification(self) -> ISpecification[CompositeOutputT]:
+        if self._criteria is not None:
+            return QueryLookupSpecification[CompositeOutputT](
+                self._criteria,
+                self.export,
+            )
+        return EmptySpecification[CompositeOutputT]()
 
     @property
     def provider_name(self):
@@ -494,3 +497,11 @@ class BaseCompositeDistributionProvider(
         self._distributor.provider_name = value
         for attr, provider in self.providers.items():
             provider.provider_name = "%s.%s" % (value, attr)
+
+    async def setup(self, session: ISession):
+        await self._distributor.setup(session)
+        await super().setup(session)
+
+    async def cleanup(self, session: ISession):
+        await self._distributor.cleanup(session)
+        await super().cleanup(session)

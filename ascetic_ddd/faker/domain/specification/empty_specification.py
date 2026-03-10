@@ -6,7 +6,10 @@ from ascetic_ddd.faker.domain.specification.interfaces import ISpecificationVisi
 __all__ = ("EmptySpecification",)
 
 
-class EmptySpecification(ISpecification):
+T = typing.TypeVar("T")
+
+
+class EmptySpecification(ISpecification[T], typing.Generic[T]):
     _hash = hash(frozenset())
     _str = str(frozenset())
 
@@ -21,7 +24,7 @@ class EmptySpecification(ISpecification):
     def __eq__(self, other: object) -> bool:
         return isinstance(other, EmptySpecification)
 
-    async def is_satisfied_by(self, session: ISession, obj: typing.Any) -> bool:
+    async def is_satisfied_by(self, session: ISession, obj: T) -> bool:
         return True
 
     def accept(self, visitor: ISpecificationVisitor):

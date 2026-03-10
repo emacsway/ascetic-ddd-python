@@ -25,5 +25,5 @@ class RelativeValueProvider(
     def set_scope(self, scope: typing.Hashable) -> None:
         self._scope = scope
 
-    def _make_specification(self) -> ISpecification | None:
-        return ScopeSpecification(self._scope)
+    def _make_specification(self) -> ISpecification[OutputT]:
+        return ScopeSpecification[OutputT](self._scope)

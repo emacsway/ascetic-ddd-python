@@ -3,10 +3,6 @@ import typing
 from ascetic_ddd.faker.domain.distributors.m2o import DummyDistributor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import ICursor, IM2ODistributor
 from ascetic_ddd.faker.domain.providers._mixins import BaseCompositeDistributionProvider
-from ascetic_ddd.faker.domain.query.visitors import dict_to_query
-from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
-from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.session.interfaces import ISession
 
 __all__ = (
@@ -43,19 +39,16 @@ class CompositeValueProvider(
         "Σx" means composition of "x",
         "⊆" means subset of a composition.
     """
-    _specification_factory: typing.Callable[..., ISpecification]
 
     def __init__(
             self,
             distributor: IM2ODistributor[CompositeInputT] | None = None,
             output_factory: typing.Callable[..., CompositeOutputT] | None = None,  # OutputT of each nested Provider.
             output_exporter: typing.Callable[[CompositeOutputT], CompositeInputT] | None = None,
-            specification_factory: typing.Callable[..., ISpecification] = QueryLookupSpecification,
     ):
         if distributor is None:
             distributor = DummyDistributor()
 
-        self._specification_factory = specification_factory
         super().__init__(
             distributor=distributor,
             output_factory=output_factory,
@@ -67,13 +60,8 @@ class CompositeValueProvider(
             if self.is_complete():
                 self._set_output(await self._default_factory(session))
             else:
-                if self._criteria is not None:
-                    specification = self._specification_factory(self._criteria, self.export)
-                else:
-                    specification = EmptySpecification()
-
                 try:
-                    result = await self._distributor.next(session, specification)
+                    result = await self._distributor.next(session, self._make_specification())
                     if result.is_some():
                         output = result.unwrap()
                         input_ = self.export(output)
