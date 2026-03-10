@@ -11,17 +11,10 @@ __all__ = (
     'IM2ODistributor',
     'IM2ODistributorFactory',
     'ICursor',
-    'IExternalSource',
 )
 
 
 T = typing.TypeVar("T")
-T_co = typing.TypeVar("T_co", covariant=True)
-
-
-@typing.runtime_checkable
-class IExternalSource(typing.Protocol[T_co]):
-    pass
 
 
 class IM2ODistributor(typing.Generic[T], metaclass=ABCMeta):
@@ -76,12 +69,6 @@ class IM2ODistributor(typing.Generic[T], metaclass=ABCMeta):
     @abstractmethod
     def __deepcopy__(self, memodict={}):
         raise NotImplementedError
-
-    @abstractmethod
-    def bind_external_source(self, external_source: typing.Any) -> None:
-        """Binds an external data source (repository)."""
-        raise NotImplementedError
-
 
 class ICursor(typing.Generic[T], StopAsyncIteration, metaclass=ABCMeta):
     @property

@@ -19,7 +19,6 @@ from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.infrastructure.distributors.m2o.interfaces import IPgExternalSource
 from ascetic_ddd.faker.infrastructure.session.pg_session import extract_internal_connection
 from ascetic_ddd.faker.infrastructure.specification.pg_specification_visitor import PgSpecificationVisitor
 from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
@@ -46,7 +45,6 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
     _values_table: str | None = None
     _default_spec: ISpecification
     _provider_name: str | None = None
-    _external_source: IPgExternalSource | None = None
     _delegate: IM2ODistributor[T]
 
     def __init__(
@@ -59,16 +57,8 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
         if mean is not None:
             self._mean = mean
         self._initialized = initialized
-        self._external_source = None
         self._default_spec = EmptySpecification()
         super().__init__()
-
-    def bind_external_source(self, external_source: typing.Any) -> None:
-        """Binds an external data source (repository) and updates the table."""
-        if not isinstance(external_source, IPgExternalSource):
-            raise TypeError("Expected IPgExternalSource, got %s" % type(external_source))
-        self._external_source = external_source
-        self._values_table = external_source.table
 
     async def next(
             self,
@@ -96,8 +86,6 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
         raise NotImplementedError
 
     async def _append(self, session: ISession, value: T, position: int):
-        if self._external_source:
-            return
         sql = """
             INSERT INTO %(values_table)s (value, object)
             VALUES (%%s, %%s)
@@ -139,8 +127,6 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
     async def cleanup(self, session: ISession):
         # FIXME: diamond problem
         self._initialized = False
-        if self._external_source:
-            return
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute("DROP TABLE IF EXISTS %s" % self._values_table)
 
@@ -151,8 +137,6 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
         return self
 
     async def _setup(self, session: ISession):
-        if self._external_source:
-            return
         sql = """
             CREATE TABLE IF NOT EXISTS %(values_table)s (
                 position serial NOT NULL PRIMARY KEY,
@@ -169,8 +153,6 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
             await acursor.execute(sql)
 
     async def _is_initialized(self, session: ISession) -> bool:
-        if self._external_source:
-            return True  # external source table is managed by repository
         sql = """SELECT to_regclass(%s)"""
         async with self._extract_connection(session).cursor() as acursor:
             await acursor.execute(sql, (self._values_table,))

@@ -128,10 +128,6 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
     def __deepcopy__(self, memodict={}):
         return self
 
-    def bind_external_source(self, external_source: typing.Any) -> None:
-        """Binds an external data source (repository)."""
-        pass
-
     def __len__(self) -> int:
         """Number of values in the dictionary."""
         return len(self._values)

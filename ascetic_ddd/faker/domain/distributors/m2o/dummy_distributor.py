@@ -61,7 +61,3 @@ class DummyDistributor(IM2ODistributor[T], typing.Generic[T]):
 
     def __deepcopy__(self, memodict={}):
         return self
-
-    def bind_external_source(self, external_source: typing.Any) -> None:
-        """DummyDistributor does not use external_source."""
-        pass

@@ -4,7 +4,7 @@ import typing
 from abc import abstractmethod
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
-from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor, IExternalSource
+from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.option import Option, Some
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
@@ -142,7 +142,6 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
     _indexes: dict[ISpecification, BaseIndex[T]]
     _default_spec: ISpecification
     _provider_name: str | None = None
-    _external_source: IExternalSource[T] | None = None
     _delegate: IM2ODistributor[T]
 
     def __init__(self, delegate: IM2ODistributor[T], mean: float | None = None):
@@ -152,15 +151,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
         self._default_spec = EmptySpecification()
         self._indexes = dict()
         self._indexes[self._default_spec] = self._create_index(self._default_spec)
-        self._external_source = None
         super().__init__()
-
-    def bind_external_source(self, external_source: typing.Any) -> None:
-        """Binds an external data source (repository)."""
-        if not isinstance(external_source, IExternalSource):
-            raise TypeError("Expected IExternalSource, got %s" % type(external_source))
-        self._external_source = external_source
-        self._external_source = None  # Temporary disable
 
     @abstractmethod
     def _create_index(self, specification: ISpecification[T]) -> BaseIndex[T]:
@@ -225,8 +216,6 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
                 index.insert_at_relative_position(value, relative_position)
 
     async def _append(self, session: ISession, value: T, position: int):
-        if self._external_source:
-            return
         if value not in self._indexes[self._default_spec]:
             self._indexes[self._default_spec].append(value)
             # Prevent double notification, self._delegate._append() will be called from Cursor.

@@ -110,9 +110,6 @@ class StubDistributor(IM2ODistributor):
     async def cleanup(self, session: ISession):
         pass
 
-    def bind_external_source(self, external_source: typing.Any) -> None:
-        pass
-
     @property
     def on_appended(self):
         return self._on_appended

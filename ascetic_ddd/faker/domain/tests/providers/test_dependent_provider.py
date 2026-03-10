@@ -109,8 +109,6 @@ class StubM2ODistributor(IM2ODistributor):
     def __deepcopy__(self, memodict={}):
         return StubM2ODistributor()
 
-    def bind_external_source(self, external_source) -> None:
-        pass
 
 
 # =============================================================================

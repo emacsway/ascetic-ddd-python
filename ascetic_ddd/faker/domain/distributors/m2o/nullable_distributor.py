@@ -65,7 +65,3 @@ class NullableDistributor(IM2ODistributor[T], typing.Generic[T]):
 
     def __deepcopy__(self, memodict={}):
         return self
-
-    def bind_external_source(self, external_source: typing.Any) -> None:
-        """Delegates binding of an external data source."""
-        self._delegate.bind_external_source(external_source)
