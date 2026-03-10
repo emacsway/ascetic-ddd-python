@@ -17,7 +17,6 @@ from ascetic_ddd.option import Option, Some
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.infrastructure.session.pg_session import extract_internal_connection
 from ascetic_ddd.faker.infrastructure.specification.pg_specification_visitor import PgSpecificationVisitor
@@ -43,7 +42,6 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
     _initialized: bool = False
     _mean: float = 50
     _values_table: str | None = None
-    _default_spec: ISpecification
     _provider_name: str | None = None
     _delegate: IM2ODistributor[T]
 
@@ -57,7 +55,6 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
         if mean is not None:
             self._mean = mean
         self._initialized = initialized
-        self._default_spec = EmptySpecification()
         super().__init__()
 
     async def next(

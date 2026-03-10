@@ -140,7 +140,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
     """
     _mean: float = 50
     _indexes: dict[ISpecification, BaseIndex[T]]
-    _default_spec: ISpecification
+    _default_spec: ISpecification[T]
     _provider_name: str | None = None
     _delegate: IM2ODistributor[T]
 
@@ -148,7 +148,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
         self._delegate = delegate
         if mean is not None:
             self._mean = mean
-        self._default_spec = EmptySpecification()
+        self._default_spec = EmptySpecification[T]()
         self._indexes = dict()
         self._indexes[self._default_spec] = self._create_index(self._default_spec)
         super().__init__()

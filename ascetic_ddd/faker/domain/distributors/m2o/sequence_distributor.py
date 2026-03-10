@@ -9,7 +9,6 @@ from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 
 __all__ = ('SequenceDistributor',)
 
@@ -19,12 +18,10 @@ T = typing.TypeVar("T")
 class SequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
     _sequences: dict[ISpecification, int]
     _provider_name: str | None = None
-    _default_spec: ISpecification
     _on_appended: IAsyncSignal[ValueAppendedEvent[T]]
 
     def __init__(self):
         self._sequences = defaultdict(int)
-        self._default_spec = EmptySpecification()
         self._on_appended = AsyncSignal[ValueAppendedEvent[T]]()
 
     @property

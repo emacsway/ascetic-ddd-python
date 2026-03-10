@@ -31,7 +31,7 @@ class NullableDistributor(IM2ODistributor[T], typing.Generic[T]):
             session: ISession,
             specification: ISpecification[T],
     ) -> Option[T]:
-        # if isinstance(specification, EmptySpecification) and self._null_weight > 0 and self._is_null():
+        # if await specification.is_satisfied_by(session, None) and self._null_weight > 0 and self._is_null():
         if self._null_weight > 0 and self._is_null():
             return Nothing()
         return await self._delegate.next(session, specification)
