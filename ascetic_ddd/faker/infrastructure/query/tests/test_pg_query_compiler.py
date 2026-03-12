@@ -22,6 +22,30 @@ class StubRelationResolver(IRelationResolver):
             return None
         return RelationInfo(table=info[0], pk_field=info[1], nested_resolver=info[2])
 
+    def descend(self, field: str) -> 'StubRelationResolver | None':
+        return None
+
+
+class DescendableStubRelationResolver(IRelationResolver):
+    """Test stub with descend support for nested composite resolution."""
+
+    def __init__(
+            self,
+            relations: dict[str | None, tuple[str, str, 'IRelationResolver | None']],
+            children: dict[str, 'IRelationResolver'] | None = None,
+    ):
+        self._relations = relations
+        self._children = children or {}
+
+    def resolve(self, field: str | None) -> RelationInfo | None:
+        info = self._relations.get(field)
+        if info is None:
+            return None
+        return RelationInfo(table=info[0], pk_field=info[1], nested_resolver=info[2])
+
+    def descend(self, field: str) -> 'IRelationResolver | None':
+        return self._children.get(field)
+
 
 class TestVisitEq(unittest.TestCase):
 
@@ -941,6 +965,149 @@ class TestRootWithCascadingRelations(unittest.TestCase):
         # Two countries EXISTS inside OR
         self.assertEqual(sql.count("FROM countries"), 2)
         self.assertIn(" OR ", sql)
+
+
+class TestNestedCompositeDescend(unittest.TestCase):
+    """Nested composite $rel via descend: ResumeId -> UserId -> Tenant.
+
+    ResumeId = {user_id: {tenant_id: FK, local_user_id: int}, local_resume_id: int}
+    Query asks for tenant with specific name via $rel inside nested composite.
+    """
+
+    def _make_resolvers(self):
+        tenant_resolver = StubRelationResolver({})
+
+        # UserIdProvider level: tenant_id -> tenants table
+        user_id_resolver = DescendableStubRelationResolver(
+            relations={'tenant_id': ('tenants', 'value_id', tenant_resolver)},
+        )
+
+        # ResumeIdProvider level: descend('user_id') -> user_id_resolver
+        resume_id_resolver = DescendableStubRelationResolver(
+            relations={},
+            children={'user_id': user_id_resolver},
+        )
+        return resume_id_resolver
+
+    def test_nested_descend_rel(self):
+        """$rel inside nested composite should generate EXISTS via descend."""
+        resolver = self._make_resolvers()
+        compiler = PgQueryCompiler(relation_resolver=resolver)
+
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+
+        sql, params = compiler.compile(query)
+
+        # Should generate EXISTS subquery against tenants table
+        self.assertIn("EXISTS (SELECT 1 FROM tenants", sql)
+        # Join expression should use nested path value->'user_id'->'tenant_id'
+        self.assertIn("value->'user_id'->'tenant_id'", sql)
+
+    def test_nested_descend_rel_with_eq(self):
+        """$rel + $eq inside nested composite."""
+        resolver = self._make_resolvers()
+        compiler = PgQueryCompiler(relation_resolver=resolver)
+
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'local_user_id': EqOperator(42),
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+
+        sql, params = compiler.compile(query)
+
+        # Both @> for collapsed eq and EXISTS for $rel
+        self.assertIn("@> %s", sql)
+        self.assertIn("EXISTS (SELECT 1 FROM tenants", sql)
+        # Collapsed eq should contain nested path
+        eq_param = next(p for p in params if hasattr(p, 'obj') and isinstance(p.obj, dict))
+        self.assertEqual(eq_param.obj, {'user_id': {'local_user_id': 42}})
+
+    def test_nested_descend_rel_with_top_level_eq(self):
+        """$rel inside nested composite alongside top-level $eq."""
+        resolver = self._make_resolvers()
+        compiler = PgQueryCompiler(relation_resolver=resolver)
+
+        query = CompositeQuery({
+            'local_resume_id': EqOperator(7),
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+
+        sql, params = compiler.compile(query)
+
+        self.assertIn("@> %s", sql)
+        self.assertIn("EXISTS (SELECT 1 FROM tenants", sql)
+        eq_param = next(p for p in params if hasattr(p, 'obj') and isinstance(p.obj, dict))
+        self.assertEqual(eq_param.obj, {'local_resume_id': 7})
+
+    def test_nested_descend_rel_with_comparison(self):
+        """$rel with comparison inside nested composite."""
+        resolver = self._make_resolvers()
+        compiler = PgQueryCompiler(relation_resolver=resolver)
+
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'priority': ComparisonOperator('$gte', 5),
+                })),
+            }),
+        })
+
+        sql, params = compiler.compile(query)
+
+        self.assertIn("EXISTS (SELECT 1 FROM tenants", sql)
+        self.assertIn(">= %s", sql)
+
+    def test_no_descend_without_resolver(self):
+        """Without resolver, $rel in nested composite raises TypeError."""
+        compiler = PgQueryCompiler()
+
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+
+        with self.assertRaises(TypeError):
+            compiler.compile(query)
+
+    def test_nested_descend_no_child(self):
+        """descend returns None for non-composite fields — $rel raises TypeError."""
+        # Resolver with no children for 'other_field'
+        resolver = DescendableStubRelationResolver(
+            relations={},
+            children={},
+        )
+        compiler = PgQueryCompiler(relation_resolver=resolver)
+
+        query = CompositeQuery({
+            'other_field': CompositeQuery({
+                'fk': RelOperator(CompositeQuery({
+                    'name': EqOperator('X'),
+                })),
+            }),
+        })
+
+        # descend returns None, so resolver stays at top level
+        # top-level resolver can't resolve 'fk' -> fallback to _to_dict
+        sql, params = compiler.compile(query)
+        # _compile_rel_field fallback: non-reference field with _to_dict
+        self.assertIn("@> %s", sql)
 
 
 if __name__ == '__main__':

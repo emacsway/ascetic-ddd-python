@@ -48,3 +48,17 @@ class ProviderObjectResolver(IObjectResolver):
         state = related_provider.export(obj)
         nested = ProviderObjectResolver(lambda: related_provider)
         return state, nested
+
+    def descend(self, field: str) -> 'ProviderObjectResolver | None':
+        aggregate_provider = self._aggregate_provider_accessor()
+        provider = aggregate_provider.providers.get(field)
+        if provider is None:
+            return None
+        if isinstance(provider, IReferenceProvider):
+            id_provider = provider.aggregate_provider.id_provider
+            if hasattr(id_provider, 'providers'):
+                return ProviderObjectResolver(lambda p=id_provider: p)
+            return None
+        if hasattr(provider, 'providers'):
+            return ProviderObjectResolver(lambda p=provider: p)
+        return None

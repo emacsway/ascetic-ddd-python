@@ -60,6 +60,21 @@ class IRelationResolver(metaclass=ABCMeta):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def descend(self, field: str) -> 'IRelationResolver | None':
+        """
+        Return a resolver scoped to the child provider for the given field.
+
+        Used when entering nested CompositeQuery fields to ensure
+        the resolver navigates the correct level of the provider tree.
+
+        Args:
+            field: Field name to descend into.
+
+        Returns resolver scoped to the child, or None if field has no children.
+        """
+        raise NotImplementedError
+
 
 class PgQueryCompiler(IQueryVisitor[None]):
     """
@@ -257,7 +272,13 @@ class PgQueryCompiler(IQueryVisitor[None]):
                 self._compile_rel_field(field, field_op)
             else:
                 self._field_path.append(field)
+                old_resolver = self._relation_resolver
+                if self._relation_resolver is not None:
+                    descended = self._relation_resolver.descend(field)
+                    if descended is not None:
+                        self._relation_resolver = descended
                 field_op.accept(self)
+                self._relation_resolver = old_resolver
                 self._field_path.pop()
 
     def visit_rel(self, op: RelOperator) -> None:
@@ -320,7 +341,7 @@ class PgQueryCompiler(IQueryVisitor[None]):
 
         if nested_compiler.sql:
             if field is not None:
-                join_expr = f"{self._target_value_expr}->'{field}'"
+                join_expr = f"{self._json_path_expr()}->'{field}'"
             else:
                 # Top-level: distributor stores IDs, match against value_id directly
                 join_expr = self._target_value_expr

@@ -40,6 +40,34 @@ class StubObjectResolver(IObjectResolver):
             return None, None
         return state, nested
 
+    def descend(self, field):
+        return None
+
+
+class DescendableStubObjectResolver(IObjectResolver):
+    """Test stub with descend support for nested composite resolution."""
+
+    def __init__(
+            self,
+            relations: dict[str | None, tuple[dict, 'IObjectResolver | None']],
+            children: dict[str, 'IObjectResolver'] | None = None,
+    ):
+        self._relations = relations
+        self._children = children or {}
+
+    async def resolve(self, session, field, fk_value):
+        info = self._relations.get(field)
+        if info is None:
+            return None, None
+        storage, nested = info
+        state = storage.get(fk_value)
+        if state is None:
+            return None, None
+        return state, nested
+
+    def descend(self, field):
+        return self._children.get(field)
+
 
 # =============================================================================
 # Tests for EvaluateWalker - Basic (no resolver)
@@ -1788,6 +1816,248 @@ class EvaluateWalkerRootAndThreeTableCascadeTestCase(IsolatedAsyncioTestCase):
 
         # ID 5 -> Ghost -> company_id=999 (not found)
         self.assertFalse(await self.walker.evaluate(self.session, query, 5))
+
+
+# =============================================================================
+# Tests for EvaluateWalker - Nested Composite Descend
+# =============================================================================
+
+class EvaluateWalkerNestedCompositeDescendTestCase(IsolatedAsyncioTestCase):
+    """Nested composite $rel via descend: ResumeId -> UserId -> Tenant.
+
+    ResumeId = {user_id: {tenant_id: 5, local_user_id: 42}, local_resume_id: 7}
+    Query asks for tenant with specific name via $rel inside nested composite.
+    """
+
+    def setUp(self):
+        self.session = MockSession()
+
+        # Tenant storage
+        self.tenant_storage = {
+            5: {'id': 5, 'name': 'TenantA'},
+            10: {'id': 10, 'name': 'TenantB'},
+        }
+
+        # UserIdProvider-level resolver: tenant_id resolves to tenant storage
+        tenant_resolver = StubObjectResolver({})
+        user_id_resolver = DescendableStubObjectResolver(
+            relations={'tenant_id': (self.tenant_storage, tenant_resolver)},
+        )
+
+        # ResumeIdProvider-level resolver: descend('user_id') -> user_id_resolver
+        self.resolver = DescendableStubObjectResolver(
+            relations={},
+            children={'user_id': user_id_resolver},
+        )
+        self.walker = EvaluateWalker(self.resolver)
+
+    async def test_nested_descend_matches(self):
+        """$rel inside nested composite should resolve via descend."""
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+        state = {'user_id': {'tenant_id': 5, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertTrue(await self.walker.evaluate(self.session, query, state))
+
+    async def test_nested_descend_not_matches(self):
+        """$rel inside nested composite should fail when foreign object doesn't match."""
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+        # tenant_id=10 -> TenantB, not TenantA
+        state = {'user_id': {'tenant_id': 10, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertFalse(await self.walker.evaluate(self.session, query, state))
+
+    async def test_nested_descend_fk_not_found(self):
+        """$rel inside nested composite should fail when FK not found."""
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+        state = {'user_id': {'tenant_id': 999, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertFalse(await self.walker.evaluate(self.session, query, state))
+
+    async def test_nested_descend_with_eq_constraint(self):
+        """$rel combined with $eq on sibling field inside nested composite."""
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'local_user_id': EqOperator(42),
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+        state = {'user_id': {'tenant_id': 5, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertTrue(await self.walker.evaluate(self.session, query, state))
+
+        # Wrong local_user_id
+        state_wrong = {'user_id': {'tenant_id': 5, 'local_user_id': 99}, 'local_resume_id': 7}
+        self.assertFalse(await self.walker.evaluate(self.session, query, state_wrong))
+
+    async def test_nested_descend_with_comparison(self):
+        """$rel with comparison operator on foreign field inside nested composite."""
+        self.tenant_storage[5] = {'id': 5, 'name': 'TenantA', 'priority': 10}
+        self.tenant_storage[10] = {'id': 10, 'name': 'TenantB', 'priority': 1}
+
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'priority': ComparisonOperator('$gte', 5),
+                })),
+            }),
+        })
+        # tenant_id=5 -> priority=10 >= 5
+        state_high = {'user_id': {'tenant_id': 5, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertTrue(await self.walker.evaluate(self.session, query, state_high))
+
+        # tenant_id=10 -> priority=1 < 5
+        state_low = {'user_id': {'tenant_id': 10, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertFalse(await self.walker.evaluate(self.session, query, state_low))
+
+    async def test_nested_descend_with_top_level_eq(self):
+        """$rel inside nested composite with top-level $eq constraint."""
+        query = CompositeQuery({
+            'local_resume_id': EqOperator(7),
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+        state = {'user_id': {'tenant_id': 5, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertTrue(await self.walker.evaluate(self.session, query, state))
+
+        state_wrong_id = {'user_id': {'tenant_id': 5, 'local_user_id': 42}, 'local_resume_id': 99}
+        self.assertFalse(await self.walker.evaluate(self.session, query, state_wrong_id))
+
+
+class EvaluateWalkerSyncNestedCompositeDescendTestCase(IsolatedAsyncioTestCase):
+    """Sync evaluation with descend for nested composite."""
+
+    def setUp(self):
+        # No resolver for sync — descend returns None, $rel delegates to inner query
+        self.walker = EvaluateWalker()
+
+    def test_sync_nested_composite_rel_delegates(self):
+        """evaluate_sync: $rel inside nested composite delegates to inner query."""
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+        # Without resolver, $rel delegates to inner query against field value
+        state = {'user_id': {'tenant_id': {'name': 'TenantA'}, 'local_user_id': 42}}
+        self.assertTrue(self.walker.evaluate_sync(query, state))
+
+        state_wrong = {'user_id': {'tenant_id': {'name': 'TenantB'}, 'local_user_id': 42}}
+        self.assertFalse(self.walker.evaluate_sync(query, state_wrong))
+
+
+# =============================================================================
+# Tests for EvaluateVisitor - Nested Composite Descend
+# =============================================================================
+
+class EvaluateVisitorNestedCompositeDescendTestCase(IsolatedAsyncioTestCase):
+    """Nested composite $rel via descend for EvaluateVisitor."""
+
+    def setUp(self):
+        self.session = MockSession()
+
+        self.tenant_storage = {
+            5: {'id': 5, 'name': 'TenantA'},
+            10: {'id': 10, 'name': 'TenantB'},
+        }
+
+        tenant_resolver = StubObjectResolver({})
+        user_id_resolver = DescendableStubObjectResolver(
+            relations={'tenant_id': (self.tenant_storage, tenant_resolver)},
+        )
+
+        self.resolver = DescendableStubObjectResolver(
+            relations={},
+            children={'user_id': user_id_resolver},
+        )
+
+    def _eval(self, state, query):
+        return query.accept(EvaluateVisitor(state, self.session, self.resolver))
+
+    async def test_nested_descend_matches(self):
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+        state = {'user_id': {'tenant_id': 5, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertTrue(await self._eval(state, query))
+
+    async def test_nested_descend_not_matches(self):
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+        state = {'user_id': {'tenant_id': 10, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertFalse(await self._eval(state, query))
+
+    async def test_nested_descend_fk_not_found(self):
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+        state = {'user_id': {'tenant_id': 999, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertFalse(await self._eval(state, query))
+
+    async def test_nested_descend_with_eq_constraint(self):
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'local_user_id': EqOperator(42),
+                'tenant_id': RelOperator(CompositeQuery({
+                    'name': EqOperator('TenantA'),
+                })),
+            }),
+        })
+        state = {'user_id': {'tenant_id': 5, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertTrue(await self._eval(state, query))
+
+        state_wrong = {'user_id': {'tenant_id': 5, 'local_user_id': 99}, 'local_resume_id': 7}
+        self.assertFalse(await self._eval(state_wrong, query))
+
+    async def test_nested_descend_with_comparison(self):
+        self.tenant_storage[5] = {'id': 5, 'name': 'TenantA', 'priority': 10}
+        self.tenant_storage[10] = {'id': 10, 'name': 'TenantB', 'priority': 1}
+
+        query = CompositeQuery({
+            'user_id': CompositeQuery({
+                'tenant_id': RelOperator(CompositeQuery({
+                    'priority': ComparisonOperator('$gte', 5),
+                })),
+            }),
+        })
+        state_high = {'user_id': {'tenant_id': 5, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertTrue(await self._eval(state_high, query))
+
+        state_low = {'user_id': {'tenant_id': 10, 'local_user_id': 42}, 'local_resume_id': 7}
+        self.assertFalse(await self._eval(state_low, query))
 
 
 if __name__ == '__main__':

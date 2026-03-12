@@ -484,6 +484,7 @@ class BaseCompositeDistributionProvider(
             return QueryLookupSpecification[CompositeOutputT](
                 self._criteria,
                 self.export,
+                aggregate_provider_accessor=lambda: self,
             )
         return EmptySpecification[CompositeOutputT]()
 

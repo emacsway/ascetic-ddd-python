@@ -40,6 +40,21 @@ class IObjectResolver(metaclass=ABCMeta):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def descend(self, field: str) -> 'IObjectResolver | None':
+        """
+        Return a resolver scoped to the child provider for the given field.
+
+        Used when entering nested CompositeQuery fields to ensure
+        the resolver navigates the correct level of the provider tree.
+
+        Args:
+            field: Field name to descend into.
+
+        Returns resolver scoped to the child, or None if field has no children.
+        """
+        raise NotImplementedError
+
 
 class EvaluateWalker:
     """
@@ -226,7 +241,13 @@ class EvaluateWalker:
             # No async resolver — delegate to inner query with field_value as state
             return self.evaluate_sync(field_op.query, field_value)
 
-        return self.evaluate_sync(
+        # Descend resolver for nested composite fields
+        walker = self
+        if self._object_resolver is not None:
+            descended = self._object_resolver.descend(field)
+            if descended is not None:
+                walker = EvaluateWalker(descended)
+        return walker.evaluate_sync(
             field_op, field_value, _field_context=(field, field_value)
         )
 
@@ -277,8 +298,13 @@ class EvaluateWalker:
             nested = EvaluateWalker(nested_resolver)
             return await nested.evaluate(session, field_op.query, foreign_state)
 
-        # Regular operator — pass field context for nested RelOperator inside Or/And
-        return await self.evaluate(
+        # Descend resolver for nested composite fields
+        walker = self
+        if self._object_resolver is not None:
+            descended = self._object_resolver.descend(field)
+            if descended is not None:
+                walker = EvaluateWalker(descended)
+        return await walker.evaluate(
             session, field_op, field_value, _field_context=(field, field_value)
         )
 
@@ -427,9 +453,12 @@ class EvaluateVisitor(IQueryVisitor[typing.Awaitable[bool]]):
                 if not await field_op.query.accept(nested):
                     return False
             else:
-                # Pass field context for nested RelOperator inside Or/And
+                # Descend resolver for nested composite fields
+                descended = None
+                if self._object_resolver is not None:
+                    descended = self._object_resolver.descend(field)
                 evaluator = self._with_state(
-                    field_value, _field_context=(field, field_value)
+                    field_value, object_resolver=descended, _field_context=(field, field_value)
                 )
                 if not await field_op.accept(evaluator):
                     return False
