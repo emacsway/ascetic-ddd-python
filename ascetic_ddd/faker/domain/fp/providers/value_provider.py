@@ -91,8 +91,8 @@ class ValueProvider(typing.Generic[T]):
     def is_transient(self) -> bool:
         return self._is_transient
 
-    async def setup(self, session: ISession) -> None:
+    async def setup(self, session: ISession, visited: set[int] | None = None) -> None:
         pass
 
-    async def cleanup(self, session: ISession) -> None:
+    async def cleanup(self, session: ISession, visited: set[int] | None = None) -> None:
         pass

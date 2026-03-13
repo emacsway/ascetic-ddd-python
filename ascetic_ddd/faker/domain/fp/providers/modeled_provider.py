@@ -66,8 +66,18 @@ class ModeledProvider(typing.Generic[RawT, ModelT]):
     def is_transient(self) -> bool:
         return self._inner.is_transient()
 
-    async def setup(self, session: ISession) -> None:
-        await self._inner.setup(session)
+    async def setup(self, session: ISession, visited: set[int] | None = None) -> None:
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
+        await self._inner.setup(session, visited)
 
-    async def cleanup(self, session: ISession) -> None:
-        await self._inner.cleanup(session)
+    async def cleanup(self, session: ISession, visited: set[int] | None = None) -> None:
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
+        await self._inner.cleanup(session, visited)

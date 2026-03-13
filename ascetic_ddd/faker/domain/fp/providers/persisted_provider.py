@@ -84,10 +84,20 @@ class PersistedProvider(typing.Generic[T]):
     def repository(self) -> IAggregateRepository[T]:
         return self._repository
 
-    async def setup(self, session: ISession) -> None:
+    async def setup(self, session: ISession, visited: set[int] | None = None) -> None:
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
         await self._repository.setup(session)
-        await self._inner.setup(session)
+        await self._inner.setup(session, visited)
 
-    async def cleanup(self, session: ISession) -> None:
+    async def cleanup(self, session: ISession, visited: set[int] | None = None) -> None:
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
         await self._repository.cleanup(session)
-        await self._inner.cleanup(session)
+        await self._inner.cleanup(session, visited)

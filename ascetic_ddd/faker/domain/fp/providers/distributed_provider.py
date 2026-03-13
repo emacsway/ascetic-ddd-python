@@ -3,7 +3,7 @@ import typing
 from ascetic_ddd.option import Option, Some, Nothing
 from ascetic_ddd.faker.domain.fp.providers.interfaces import IProvider
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor, ICursor
-from ascetic_ddd.faker.domain.query import parse_query
+from ascetic_ddd.faker.domain.query import parse_query, query_to_dict
 from ascetic_ddd.faker.domain.query.operators import IQueryOperator, MergeConflict
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
@@ -51,6 +51,7 @@ class DistributedProvider(typing.Generic[T]):
         self._aggregate_provider_accessor = aggregate_provider_accessor
         self._output: Option[T] = Nothing()
         self._criteria: IQueryOperator | None = None
+        self._criteria_propagated: bool = False
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
@@ -59,25 +60,25 @@ class DistributedProvider(typing.Generic[T]):
         try:
             result = await self._distributor.next(session, spec)
             if result.is_some():
-                value = result.unwrap()
-                # Set inner provider to the distributed value
-                if isinstance(value, dict):
-                    self._inner.require(value)
-                else:
-                    self._inner.require({'$eq': value})
-                await self._inner.populate(session)
-                self._output = Some(self._inner.output())
+                # Value selected from distributor — use directly.
+                # Do NOT propagate to inner via require() to avoid
+                # diamond conflicts on shared aggregate providers.
+                self._output = Some(result.unwrap())
                 return
         except ICursor as cursor:
-            # Distributor exhausted — create new value
+            # Distributor exhausted — create new value.
+            # Propagate criteria to inner for constrained creation
+            # (e.g. ReferenceProvider needs to know first_model_id).
+            if self._criteria is not None and not self._criteria_propagated:
+                self._inner.require(query_to_dict(self._criteria))
+                self._criteria_propagated = True
             await self._inner.populate(session)
             output = self._inner.output()
             self._output = Some(output)
             await cursor.append(session, output)
             return
-        # next() returned Nothing (e.g. NullableDistributor)
-        await self._inner.populate(session)
-        self._output = Some(self._inner.output())
+        # next() returned Nothing (e.g. NullableDistributor → null FK)
+        self._output = Some(None)  # type: ignore[arg-type]
 
     def _make_specification(self) -> ISpecification[T]:
         if self._criteria is not None:
@@ -102,11 +103,15 @@ class DistributedProvider(typing.Generic[T]):
                 )
         else:
             self._criteria = new_criteria
-        self._inner.require(criteria)
+        # Criteria is used for distributor specification filtering only.
+        # Do NOT forward to inner here — inner receives either:
+        # - The selected value (on distributor hit) via require({'$eq': value})
+        # - The criteria (on ICursor/creation path) via deferred propagation
         self._output = Nothing()
+        self._criteria_propagated = False
 
     def state(self) -> typing.Any:
-        return self._inner.state()
+        return self._output.unwrap()
 
     def reset(self, visited: set[int] | None = None) -> None:
         if visited is None:
@@ -117,6 +122,7 @@ class DistributedProvider(typing.Generic[T]):
         self._inner.reset(visited)
         self._output = Nothing()
         self._criteria = None
+        self._criteria_propagated = False
 
     def is_complete(self) -> bool:
         return self._output.is_some()
@@ -124,13 +130,23 @@ class DistributedProvider(typing.Generic[T]):
     def is_transient(self) -> bool:
         return self._inner.is_transient()
 
-    async def setup(self, session: ISession) -> None:
+    async def setup(self, session: ISession, visited: set[int] | None = None) -> None:
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
         await self._distributor.setup(session)
-        await self._inner.setup(session)
+        await self._inner.setup(session, visited)
 
-    async def cleanup(self, session: ISession) -> None:
+    async def cleanup(self, session: ISession, visited: set[int] | None = None) -> None:
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
         await self._distributor.cleanup(session)
-        await self._inner.cleanup(session)
+        await self._inner.cleanup(session, visited)
 
 
 def _identity(x: typing.Any) -> typing.Any:

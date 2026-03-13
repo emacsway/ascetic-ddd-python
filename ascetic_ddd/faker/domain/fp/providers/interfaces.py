@@ -37,8 +37,8 @@ class IProvider(typing.Protocol[T_co]):
     def is_transient(self) -> bool:
         ...
 
-    async def setup(self, session: ISession) -> None:
+    async def setup(self, session: ISession, visited: set[int] | None = None) -> None:
         ...
 
-    async def cleanup(self, session: ISession) -> None:
+    async def cleanup(self, session: ISession, visited: set[int] | None = None) -> None:
         ...

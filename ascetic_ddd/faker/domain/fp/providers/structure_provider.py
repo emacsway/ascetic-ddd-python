@@ -91,10 +91,20 @@ class StructureProvider:
     def providers(self) -> dict[str, IProvider[typing.Any]]:
         return self._providers
 
-    async def setup(self, session: ISession) -> None:
+    async def setup(self, session: ISession, visited: set[int] | None = None) -> None:
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
         for provider in self._providers.values():
-            await provider.setup(session)
+            await provider.setup(session, visited)
 
-    async def cleanup(self, session: ISession) -> None:
+    async def cleanup(self, session: ISession, visited: set[int] | None = None) -> None:
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
         for provider in self._providers.values():
-            await provider.cleanup(session)
+            await provider.cleanup(session, visited)

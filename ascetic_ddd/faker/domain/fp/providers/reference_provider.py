@@ -71,6 +71,9 @@ class ReferenceProvider(typing.Generic[IdT]):
         self._is_transient = False
 
     def _extract_id(self, agg_provider: 'IProvider[typing.Any]') -> typing.Any:
+        output = agg_provider.output()
+        if hasattr(output, self._id_attr):
+            return getattr(output, self._id_attr)
         state = agg_provider.state()
         if isinstance(state, dict) and self._id_attr in state:
             return state[self._id_attr]
@@ -141,9 +144,22 @@ class ReferenceProvider(typing.Generic[IdT]):
     def is_transient(self) -> bool:
         return self._is_transient
 
-    async def setup(self, session: ISession) -> None:
-        await self.aggregate_provider.setup(session)
-
-    async def cleanup(self, session: ISession) -> None:
+    async def setup(self, session: ISession, visited: set[int] | None = None) -> None:
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
+        # Don't force-resolve lazy factory during setup — avoids infinite
+        # recursion for self-referential structures (parent_id → same faker).
         if self._aggregate_provider is not None:
-            await self._aggregate_provider.cleanup(session)
+            await self._aggregate_provider.setup(session, visited)
+
+    async def cleanup(self, session: ISession, visited: set[int] | None = None) -> None:
+        if visited is None:
+            visited = set()
+        if id(self) in visited:
+            return
+        visited.add(id(self))
+        if self._aggregate_provider is not None:
+            await self._aggregate_provider.cleanup(session, visited)
