@@ -31,6 +31,9 @@ class DistributedProvider(typing.Generic[T]):
         distributor: Distributor for value selection.
         object_exporter: Converts distributor's stored value to state dict
             for specification matching. Defaults to identity.
+        aggregate_provider_accessor: Optional callable returning aggregate provider
+            for $rel resolution in specification. Required when distributor stores
+            FK IDs and criteria contain $rel operators.
     """
 
     def __init__(
@@ -38,12 +41,14 @@ class DistributedProvider(typing.Generic[T]):
             inner: IProvider[T],
             distributor: IM2ODistributor[T],
             object_exporter: typing.Callable[[T], typing.Any] | None = None,
+            aggregate_provider_accessor: typing.Callable[[], typing.Any] | None = None,
     ) -> None:
         self._inner = inner
         self._distributor = distributor
         self._object_exporter: typing.Callable[[T], typing.Any] = (
             object_exporter if object_exporter is not None else _identity
         )
+        self._aggregate_provider_accessor = aggregate_provider_accessor
         self._output: Option[T] = Nothing()
         self._criteria: IQueryOperator | None = None
 
@@ -79,6 +84,7 @@ class DistributedProvider(typing.Generic[T]):
             return QueryLookupSpecification[T](
                 self._criteria,
                 self._object_exporter,
+                aggregate_provider_accessor=self._aggregate_provider_accessor,
             )
         return EmptySpecification[T]()
 
