@@ -36,12 +36,12 @@ class DistributedProvider(typing.Generic[T]):
     def __init__(
             self,
             inner: IProvider[T],
-            distributor: IM2ODistributor[typing.Any],
-            object_exporter: typing.Callable[[typing.Any], typing.Any] | None = None,
+            distributor: IM2ODistributor[T],
+            object_exporter: typing.Callable[[T], typing.Any] | None = None,
     ) -> None:
         self._inner = inner
         self._distributor = distributor
-        self._object_exporter: typing.Callable[[typing.Any], typing.Any] = (
+        self._object_exporter: typing.Callable[[T], typing.Any] = (
             object_exporter if object_exporter is not None else _identity
         )
         self._output: Option[T] = Nothing()
@@ -66,20 +66,21 @@ class DistributedProvider(typing.Generic[T]):
         except ICursor as cursor:
             # Distributor exhausted — create new value
             await self._inner.populate(session)
-            self._output = Some(self._inner.output())
-            await cursor.append(session, self._inner.state())
+            output = self._inner.output()
+            self._output = Some(output)
+            await cursor.append(session, output)
             return
         # next() returned Nothing (e.g. NullableDistributor)
         await self._inner.populate(session)
         self._output = Some(self._inner.output())
 
-    def _make_specification(self) -> ISpecification[typing.Any]:
+    def _make_specification(self) -> ISpecification[T]:
         if self._criteria is not None:
-            return QueryLookupSpecification[typing.Any](
+            return QueryLookupSpecification[T](
                 self._criteria,
                 self._object_exporter,
             )
-        return EmptySpecification[typing.Any]()
+        return EmptySpecification[T]()
 
     def output(self) -> T:
         return self._output.unwrap()

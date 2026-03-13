@@ -41,14 +41,14 @@ class ReferenceProvider(typing.Generic[IdT]):
 
     def __init__(
             self,
-            distributor: IM2ODistributor[typing.Any],
+            distributor: IM2ODistributor[IdT],
             aggregate_provider: 'IProvider[typing.Any] | Callable[[], IProvider[typing.Any]]',
             id_attr: str = 'id',
-            object_exporter: Callable[[typing.Any], typing.Any] | None = None,
+            object_exporter: Callable[[IdT], typing.Any] | None = None,
     ) -> None:
         self._distributor = distributor
         self._id_attr = id_attr
-        self._object_exporter: Callable[[typing.Any], typing.Any] = (
+        self._object_exporter: Callable[[IdT], typing.Any] = (
             object_exporter if object_exporter is not None else _identity
         )
         self._output: Option[IdT | None] = Nothing()
@@ -99,14 +99,14 @@ class ReferenceProvider(typing.Generic[IdT]):
             self._is_transient = False
             await cursor.append(session, id_value)
 
-    def _make_specification(self) -> ISpecification[typing.Any]:
+    def _make_specification(self) -> ISpecification[IdT]:
         if self._criteria is not None:
-            return QueryLookupSpecification[typing.Any](
+            return QueryLookupSpecification[IdT](
                 self._criteria,
                 self._object_exporter,
                 aggregate_provider_accessor=lambda: self.aggregate_provider,
             )
-        return EmptySpecification[typing.Any]()
+        return EmptySpecification[IdT]()
 
     def _extract_id(self, agg_provider: 'IProvider[typing.Any]') -> typing.Any:
         state = agg_provider.state()
