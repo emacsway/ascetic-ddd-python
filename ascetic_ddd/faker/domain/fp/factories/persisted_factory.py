@@ -1,15 +1,15 @@
 import typing
 
-from ascetic_ddd.faker.domain.fp.creators.interfaces import ICreator
+from ascetic_ddd.faker.domain.fp.factories.interfaces import IFactory
 from ascetic_ddd.faker.domain.providers.interfaces import IAggregateRepository
 from ascetic_ddd.session.interfaces import ISession
 
-__all__ = ('PersistedCreator',)
+__all__ = ('PersistedFactory',)
 
 T = typing.TypeVar('T')
 
 
-class PersistedCreator(typing.Generic[T]):
+class PersistedFactory(typing.Generic[T]):
     """Stateless decorator: repository persistence.
 
     On create:
@@ -18,7 +18,7 @@ class PersistedCreator(typing.Generic[T]):
     3. If not found, inserts into repository
 
     Args:
-        inner: Wrapped creator.
+        inner: Wrapped factory.
         repository: Repository for aggregate persistence.
         id_extractor: Extracts serialized ID from created value for repo lookup.
             Returns None for transient IDs (skip lookup, always insert).
@@ -26,7 +26,7 @@ class PersistedCreator(typing.Generic[T]):
 
     def __init__(
             self,
-            inner: ICreator[T],
+            inner: IFactory[T],
             repository: IAggregateRepository[T],
             id_extractor: typing.Callable[[T], typing.Any] | None = None,
     ) -> None:

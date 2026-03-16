@@ -4,7 +4,7 @@ from ascetic_ddd.faker.domain.query import parse_query
 from ascetic_ddd.faker.domain.query.operators import EqOperator
 from ascetic_ddd.session.interfaces import ISession
 
-__all__ = ('ValueCreator',)
+__all__ = ('ValueFactory',)
 
 T = typing.TypeVar('T')
 T_co = typing.TypeVar('T_co', covariant=True)
@@ -16,7 +16,7 @@ class IInputGenerator(typing.Protocol[T_co]):
         ...
 
 
-class ValueCreator(typing.Generic[T]):
+class ValueFactory(typing.Generic[T]):
     """Stateless leaf creator.
 
     Produces a value from:

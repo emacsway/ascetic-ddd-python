@@ -1,20 +1,20 @@
 import typing
 
-from ascetic_ddd.faker.domain.fp.creators.interfaces import ICreator
+from ascetic_ddd.faker.domain.fp.factories.interfaces import IFactory
 from ascetic_ddd.session.interfaces import ISession
 
-__all__ = ('ModeledCreator',)
+__all__ = ('ModeledFactory',)
 
 RawT = typing.TypeVar('RawT')
 ModelT = typing.TypeVar('ModelT')
 
 
-class ModeledCreator(typing.Generic[RawT, ModelT]):
-    """Stateless decorator: dict -> domain model via factory."""
+class ModeledFactory(typing.Generic[RawT, ModelT]):
+    """Stateless decorator: dict -> domain model via model factory."""
 
     def __init__(
             self,
-            inner: ICreator[RawT],
+            inner: IFactory[RawT],
             factory: typing.Callable[..., ModelT],
     ) -> None:
         self._inner = inner

@@ -1,22 +1,22 @@
 import typing
 
-from ascetic_ddd.faker.domain.fp.creators.interfaces import ICreator
+from ascetic_ddd.faker.domain.fp.factories.interfaces import IFactory
 from ascetic_ddd.faker.domain.query import parse_query, query_to_dict
 from ascetic_ddd.faker.domain.query.operators import CompositeQuery
 from ascetic_ddd.session.interfaces import ISession
 
-__all__ = ('StructureCreator',)
+__all__ = ('StructureFactory',)
 
 
-class StructureCreator:
-    """Stateless composite creator.
+class StructureFactory:
+    """Stateless composite factory.
 
     Distributes criteria by field name to children,
     collects results into a dict.
     """
 
-    def __init__(self, **creators: ICreator[typing.Any]) -> None:
-        self._creators = creators
+    def __init__(self, **factories: IFactory[typing.Any]) -> None:
+        self._factories = factories
 
     async def create(
             self,
@@ -25,8 +25,8 @@ class StructureCreator:
     ) -> dict[str, typing.Any]:
         field_criteria = self._distribute_criteria(criteria)
         return {
-            name: await creator.create(session, field_criteria.get(name))
-            for name, creator in self._creators.items()
+            name: await factory.create(session, field_criteria.get(name))
+            for name, factory in self._factories.items()
         }
 
     def _distribute_criteria(
@@ -39,14 +39,14 @@ class StructureCreator:
         parsed = parse_query(criteria)
         if isinstance(parsed, CompositeQuery):
             for attr, field_query in parsed.fields.items():
-                if attr in self._creators:
+                if attr in self._factories:
                     result[attr] = query_to_dict(field_query)
         return result
 
     async def setup(self, session: ISession) -> None:
-        for creator in self._creators.values():
-            await creator.setup(session)
+        for factory in self._factories.values():
+            await factory.setup(session)
 
     async def cleanup(self, session: ISession) -> None:
-        for creator in self._creators.values():
-            await creator.cleanup(session)
+        for factory in self._factories.values():
+            await factory.cleanup(session)

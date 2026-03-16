@@ -17,12 +17,12 @@ from unittest import IsolatedAsyncioTestCase
 from http.server import BaseHTTPRequestHandler
 
 from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factory
-from ascetic_ddd.faker.domain.fp.creators import (
-    ValueCreator,
-    StructureCreator,
-    ModeledCreator,
-    DistributedCreator,
-    PersistedCreator,
+from ascetic_ddd.faker.domain.fp.factories import (
+    ValueFactory,
+    StructureFactory,
+    ModeledFactory,
+    DistributedFactory,
+    PersistedFactory,
     Pipe,
     PipeStep,
 )
@@ -256,7 +256,7 @@ class Attr2ValueGenerator:
         return val
 
 
-# ################## ID extractors for PersistedCreator ##################
+# ################## ID extractors for PersistedFactory ##################
 
 
 def first_model_id_extractor(fm: FirstModel) -> typing.Any:
@@ -282,18 +282,18 @@ def third_model_id_extractor(tm: ThirdModel) -> typing.Any:
 
 def make_first_model_creator(repository, make_distributor):
     """FirstModel creator — no FK references."""
-    structure = StructureCreator(
-        id=ValueCreator(),
-        attr2=DistributedCreator(
-            ValueCreator(input_generator=Attr2ValueGenerator()),
+    structure = StructureFactory(
+        id=ValueFactory(),
+        attr2=DistributedFactory(
+            ValueFactory(input_generator=Attr2ValueGenerator()),
             distributor=make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 mean=10,
             ),
         ),
     )
-    modeled = ModeledCreator(structure, factory=FirstModel)
-    return PersistedCreator(
+    modeled = ModeledFactory(structure, factory=FirstModel)
+    return PersistedFactory(
         modeled,
         repository=repository,
         id_extractor=first_model_id_extractor,
@@ -302,28 +302,28 @@ def make_first_model_creator(repository, make_distributor):
 
 def make_second_model_creator(repository, make_distributor):
     """SecondModel creator — FK first_model_id comes from Pipe context."""
-    pk_structure = StructureCreator(
-        id=ValueCreator(),
-        first_model_id=ValueCreator(),
+    pk_structure = StructureFactory(
+        id=ValueFactory(),
+        first_model_id=ValueFactory(),
     )
-    pk_distributed = DistributedCreator(
+    pk_distributed = DistributedFactory(
         pk_structure,
         distributor=make_distributor(),
     )
-    pk_modeled = ModeledCreator(pk_distributed, factory=SecondModelPk)
+    pk_modeled = ModeledFactory(pk_distributed, factory=SecondModelPk)
 
-    structure = StructureCreator(
+    structure = StructureFactory(
         id=pk_modeled,
-        attr2=DistributedCreator(
-            ValueCreator(input_generator=Attr2ValueGenerator()),
+        attr2=DistributedFactory(
+            ValueFactory(input_generator=Attr2ValueGenerator()),
             distributor=make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 mean=10,
             ),
         ),
     )
-    modeled = ModeledCreator(structure, factory=SecondModel)
-    return PersistedCreator(
+    modeled = ModeledFactory(structure, factory=SecondModel)
+    return PersistedFactory(
         modeled,
         repository=repository,
         id_extractor=second_model_id_extractor,
@@ -332,30 +332,30 @@ def make_second_model_creator(repository, make_distributor):
 
 def make_third_model_creator(repository, make_distributor):
     """ThirdModel creator — all FK values come from Pipe context."""
-    pk_structure = StructureCreator(
-        id=ValueCreator(),
-        first_model_id=ValueCreator(),
+    pk_structure = StructureFactory(
+        id=ValueFactory(),
+        first_model_id=ValueFactory(),
     )
-    pk_distributed = DistributedCreator(
+    pk_distributed = DistributedFactory(
         pk_structure,
         distributor=make_distributor(),
     )
-    pk_modeled = ModeledCreator(pk_distributed, factory=ThirdModelPk)
+    pk_modeled = ModeledFactory(pk_distributed, factory=ThirdModelPk)
 
-    structure = StructureCreator(
+    structure = StructureFactory(
         id=pk_modeled,
-        second_model_id=ValueCreator(),
-        attr2=DistributedCreator(
-            ValueCreator(input_generator=Attr2ValueGenerator()),
+        second_model_id=ValueFactory(),
+        attr2=DistributedFactory(
+            ValueFactory(input_generator=Attr2ValueGenerator()),
             distributor=make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 mean=10,
             ),
         ),
-        parent_id=ValueCreator(),
+        parent_id=ValueFactory(),
     )
-    modeled = ModeledCreator(structure, factory=ThirdModel)
-    return PersistedCreator(
+    modeled = ModeledFactory(structure, factory=ThirdModel)
+    return PersistedFactory(
         modeled,
         repository=repository,
         id_extractor=third_model_id_extractor,
@@ -531,7 +531,7 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
 
     def _make_second_model_pipe(self):
         first_model_creator = self._make_first_model_creator()
-        first_model_step = DistributedCreator(
+        first_model_step = DistributedFactory(
             first_model_creator,
             distributor=self.make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
@@ -552,7 +552,7 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
 
     def _make_third_model_pipe(self):
         first_model_creator = self._make_first_model_creator()
-        first_model_step = DistributedCreator(
+        first_model_step = DistributedFactory(
             first_model_creator,
             distributor=self.make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
@@ -564,7 +564,7 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
             self._make_second_model_repository(),
             self.make_distributor,
         )
-        second_model_step = DistributedCreator(
+        second_model_step = DistributedFactory(
             second_model_creator,
             distributor=self.make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],

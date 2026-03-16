@@ -2,13 +2,13 @@ import typing
 
 from ascetic_ddd.session.interfaces import ISession
 
-__all__ = ('ICreator',)
+__all__ = ('IFactory',)
 
 T_co = typing.TypeVar('T_co', covariant=True)
 
 
-class ICreator(typing.Protocol[T_co]):
-    """Stateless creator interface.
+class IFactory(typing.Protocol[T_co]):
+    """Stateless factory interface.
 
     Each call to create() produces a fresh value.
     No internal mutable state — no require/populate/output/reset cycle.

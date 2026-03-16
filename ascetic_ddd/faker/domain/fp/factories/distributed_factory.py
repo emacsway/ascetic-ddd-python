@@ -1,6 +1,6 @@
 import typing
 
-from ascetic_ddd.faker.domain.fp.creators.interfaces import ICreator
+from ascetic_ddd.faker.domain.fp.factories.interfaces import IFactory
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor, ICursor
 from ascetic_ddd.faker.domain.query import parse_query
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
@@ -8,12 +8,12 @@ from ascetic_ddd.faker.domain.specification.query_lookup_specification import Qu
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.session.interfaces import ISession
 
-__all__ = ('DistributedCreator',)
+__all__ = ('DistributedFactory',)
 
 T = typing.TypeVar('T')
 
 
-class DistributedCreator(typing.Generic[T]):
+class DistributedFactory(typing.Generic[T]):
     """Stateless decorator: distributor-based value selection.
 
     On create:
@@ -25,7 +25,7 @@ class DistributedCreator(typing.Generic[T]):
 
     def __init__(
             self,
-            inner: ICreator[T],
+            inner: IFactory[T],
             distributor: IM2ODistributor[T],
             object_exporter: typing.Callable[[T], typing.Any] | None = None,
     ) -> None:

@@ -1,7 +1,7 @@
 import typing
 import dataclasses
 
-from ascetic_ddd.faker.domain.fp.creators.interfaces import ICreator
+from ascetic_ddd.faker.domain.fp.factories.interfaces import IFactory
 from ascetic_ddd.session.interfaces import ISession
 
 __all__ = ('Pipe', 'PipeStep')
@@ -15,13 +15,13 @@ class PipeStep:
 
     Args:
         name: Key for this step's output in the context.
-        creator: Creator to invoke.
+        factory: Factory to invoke.
         require_fn: Receives read-only context of previous steps' results,
             returns criteria dict for this step. None means no criteria.
     """
 
     name: str
-    creator: ICreator[typing.Any]
+    factory: IFactory[typing.Any]
     require_fn: typing.Callable[[dict[str, typing.Any]], dict[str, typing.Any] | None] | None = None
 
 
@@ -34,8 +34,8 @@ class Pipe(typing.Generic[T]):
     Example::
 
         pipe = Pipe(
-            PipeStep('tenant', tenant_creator),
-            PipeStep('order', order_creator,
+            PipeStep('tenant', tenant_factory),
+            PipeStep('order', order_factory,
                 require_fn=lambda ctx: {'tenant_id': {'$eq': ctx['tenant'].id}}),
             result='order',
         )
@@ -54,13 +54,13 @@ class Pipe(typing.Generic[T]):
         ctx: dict[str, typing.Any] = {}
         for step in self._steps:
             step_criteria = step.require_fn(ctx) if step.require_fn is not None else None
-            ctx[step.name] = await step.creator.create(session, step_criteria)
+            ctx[step.name] = await step.factory.create(session, step_criteria)
         return ctx[self._result]
 
     async def setup(self, session: ISession) -> None:
         for step in self._steps:
-            await step.creator.setup(session)
+            await step.factory.setup(session)
 
     async def cleanup(self, session: ISession) -> None:
         for step in self._steps:
-            await step.creator.cleanup(session)
+            await step.factory.cleanup(session)
