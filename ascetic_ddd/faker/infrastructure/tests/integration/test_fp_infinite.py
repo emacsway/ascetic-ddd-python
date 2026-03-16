@@ -17,12 +17,15 @@ from unittest import IsolatedAsyncioTestCase
 from http.server import BaseHTTPRequestHandler
 
 from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factory
-from ascetic_ddd.faker.domain.fp.providers.value_provider import ValueProvider
-from ascetic_ddd.faker.domain.fp.providers.structure_provider import StructureProvider
-from ascetic_ddd.faker.domain.fp.providers.modeled_provider import ModeledProvider
-from ascetic_ddd.faker.domain.fp.providers.persisted_provider import PersistedProvider
-from ascetic_ddd.faker.domain.fp.providers.distributed_provider import DistributedProvider
-from ascetic_ddd.faker.domain.fp.pipe import Pipe, PipeStep
+from ascetic_ddd.faker.domain.fp.creators import (
+    ValueCreator,
+    StructureCreator,
+    ModeledCreator,
+    DistributedCreator,
+    PersistedCreator,
+    Pipe,
+    PipeStep,
+)
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.infrastructure.distributors.m2o import pg_distributor_factory
 from ascetic_ddd.session.rest_session import RestSessionPool
@@ -253,139 +256,110 @@ class Attr2ValueGenerator:
         return val
 
 
-# ################## Faker Factories (Pipe-based) #######################
-#
-# With Pipe, FK values flow top-down via require_fn.
-# No ReferenceProvider needed — parent is created first,
-# its ID is passed to child via pipe context.
-#
+# ################## ID extractors for PersistedCreator ##################
 
 
-def make_first_model_faker(repository, make_distributor):
-    """FirstModel provider — no FK references, unchanged."""
-    id_prov = ValueProvider()
-    attr2_prov = DistributedProvider(
-        ValueProvider(input_generator=Attr2ValueGenerator()),
-        distributor=make_distributor(
-            weights=[0.9, 0.5, 0.1, 0.01],
-            mean=10,
+def first_model_id_extractor(fm: FirstModel) -> typing.Any:
+    if fm.id is None:
+        return None
+    return fm.id
+
+
+def second_model_id_extractor(sm: SecondModel) -> typing.Any:
+    if sm.id is None or sm.id.id is None:
+        return None
+    return export_second_model_pk(sm.id)
+
+
+def third_model_id_extractor(tm: ThirdModel) -> typing.Any:
+    if tm.id is None or tm.id.id is None:
+        return None
+    return export_third_model_pk(tm.id)
+
+
+# ################## Creator Factories (stateless) #######################
+
+
+def make_first_model_creator(repository, make_distributor):
+    """FirstModel creator — no FK references."""
+    structure = StructureCreator(
+        id=ValueCreator(),
+        attr2=DistributedCreator(
+            ValueCreator(input_generator=Attr2ValueGenerator()),
+            distributor=make_distributor(
+                weights=[0.9, 0.5, 0.1, 0.01],
+                mean=10,
+            ),
         ),
     )
-    structure = StructureProvider(id=id_prov, attr2=attr2_prov)
-    modeled = ModeledProvider(
-        structure,
-        factory=FirstModel,
-        exporter=export_first_model,
-    )
-    faker = PersistedProvider(
+    modeled = ModeledCreator(structure, factory=FirstModel)
+    return PersistedCreator(
         modeled,
         repository=repository,
-        id_provider=id_prov,
+        id_extractor=first_model_id_extractor,
     )
-    return faker
 
 
-def make_second_model_faker(repository, make_distributor):
-    """SecondModel provider — FK first_model_id is a plain ValueProvider.
-
-    Value comes from Pipe context via require_fn, not from ReferenceProvider.
-    """
-    # SecondModelPk providers
-    pk_id_prov = ValueProvider()
-    # FK value provided by Pipe context — no ReferenceProvider needed
-    first_model_id_prov = ValueProvider()
-    pk_structure = StructureProvider(
-        id=pk_id_prov,
-        first_model_id=first_model_id_prov,
+def make_second_model_creator(repository, make_distributor):
+    """SecondModel creator — FK first_model_id comes from Pipe context."""
+    pk_structure = StructureCreator(
+        id=ValueCreator(),
+        first_model_id=ValueCreator(),
     )
-    pk_distributed = DistributedProvider(
+    pk_distributed = DistributedCreator(
         pk_structure,
         distributor=make_distributor(),
     )
-    pk_modeled = ModeledProvider(
-        pk_distributed,
-        factory=SecondModelPk,
-        exporter=export_second_model_pk,
-    )
+    pk_modeled = ModeledCreator(pk_distributed, factory=SecondModelPk)
 
-    # SecondModel providers
-    attr2_prov = DistributedProvider(
-        ValueProvider(input_generator=Attr2ValueGenerator()),
-        distributor=make_distributor(
-            weights=[0.9, 0.5, 0.1, 0.01],
-            mean=10,
-        ),
-    )
-    structure = StructureProvider(id=pk_modeled, attr2=attr2_prov)
-    modeled = ModeledProvider(
-        structure,
-        factory=SecondModel,
-        exporter=export_second_model,
-    )
-    faker = PersistedProvider(
-        modeled,
-        repository=repository,
-        id_provider=pk_modeled,
-    )
-    return faker
-
-
-def make_third_model_faker(repository, make_distributor):
-    """ThirdModel provider — all FK values are plain ValueProviders.
-
-    Values come from Pipe context via require_fn.
-    No ThirdModelStructure needed — Pipe handles tenant consistency
-    by creating FirstModel first and passing its ID to all downstream steps.
-    """
-    # ThirdModelPk providers
-    pk_id_prov = ValueProvider()
-    # FK value provided by Pipe context
-    first_model_id_prov = ValueProvider()
-    pk_structure = StructureProvider(
-        id=pk_id_prov,
-        first_model_id=first_model_id_prov,
-    )
-    pk_distributed = DistributedProvider(
-        pk_structure,
-        distributor=make_distributor(),
-    )
-    pk_modeled = ModeledProvider(
-        pk_distributed,
-        factory=ThirdModelPk,
-        exporter=export_third_model_pk,
-    )
-
-    # FK to SecondModel — value provided by Pipe context
-    second_model_id_prov = ValueProvider()
-
-    attr2_prov = DistributedProvider(
-        ValueProvider(input_generator=Attr2ValueGenerator()),
-        distributor=make_distributor(
-            weights=[0.9, 0.5, 0.1, 0.01],
-            mean=10,
-        ),
-    )
-
-    # Self-reference — always None (same limitation as before)
-    parent_id_prov = ValueProvider()
-
-    structure = StructureProvider(
+    structure = StructureCreator(
         id=pk_modeled,
-        second_model_id=second_model_id_prov,
-        attr2=attr2_prov,
-        parent_id=parent_id_prov,
+        attr2=DistributedCreator(
+            ValueCreator(input_generator=Attr2ValueGenerator()),
+            distributor=make_distributor(
+                weights=[0.9, 0.5, 0.1, 0.01],
+                mean=10,
+            ),
+        ),
     )
-    modeled = ModeledProvider(
-        structure,
-        factory=ThirdModel,
-        exporter=export_third_model,
-    )
-    faker = PersistedProvider(
+    modeled = ModeledCreator(structure, factory=SecondModel)
+    return PersistedCreator(
         modeled,
         repository=repository,
-        id_provider=pk_modeled,
+        id_extractor=second_model_id_extractor,
     )
-    return faker
+
+
+def make_third_model_creator(repository, make_distributor):
+    """ThirdModel creator — all FK values come from Pipe context."""
+    pk_structure = StructureCreator(
+        id=ValueCreator(),
+        first_model_id=ValueCreator(),
+    )
+    pk_distributed = DistributedCreator(
+        pk_structure,
+        distributor=make_distributor(),
+    )
+    pk_modeled = ModeledCreator(pk_distributed, factory=ThirdModelPk)
+
+    structure = StructureCreator(
+        id=pk_modeled,
+        second_model_id=ValueCreator(),
+        attr2=DistributedCreator(
+            ValueCreator(input_generator=Attr2ValueGenerator()),
+            distributor=make_distributor(
+                weights=[0.9, 0.5, 0.1, 0.01],
+                mean=10,
+            ),
+        ),
+        parent_id=ValueCreator(),
+    )
+    modeled = ModeledCreator(structure, factory=ThirdModel)
+    return PersistedCreator(
+        modeled,
+        repository=repository,
+        id_extractor=third_model_id_extractor,
+    )
 
 
 # ################## Pipe require_fn helpers ############################
@@ -399,12 +373,7 @@ def _second_model_require(ctx):
 
 
 def _third_model_require(ctx):
-    """Constrain ThirdModel's FKs from pipe context.
-
-    - PK.first_model_id = FirstModel from context
-    - second_model_id = SecondModel PK from context (or None)
-    - parent_id = None (self-reference not supported yet)
-    """
+    """Constrain ThirdModel's FKs from pipe context."""
     first_model_id = ctx['first_model'].id
     second_model = ctx.get('second_model')
     second_model_id = second_model.id if second_model is not None else None
@@ -462,22 +431,20 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
         self.mock_server = start_mock_server(self.mock_server_port, MockServerRequestHandler)
         self.session_pool = await self._make_session_pool()
 
-    async def test_first_model_faker(self):
-        faker = self._make_first_model_faker()
+    async def test_first_model_creator(self):
+        creator = self._make_first_model_creator()
         async with self.session_pool.session() as session:
             async with session.atomic() as ts_session:
-                await faker.setup(ts_session)
-                await faker.populate(ts_session)
-                agg = faker.output()
+                await creator.setup(ts_session)
+                agg = await creator.create(ts_session)
                 self.assertIsInstance(agg.id, uuid.UUID)
-                await faker.cleanup(ts_session)
+                await creator.cleanup(ts_session)
 
     async def test_second_model_pipe(self):
         pipe = self._make_second_model_pipe()
         async with self.session_pool.session() as session, session.atomic() as ts_session:
             await pipe.setup(ts_session)
-            await pipe.populate(ts_session)
-            agg = pipe.output()
+            agg = await pipe.create(ts_session)
             self.assertIsInstance(agg.id.id, uuid.UUID)
             self.assertIsInstance(agg.id.first_model_id, uuid.UUID)
             await pipe.cleanup(ts_session)
@@ -486,8 +453,7 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
         pipe = self._make_third_model_pipe()
         async with self.session_pool.session() as session, session.atomic() as ts_session:
             await pipe.setup(ts_session)
-            await pipe.populate(ts_session)
-            agg = pipe.output()
+            agg = await pipe.create(ts_session)
             self.assertIsInstance(agg.id.id, uuid.UUID)
             self.assertIsInstance(agg.id.first_model_id, uuid.UUID)
 
@@ -512,8 +478,7 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
         async with self.session_pool.session() as session, session.atomic() as ts_session:
             await pipe.setup(ts_session)
             for _ in range(1000):
-                await pipe.populate(ts_session)
-                agg = pipe.output()
+                agg = await pipe.create(ts_session)
                 third_model_aggs.append(agg)
                 self.assertIsInstance(agg.id.id, uuid.UUID)
                 self.assertIsInstance(agg.id.first_model_id, uuid.UUID)
@@ -524,8 +489,6 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
 
                 # parent_id is always None
                 self.assertIsNone(agg.parent_id)
-
-                pipe.reset()
 
             await pipe.cleanup(ts_session)
 
@@ -562,50 +525,47 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
         session_pool = CompositeSessionPool(rest_session_pool, pg_session_pool)
         return session_pool
 
-    def _make_first_model_faker(self):
+    def _make_first_model_creator(self):
         repository = self._make_first_model_repository()
-        return make_first_model_faker(repository, self.make_distributor)
+        return make_first_model_creator(repository, self.make_distributor)
 
     def _make_second_model_pipe(self):
-        first_model_faker = self._make_first_model_faker()
-        # Pipe-level distributor: controls which FirstModel is selected/created
-        first_model_step = DistributedProvider(
-            first_model_faker,
+        first_model_creator = self._make_first_model_creator()
+        first_model_step = DistributedCreator(
+            first_model_creator,
             distributor=self.make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 mean=10,
             ),
             object_exporter=export_first_model,
         )
-        second_model_faker = make_second_model_faker(
+        second_model_creator = make_second_model_creator(
             self._make_second_model_repository(),
             self.make_distributor,
         )
         return Pipe(
             PipeStep('first_model', first_model_step),
-            PipeStep('second_model', second_model_faker,
+            PipeStep('second_model', second_model_creator,
                      require_fn=_second_model_require),
             result='second_model',
         )
 
     def _make_third_model_pipe(self):
-        first_model_faker = self._make_first_model_faker()
-        # Pipe-level distributor: controls FirstModel distribution (Zipf)
-        first_model_step = DistributedProvider(
-            first_model_faker,
+        first_model_creator = self._make_first_model_creator()
+        first_model_step = DistributedCreator(
+            first_model_creator,
             distributor=self.make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 mean=10,
             ),
             object_exporter=export_first_model,
         )
-        second_model_faker = make_second_model_faker(
+        second_model_creator = make_second_model_creator(
             self._make_second_model_repository(),
             self.make_distributor,
         )
-        # Pipe-level distributor: controls SecondModel distribution + nullability
-        second_model_step = DistributedProvider(
-            second_model_faker,
+        second_model_step = DistributedCreator(
+            second_model_creator,
             distributor=self.make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 null_weight=0.5,
@@ -613,7 +573,7 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
             ),
             object_exporter=export_second_model,
         )
-        third_model_faker = make_third_model_faker(
+        third_model_creator = make_third_model_creator(
             self._make_third_model_repository(),
             self.make_distributor,
         )
@@ -621,7 +581,7 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
             PipeStep('first_model', first_model_step),
             PipeStep('second_model', second_model_step,
                      require_fn=_second_model_require),
-            PipeStep('third_model', third_model_faker,
+            PipeStep('third_model', third_model_creator,
                      require_fn=_third_model_require),
             result='third_model',
         )
