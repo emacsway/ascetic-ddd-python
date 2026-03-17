@@ -35,7 +35,13 @@ class AggregateProvider(
             # distributor_factory: IM2ODistributorFactory,
             output_factory: typing.Callable[..., AggOutputT] | None = None,  # CompositeOutputT of each nested Provider.
             output_exporter: typing.Callable[[AggOutputT], AggInputT] | None = None,
+            provider_name: str | None = None
     ):
+        if self.provider_name is None:
+            if provider_name is not None:
+                self.provider_name = provider_name
+            elif type(self).__name__ != AggregateProvider.__name__:
+                self.provider_name = "%s.%s" % (type(self).__module__, type(self).__name__)
         self._repository = repository
         super().__init__(
             output_factory=output_factory,
