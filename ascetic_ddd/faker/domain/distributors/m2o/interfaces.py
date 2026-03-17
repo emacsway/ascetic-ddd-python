@@ -90,6 +90,7 @@ class IM2ODistributorFactory(typing.Protocol[T]):
         mean: float | None = None,
         null_weight: float = 0,
         sequence: bool = False,
+        name: str | None = None,
     ) -> IM2ODistributor[T]:
         """
         Factory for Distributor.
@@ -100,5 +101,6 @@ class IM2ODistributorFactory(typing.Protocol[T]):
             mean: Average number of uses for each value.
             null_weight: Probability of returning None (0-1)
             sequence: Pass sequence number to value generator.
+            name: Provider name for distributor (used for PG table naming).
         """
         ...

@@ -19,6 +19,7 @@ def distributor_factory(
     mean: float | None = None,
     null_weight: float = 0,
     sequence: bool = False,
+    name: str | None = None,
 ) -> IM2ODistributor[T]:
     """
     Factory for Distributor.
@@ -29,6 +30,7 @@ def distributor_factory(
         mean: Average number of usages for each value.
         null_weight: Probability of returning None (0-1)
         sequence: Pass sequence number to value generator.
+        name: Provider name for distributor (used for PG table naming).
     """
     if sequence:
         dist: IM2ODistributor[T] = SequenceDistributor[T]()
@@ -40,4 +42,6 @@ def distributor_factory(
         dist = SkewDistributor[T](delegate=dist, skew=skew, mean=mean)
     if null_weight:
         dist = NullableDistributor[T](delegate=dist, null_weight=null_weight)
+    if name is not None:
+        dist.provider_name = name
     return dist

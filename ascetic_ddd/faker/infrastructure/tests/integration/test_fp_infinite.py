@@ -280,8 +280,8 @@ def third_model_id_extractor(tm: ThirdModel) -> typing.Any:
 # ################## Creator Factories (stateless) #######################
 
 
-def make_first_model_creator(repository, make_distributor):
-    """FirstModel creator — no FK references."""
+def make_first_model_factory(repository, make_distributor):
+    """FirstModel factory — no FK references."""
     structure = StructureFactory(
         id=ValueFactory(),
         attr2=DistributedFactory(
@@ -289,6 +289,7 @@ def make_first_model_creator(repository, make_distributor):
             distributor=make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 mean=10,
+                name='first_model.attr2',
             ),
         ),
     )
@@ -300,15 +301,15 @@ def make_first_model_creator(repository, make_distributor):
     )
 
 
-def make_second_model_creator(repository, make_distributor):
-    """SecondModel creator — FK first_model_id comes from Pipe context."""
+def make_second_model_factory(repository, make_distributor):
+    """SecondModel factory — FK first_model_id comes from Pipe context."""
     pk_structure = StructureFactory(
         id=ValueFactory(),
         first_model_id=ValueFactory(),
     )
     pk_distributed = DistributedFactory(
         pk_structure,
-        distributor=make_distributor(),
+        distributor=make_distributor(name='second_model.id'),
     )
     pk_modeled = ModeledFactory(pk_distributed, factory=SecondModelPk)
 
@@ -319,6 +320,7 @@ def make_second_model_creator(repository, make_distributor):
             distributor=make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 mean=10,
+                name='second_model.attr2',
             ),
         ),
     )
@@ -330,15 +332,15 @@ def make_second_model_creator(repository, make_distributor):
     )
 
 
-def make_third_model_creator(repository, make_distributor):
-    """ThirdModel creator — all FK values come from Pipe context."""
+def make_third_model_factory(repository, make_distributor):
+    """ThirdModel factory — all FK values come from Pipe context."""
     pk_structure = StructureFactory(
         id=ValueFactory(),
         first_model_id=ValueFactory(),
     )
     pk_distributed = DistributedFactory(
         pk_structure,
-        distributor=make_distributor(),
+        distributor=make_distributor(name='third_model.id'),
     )
     pk_modeled = ModeledFactory(pk_distributed, factory=ThirdModelPk)
 
@@ -350,6 +352,7 @@ def make_third_model_creator(repository, make_distributor):
             distributor=make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 mean=10,
+                name='third_model.attr2',
             ),
         ),
         parent_id=ValueFactory(),
@@ -432,7 +435,7 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
         self.session_pool = await self._make_session_pool()
 
     async def test_first_model_creator(self):
-        creator = self._make_first_model_creator()
+        creator = self._make_first_model_factory()
         async with self.session_pool.session() as session:
             async with session.atomic() as ts_session:
                 await creator.setup(ts_session)
@@ -525,55 +528,58 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
         session_pool = CompositeSessionPool(rest_session_pool, pg_session_pool)
         return session_pool
 
-    def _make_first_model_creator(self):
+    def _make_first_model_factory(self):
         repository = self._make_first_model_repository()
-        return make_first_model_creator(repository, self.make_distributor)
+        return make_first_model_factory(repository, self.make_distributor)
 
     def _make_second_model_pipe(self):
-        first_model_creator = self._make_first_model_creator()
+        first_model_factory = self._make_first_model_factory()
         first_model_step = DistributedFactory(
-            first_model_creator,
+            first_model_factory,
             distributor=self.make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 mean=10,
+                name='pipe.first_model',
             ),
             object_exporter=export_first_model,
         )
-        second_model_creator = make_second_model_creator(
+        second_model_factory = make_second_model_factory(
             self._make_second_model_repository(),
             self.make_distributor,
         )
         return Pipe(
             PipeStep('first_model', first_model_step),
-            PipeStep('second_model', second_model_creator,
+            PipeStep('second_model', second_model_factory,
                      require_fn=_second_model_require),
             result='second_model',
         )
 
     def _make_third_model_pipe(self):
-        first_model_creator = self._make_first_model_creator()
+        first_model_factory = self._make_first_model_factory()
         first_model_step = DistributedFactory(
-            first_model_creator,
+            first_model_factory,
             distributor=self.make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 mean=10,
+                name='pipe.first_model',
             ),
             object_exporter=export_first_model,
         )
-        second_model_creator = make_second_model_creator(
+        second_model_factory = make_second_model_factory(
             self._make_second_model_repository(),
             self.make_distributor,
         )
         second_model_step = DistributedFactory(
-            second_model_creator,
+            second_model_factory,
             distributor=self.make_distributor(
                 weights=[0.9, 0.5, 0.1, 0.01],
                 null_weight=0.5,
                 mean=10,
+                name='pipe.second_model',
             ),
             object_exporter=export_second_model,
         )
-        third_model_creator = make_third_model_creator(
+        third_model_factory = make_third_model_factory(
             self._make_third_model_repository(),
             self.make_distributor,
         )
@@ -581,7 +587,7 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
             PipeStep('first_model', first_model_step),
             PipeStep('second_model', second_model_step,
                      require_fn=_second_model_require),
-            PipeStep('third_model', third_model_creator,
+            PipeStep('third_model', third_model_factory,
                      require_fn=_third_model_require),
             result='third_model',
         )
