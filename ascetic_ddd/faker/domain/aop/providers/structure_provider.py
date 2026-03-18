@@ -1,7 +1,7 @@
 import typing
 
 from ascetic_ddd.option import Option, Some, Nothing
-from ascetic_ddd.faker.domain.fp.providers.interfaces import IProvider
+from ascetic_ddd.faker.domain.aop.providers.interfaces import IProvider
 from ascetic_ddd.faker.domain.query import parse_query, query_to_dict
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, CompositeQuery, MergeConflict,

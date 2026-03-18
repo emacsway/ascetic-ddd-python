@@ -1,7 +1,7 @@
 import typing
 
 from ascetic_ddd.option import Option, Some, Nothing
-from ascetic_ddd.faker.domain.fp.providers.interfaces import IProvider
+from ascetic_ddd.faker.domain.aop.providers.interfaces import IProvider
 from ascetic_ddd.faker.domain.providers.interfaces import IAggregateRepository
 from ascetic_ddd.session.interfaces import ISession
 
