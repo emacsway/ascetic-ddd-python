@@ -53,7 +53,12 @@ class Pipe(typing.Generic[T]):
     ) -> T:
         ctx: dict[str, typing.Any] = {}
         for step in self._steps:
-            step_criteria = step.require_fn(ctx) if step.require_fn is not None else None
+            if step.require_fn is not None:
+                step_criteria = step.require_fn(ctx)
+            else:
+                # Pass incoming criteria to the first step without require_fn
+                step_criteria = criteria
+                criteria = None
             ctx[step.name] = await step.factory.create(session, step_criteria)
         return ctx[self._result]
 
