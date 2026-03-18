@@ -51,6 +51,7 @@ class Pipe(typing.Generic[T]):
         self._steps = list(steps)
         self._result = result or (steps[-1].name if steps else '')
         self._context: dict[str, typing.Any] = {}
+        self._pending_criteria: dict[str, typing.Any] | None = None
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
@@ -60,6 +61,10 @@ class Pipe(typing.Generic[T]):
                 criteria = step.require_fn(self._context)
                 if criteria is not None:
                     step.provider.require(criteria)
+            elif self._pending_criteria is not None:
+                # Pass incoming criteria to the first step without require_fn
+                step.provider.require(self._pending_criteria)
+                self._pending_criteria = None
             await step.provider.populate(session)
             self._context[step.name] = step.provider.output()
 
@@ -67,10 +72,7 @@ class Pipe(typing.Generic[T]):
         return self._context[self._result]
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
-        for step in self._steps:
-            if step.name == self._result:
-                step.provider.require(criteria)
-                return
+        self._pending_criteria = criteria
 
     def state(self) -> typing.Any:
         for step in self._steps:
@@ -87,6 +89,7 @@ class Pipe(typing.Generic[T]):
         for step in self._steps:
             step.provider.reset(visited)
         self._context.clear()
+        self._pending_criteria = None
 
     def is_complete(self) -> bool:
         return self._result in self._context
