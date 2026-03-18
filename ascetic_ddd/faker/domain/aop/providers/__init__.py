@@ -5,6 +5,7 @@ from ascetic_ddd.faker.domain.aop.providers.modeled_provider import ModeledProvi
 from ascetic_ddd.faker.domain.aop.providers.persisted_provider import PersistedProvider
 from ascetic_ddd.faker.domain.aop.providers.distributed_provider import DistributedProvider
 from ascetic_ddd.faker.domain.aop.providers.reference_provider import ReferenceProvider
+from ascetic_ddd.faker.domain.aop.providers.replicated_provider import ReplicatedProvider
 
 __all__ = (
     'IProvider',
@@ -14,4 +15,5 @@ __all__ = (
     'PersistedProvider',
     'DistributedProvider',
     'ReferenceProvider',
+    'ReplicatedProvider',
 )
