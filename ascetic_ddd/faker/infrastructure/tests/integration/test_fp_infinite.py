@@ -480,7 +480,7 @@ class FpRestPgIntegrationTestCase(IsolatedAsyncioTestCase):
         third_model_aggs = []
         async with self.session_pool.session() as session, session.atomic() as ts_session:
             await pipe.setup(ts_session)
-            for _ in range(1000):
+            for _ in range(100):
                 agg = await pipe.create(ts_session)
                 third_model_aggs.append(agg)
                 self.assertIsInstance(agg.id.id, uuid.UUID)

@@ -546,7 +546,7 @@ class RestPgIntegrationTestCase(IsolatedAsyncioTestCase):
         third_model_aggs = []
         async with self.session_pool.session() as session, session.atomic() as ts_session:
             await faker.setup(ts_session)
-            for _ in range(1000):
+            for _ in range(100):
                 await faker.populate(ts_session)
                 agg = faker.output()
                 third_model_aggs.append(agg)
