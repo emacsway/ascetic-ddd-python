@@ -1,6 +1,6 @@
 import typing
 
-from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor, ICursor
+from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.scope_specification import ScopeSpecification
 from ascetic_ddd.session.interfaces import ISession
@@ -11,13 +11,13 @@ __all__ = ('SequenceFactory',)
 class SequenceFactory:
     """Stateless factory that produces sequential integers.
 
-    Position comes from sequencer (PgSequenceDistributor or SequenceDistributor).
+    Position comes from sequencer (Sequencer or PgSequencer).
     Supports per-scope sequences via '$scope' in criteria.
 
     Example::
 
         # Global sequence
-        seq = SequenceFactory(make_distributor(sequence=True, name='order.number'))
+        seq = SequenceFactory(sequencer_factory(name='order.number'))
         pos = await seq.create(session)  # 0, 1, 2, ...
 
         # Per-tenant sequence
@@ -27,10 +27,10 @@ class SequenceFactory:
         factory = ModeledFactory(seq, factory=lambda pos: "ORD-%05d" % pos)
 
     Args:
-        sequencer: M2O distributor that provides sequence positions via ICursor.
+        sequencer: Sequencer that provides sequential positions.
     """
 
-    def __init__(self, sequencer: IM2ODistributor[typing.Any]) -> None:
+    def __init__(self, sequencer: ISequencer) -> None:
         self._sequencer = sequencer
 
     async def create(
@@ -46,12 +46,7 @@ class SequenceFactory:
             spec = ScopeSpecification[typing.Any](scope)
         else:
             spec = EmptySpecification[typing.Any]()
-        try:
-            await self._sequencer.next(session, spec)
-        except ICursor as cursor:
-            return cursor.position
-        # Should not happen — sequence distributors always raise ICursor
-        return -1
+        return await self._sequencer.next(session, spec)
 
     async def setup(self, session: ISession) -> None:
         await self._sequencer.setup(session)
