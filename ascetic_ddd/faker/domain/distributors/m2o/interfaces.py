@@ -70,6 +70,7 @@ class IM2ODistributor(typing.Generic[T], metaclass=ABCMeta):
     def __deepcopy__(self, memodict={}):
         raise NotImplementedError
 
+
 class ICursor(typing.Generic[T], StopAsyncIteration, metaclass=ABCMeta):
     @property
     @abstractmethod
