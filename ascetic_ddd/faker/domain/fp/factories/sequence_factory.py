@@ -11,7 +11,7 @@ __all__ = ('SequenceFactory',)
 class SequenceFactory:
     """Stateless factory that produces sequential integers.
 
-    Position comes from distributor (PgSequenceDistributor or SequenceDistributor).
+    Position comes from sequencer (PgSequenceDistributor or SequenceDistributor).
     Supports per-scope sequences via '$scope' in criteria.
 
     Example::
@@ -27,11 +27,11 @@ class SequenceFactory:
         factory = ModeledFactory(seq, factory=lambda pos: "ORD-%05d" % pos)
 
     Args:
-        distributor: M2O distributor that provides sequence positions via ICursor.
+        sequencer: M2O distributor that provides sequence positions via ICursor.
     """
 
-    def __init__(self, distributor: IM2ODistributor[typing.Any]) -> None:
-        self._distributor = distributor
+    def __init__(self, sequencer: IM2ODistributor[typing.Any]) -> None:
+        self._sequencer = sequencer
 
     async def create(
             self,
@@ -47,14 +47,14 @@ class SequenceFactory:
         else:
             spec = EmptySpecification[typing.Any]()
         try:
-            await self._distributor.next(session, spec)
+            await self._sequencer.next(session, spec)
         except ICursor as cursor:
             return cursor.position
         # Should not happen — sequence distributors always raise ICursor
         return -1
 
     async def setup(self, session: ISession) -> None:
-        await self._distributor.setup(session)
+        await self._sequencer.setup(session)
 
     async def cleanup(self, session: ISession) -> None:
-        await self._distributor.cleanup(session)
+        await self._sequencer.cleanup(session)
