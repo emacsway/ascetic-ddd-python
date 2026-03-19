@@ -5,6 +5,7 @@ from ascetic_ddd.faker.domain.fp.factories.modeled_factory import ModeledFactory
 from ascetic_ddd.faker.domain.fp.factories.persisted_factory import PersistedFactory
 from ascetic_ddd.faker.domain.fp.factories.distributed_factory import DistributedFactory
 from ascetic_ddd.faker.domain.fp.factories.replicated_factory import ReplicatedFactory
+from ascetic_ddd.faker.domain.fp.factories.sequence_factory import SequenceFactory
 from ascetic_ddd.faker.domain.fp.factories.pipe import Pipe, PipeStep
 
 __all__ = (
@@ -15,6 +16,7 @@ __all__ = (
     'PersistedFactory',
     'DistributedFactory',
     'ReplicatedFactory',
+    'SequenceFactory',
     'Pipe',
     'PipeStep',
 )
