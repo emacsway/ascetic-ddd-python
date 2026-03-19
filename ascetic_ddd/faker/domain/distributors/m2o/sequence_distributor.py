@@ -1,5 +1,4 @@
 import typing
-from collections import defaultdict
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.option import Option
@@ -7,6 +6,8 @@ from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.signals.signal import AsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer
+from ascetic_ddd.faker.domain.sequencers.sequencer import Sequencer
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 
@@ -16,12 +17,10 @@ T = typing.TypeVar("T")
 
 
 class SequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
-    _sequences: dict[ISpecification, int]
-    _provider_name: str | None = None
     _on_appended: IAsyncSignal[ValueAppendedEvent[T]]
 
-    def __init__(self):
-        self._sequences = defaultdict(int)
+    def __init__(self, sequencer: ISequencer | None = None):
+        self._sequencer = sequencer or Sequencer()
         self._on_appended = AsyncSignal[ValueAppendedEvent[T]]()
 
     @property
@@ -33,8 +32,7 @@ class SequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
             session: ISession,
             specification: ISpecification[T],
     ) -> Option[T]:
-        position = self._sequences[specification]
-        self._sequences[specification] += 1
+        position = await self._sequencer.next(session, specification)
         raise Cursor(
             position=position,
             callback=self._append,
@@ -48,18 +46,17 @@ class SequenceDistributor(IM2ODistributor[T], typing.Generic[T]):
 
     @property
     def provider_name(self):
-        return self._provider_name
+        return self._sequencer.provider_name
 
     @provider_name.setter
     def provider_name(self, value):
-        if self._provider_name is None:
-            self._provider_name = value
+        self._sequencer.provider_name = value
 
     async def setup(self, session: ISession):
-        pass
+        await self._sequencer.setup(session)
 
     async def cleanup(self, session: ISession):
-        pass
+        await self._sequencer.cleanup(session)
 
     def __copy__(self):
         return self
