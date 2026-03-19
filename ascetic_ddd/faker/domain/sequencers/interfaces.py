@@ -52,7 +52,7 @@ class ISequencer(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-class ISequencerFactory(typing.Protocol[T]):
+class ISequencerFactory(typing.Protocol):
 
     def __call__(
         self,
