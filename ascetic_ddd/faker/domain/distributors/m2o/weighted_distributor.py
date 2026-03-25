@@ -1,229 +1,45 @@
 import math
 import random
 import typing
-from abc import abstractmethod
+from abc import abstractmethod, ABCMeta
 
-from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
+from ascetic_ddd.faker.domain.distributors.m2o import WriteDistributor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
-from ascetic_ddd.option import Option, Some
+from ascetic_ddd.option import Option
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 
-__all__ = ('BaseIndex', 'BaseDistributor', 'Index', 'WeightedDistributor',)
+__all__ = ('BaseDistributor', 'WeightedDistributor',)
 
 T = typing.TypeVar("T")
 
 
-# =============================================================================
-# BaseIndex
-# =============================================================================
-
-class BaseIndex(typing.Generic[T]):
-    """
-    Base class for distributor indexes.
-    """
-    _specification: ISpecification[T]
-    _read_offset: int
-    _values: list[T]
-    _value_set: set[T]
-
-    def __init__(self, specification: ISpecification[T]):
-        self._specification = specification
-        self._read_offset = 0
-        self._values = []
-        self._value_set = set()
-
-    @property
-    def read_offset(self):
-        return self._read_offset
-
-    @read_offset.setter
-    def read_offset(self, val: int):
-        self._read_offset = val
-
-    def __contains__(self, value: T):
-        return value in self._value_set
-
-    def __len__(self):
-        return len(self._values)
-
-    def values(self, offset: int = 0):
-        if offset == 0:
-            return self._values
-        else:
-            return self._values[offset:]
-
-    def append(self, value: T, read_offset: int = 0):
-        if value not in self._value_set:
-            self._values.append(value)
-            self._value_set.add(value)
-        if read_offset:
-            self._read_offset = read_offset
-
-    def remove(self, value: T) -> bool:
-        """Removes an object from the index. Returns True if the object was removed."""
-        if value not in self._value_set:
-            return False
-        self._value_set.discard(value)
-        self._values.remove(value)
-        return True
-
-    def get_relative_position(self, value: T) -> float | None:
-        """Returns the relative position of an object (0.0 - 1.0) or None if not found."""
-        if value not in self._value_set:
-            return None
-        idx = self._values.index(value)
-        n = len(self._values)
-        return idx / n if n > 0 else 0.0
-
-    def insert_at_relative_position(self, value: T, relative_position: float) -> None:
-        """Inserts an object at the position corresponding to the relative position."""
-        if value in self._value_set:
-            return
-        n = len(self._values)
-        idx = int(relative_position * n)
-        idx = max(0, min(idx, n))
-        self._values.insert(idx, value)
-        self._value_set.add(value)
-
-    async def populate_from(self, session: ISession, source: 'BaseIndex') -> None:
-        values_length = len(source)
-        if self._read_offset < values_length:
-            current_offset = self._read_offset
-            self._read_offset = values_length
-            for value in source.values(current_offset):
-                if await self._specification.is_satisfied_by(session, value):
-                    self.append(value, values_length)
-
-    @abstractmethod
-    def _select_idx(self) -> int:
-        """Selects a value index. Implementation depends on the distribution strategy."""
-        raise NotImplementedError
-
-    def next(self, expected_mean: float) -> T:
-        """
-        Returns a random value from the index.
-        Raises StopIteration with probability 1/expected_mean (signal to create a new one).
-        """
-        n = len(self._values)
-        if n == 0:
-            raise StopIteration
-
-        # Probabilistically signal the need to create a new value
-        if random.random() < 1.0 / expected_mean:
-            raise StopIteration
-
-        return self._values[self._select_idx()]
-
-    def select(self) -> T:
-        """Select a value without probabilistic rejection (fallback)."""
-        n = len(self._values)
-        if n == 0:
-            raise StopIteration
-
-        return self._values[self._select_idx()]
-
-    def first(self) -> T:
-        return self._values[0]
-
-
-# =============================================================================
-# BaseDistributor
-# =============================================================================
-
-class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
+class BaseDistributor(IM2ODistributor[T], typing.Generic[T], metaclass=ABCMeta):
     """
     Base class for in-memory distributors.
     """
     _mean: float = 50
-    _indexes: dict[ISpecification, BaseIndex[T]]
     _default_spec: ISpecification[T]
     _provider_name: str | None = None
-    _delegate: IM2ODistributor[T]
+    _store: WriteDistributor[T]
 
-    def __init__(self, delegate: IM2ODistributor[T], mean: float | None = None):
-        self._delegate = delegate
+    def __init__(self, store: WriteDistributor[T], mean: float | None = None):
+        self._store = store
         if mean is not None:
             self._mean = mean
-        self._default_spec = EmptySpecification[T]()
-        self._indexes = dict()
-        self._indexes[self._default_spec] = self._create_index(self._default_spec)
         super().__init__()
 
+    async def next(self, session: ISession, specification: ISpecification[T]) -> Option[T]:
+        return await self._store.next_with_strategy(session, specification, self._distribute)
+
     @abstractmethod
-    def _create_index(self, specification: ISpecification[T]) -> BaseIndex[T]:
-        """Creates an index for a specification. Implementation depends on the distributor type."""
+    def _distribute(self, n: int) -> int:
         raise NotImplementedError
 
-    async def next(
-            self,
-            session: ISession,
-            specification: ISpecification[T],
-    ) -> Option[T]:
-        if specification != self._default_spec:
-            if specification not in self._indexes:
-                self._indexes[specification] = self._create_index(specification)
-            target_index = self._indexes[specification]
-            source_index = self._indexes[self._default_spec]
-            await target_index.populate_from(session, source_index)
-
-        target_index = self._indexes[specification]
-
-        try:
-            value = target_index.next(self._mean)
-        except StopIteration:
-            try:
-                return await self._delegate.next(session, specification)
-            except Cursor as cursor:
-                raise Cursor(
-                    position=-1,
-                    callback=self._append,
-                    delegate=cursor
-                )
-
-        # Check if the object has become stale (e.g. it was modified)
-        if not await specification.is_satisfied_by(session, value):
-            await self._relocate_stale_value(session, value, specification)
-            # Retry
-            return await self.next(session, specification)
-
-        return Some(value)
-
-    async def _relocate_stale_value(self, session: ISession, value: T, current_spec: ISpecification[T]) -> None:
-        """
-        Relocates a stale object from the current index to suitable ones.
-        """
-        # Remove from the current index
-        current_index = self._indexes.get(current_spec)
-        if current_index:
-            current_index.remove(value)
-
-        # Get the relative position from the default index
-        default_index = self._indexes[self._default_spec]
-        relative_position = default_index.get_relative_position(value)
-
-        if relative_position is None:
-            return
-
-        # Iterate over all indexes (except default and current) and insert where suitable
-        for spec, index in self._indexes.items():
-            if spec == self._default_spec or spec == current_spec:
-                continue
-            if await spec.is_satisfied_by(session, value):
-                index.insert_at_relative_position(value, relative_position)
-
-    async def _append(self, session: ISession, value: T, position: int):
-        if value not in self._indexes[self._default_spec]:
-            self._indexes[self._default_spec].append(value)
-            # Prevent double notification, self._delegate._append() will be called from Cursor.
-            # await self.on_appended.notify(ValueAppendedEvent(session, value, position))
-
     async def append(self, session: ISession, value: T):
-        await self._append(session, value, -1)
-        await self._delegate.append(session, value)
+        await self._store.append(session, value)
 
     @property
     def provider_name(self):
@@ -236,7 +52,7 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
 
     @property
     def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._delegate.on_appended
+        return self._store.on_appended
 
     async def setup(self, session: ISession):
         pass
@@ -251,23 +67,20 @@ class BaseDistributor(IM2ODistributor[T], typing.Generic[T]):
         return self
 
 
-# =============================================================================
-# Index (Weighted)
-# =============================================================================
-
-class Index(BaseIndex[T], typing.Generic[T]):
-    """
-    Index with weighted distribution across partitions.
-    """
+class WeightedDistributor(BaseDistributor[T], typing.Generic[T]):
     _weights: list[float]
 
-    def __init__(self, weights: list[float], specification: ISpecification[T]):
-        self._weights = weights
-        super().__init__(specification)
+    def __init__(
+            self,
+            store: WriteDistributor[T],
+            weights: typing.Iterable[float] = tuple(),
+            mean: float | None = None,
+    ):
+        self._weights = list(weights)
+        super().__init__(store=store, mean=mean)
 
-    def _select_idx(self) -> int:
+    def _distribute(self, n: int) -> int:
         """Selects a value index considering weights and skew."""
-        n = len(self._values)
 
         # Select a partition by weights — O(w)
         partition_idx = random.choices(
@@ -313,23 +126,3 @@ class Index(BaseIndex[T], typing.Generic[T]):
         local_idx = int(size * (1 - random.random()) ** local_skew)
         local_idx = min(local_idx, size - 1)
         return end - 1 - local_idx
-
-
-# =============================================================================
-# WeightedDistributor
-# =============================================================================
-
-class WeightedDistributor(BaseDistributor[T], typing.Generic[T]):
-    _weights: list[float]
-
-    def __init__(
-            self,
-            delegate: IM2ODistributor[T],
-            weights: typing.Iterable[float] = tuple(),
-            mean: float | None = None,
-    ):
-        self._weights = list(weights)
-        super().__init__(delegate=delegate, mean=mean)
-
-    def _create_index(self, specification: ISpecification[T]) -> Index[T]:
-        return Index(self._weights, specification)
