@@ -1,6 +1,6 @@
 import typing
 
-from ascetic_ddd.faker.domain.distributors.m2o import IM2ODistributor
+from ascetic_ddd.faker.infrastructure.distributors.m2o.pg_write_distributor import PgWriteDistributor
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.infrastructure.distributors.m2o.pg_weighted_distributor import BasePgDistributor
@@ -15,14 +15,14 @@ T = typing.TypeVar("T")
 
 class PgSkewDistributor(BasePgDistributor[T], typing.Generic[T]):
     """
-    Distributor with power-law distribution in PostgreSQL.
+    Read distributor with power-law distribution in PostgreSQL.
 
     A single skew parameter instead of a list of weights:
     - skew = 1.0 -- uniform distribution
     - skew = 2.0 -- moderate skew (first 20% receive ~60% of calls)
     - skew = 3.0 -- strong skew (first 10% receive ~70% of calls)
 
-    Advantages over PgDistributor:
+    Advantages over PgWeightedDistributor:
     - A single parameter instead of a list of weights
     - Simpler SQL (no weights table, no cumulative weights)
     - O(1) position selection
@@ -34,13 +34,12 @@ class PgSkewDistributor(BasePgDistributor[T], typing.Generic[T]):
 
     def __init__(
             self,
-            delegate: IM2ODistributor[T],
+            store: PgWriteDistributor[T],
             skew: float = 2.0,
             mean: float | None = None,
-            initialized: bool = False
     ):
         self._skew = skew
-        super().__init__(delegate=delegate, mean=mean, initialized=initialized)
+        super().__init__(store=store, mean=mean)
 
     async def _get_next_value(self, session: ISession, specification: ISpecification[T]) -> tuple[T | None, bool]:
         """
@@ -79,7 +78,7 @@ class PgSkewDistributor(BasePgDistributor[T], typing.Generic[T]):
                 t.n
             FROM target t
         """ % {
-            'values_table': self._values_table,
+            'values_table': self._store.values_table,
             'where': "WHERE %s" % visitor.sql if visitor.sql else "",
             'skew': self._skew,
             'expected_mean': max(self._mean, 1),
