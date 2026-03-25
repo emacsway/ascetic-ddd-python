@@ -1,18 +1,10 @@
-import functools
-import json
 import math
-import os
 import random
-import socket
-import threading
 import typing
-import dataclasses
 from abc import abstractmethod
 
-from psycopg.types.json import Jsonb
-
-from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
+from ascetic_ddd.faker.infrastructure.distributors.m2o.pg_write_distributor import PgWriteDistributor
 from ascetic_ddd.option import Option, Some
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
@@ -20,9 +12,7 @@ from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.infrastructure.session.pg_session import extract_internal_connection
 from ascetic_ddd.faker.infrastructure.specification.pg_specification_visitor import PgSpecificationVisitor
-from ascetic_ddd.faker.infrastructure.utils.json import JSONEncoder
 from ascetic_ddd.utils import serializer
-from ascetic_ddd.utils.pg import escape
 
 
 __all__ = ('BasePgDistributor', 'PgWeightedDistributor')
@@ -33,28 +23,30 @@ T = typing.TypeVar("T")
 
 class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
     """
-    Base class for PostgreSQL distributors.
+    Base class for PostgreSQL read distributors.
+
+    Pure read decorator over PgWriteDistributor.
+    All write operations (append, setup, cleanup) delegate to store.
 
     Limitation: when values are created dynamically, earlier values
     receive more calls since they are available longer. Acceptable for a fake data generator.
+
+    Args:
+        store: PgWriteDistributor that owns the PG table.
+        mean: Average number of usages for each value.
     """
     _extract_connection = staticmethod(extract_internal_connection)
-    _initialized: bool = False
     _mean: float = 50
-    _values_table: str | None = None
-    _provider_name: str | None = None
-    _delegate: IM2ODistributor[T]
+    _store: PgWriteDistributor[T]
 
     def __init__(
             self,
-            delegate: IM2ODistributor[T],
+            store: PgWriteDistributor[T],
             mean: float | None = None,
-            initialized: bool = False
     ):
-        self._delegate = delegate
+        self._store = store
         if mean is not None:
             self._mean = mean
-        self._initialized = initialized
         super().__init__()
 
     async def next(
@@ -62,19 +54,11 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
             session: ISession,
             specification: ISpecification[T],
     ) -> Option[T]:
-        if not self._initialized:
-            await self.setup(session)
+        await self._store.setup(session)
 
         value, should_create_new = await self._get_next_value(session, specification)
         if should_create_new:
-            try:
-                return await self._delegate.next(session, specification)
-            except Cursor as cursor:
-                raise Cursor(
-                    position=-1,
-                    callback=self._append,
-                    delegate=cursor
-                )
+            return await self._store.next(session, specification)
         assert value is not None
         return Some(value)
 
@@ -82,95 +66,34 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
     async def _get_next_value(self, session: ISession, specification: ISpecification[T]) -> tuple[T | None, bool]:
         raise NotImplementedError
 
-    async def _append(self, session: ISession, value: T, position: int):
-        sql = """
-            INSERT INTO %(values_table)s (value, object)
-            VALUES (%%s, %%s)
-            ON CONFLICT DO NOTHING;
-        """ % {
-            'values_table': self._values_table,
-        }
-        async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(sql, (self._encode(value), self._serialize(value)))
-        # logging.debug("Append: %s", value)
-        # Prevent double notification, self._delegate._append() will be called from Cursor.
-        # await self.on_appended.notify(ValueAppendedEvent(session, value, position))
-
     async def append(self, session: ISession, value: T):
-        await self._append(session, value, -1)
-        await self._delegate.append(session, value)
+        await self._store.append(session, value)
 
     @property
     def provider_name(self):
-        return self._provider_name
+        return self._store.provider_name
 
     @provider_name.setter
     def provider_name(self, value):
-        if self._provider_name is None:
-            self._provider_name = value
-            if self._values_table is None:
-                self._values_table = escape("values_for_%s" % value[-(63 - 11):])
+        self._store.provider_name = value
 
     @property
     def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._delegate.on_appended
+        return self._store.on_appended
 
     async def setup(self, session: ISession):
-        if not self._initialized:  # Fixes diamond problem
-            if not (await self._is_initialized(session)):
-                await self._setup(session)
-            self._initialized = True
+        await self._store.setup(session)
 
     async def cleanup(self, session: ISession):
-        # FIXME: diamond problem
-        self._initialized = False
-        async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute("DROP TABLE IF EXISTS %s" % self._values_table)
+        await self._store.cleanup(session)
+
+    _deserialize = staticmethod(serializer.deserialize)
 
     def __copy__(self):
         return self
 
     def __deepcopy__(self, memodict={}):
         return self
-
-    async def _setup(self, session: ISession):
-        sql = """
-            CREATE TABLE IF NOT EXISTS %(values_table)s (
-                position serial NOT NULL PRIMARY KEY,
-                value JSONB NOT NULL,
-                object TEXT NOT NULL,
-                UNIQUE (value)
-            );
-            CREATE INDEX IF NOT EXISTS %(index_name)s ON %(values_table)s USING GIN(value jsonb_path_ops);
-        """ % {
-            "values_table": self._values_table,
-            "index_name": escape("gin_%s" % self.provider_name[:(63 - 4)]),  # pyright: ignore[reportOptionalSubscript]
-        }
-        async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(sql)
-
-    async def _is_initialized(self, session: ISession) -> bool:
-        sql = """SELECT to_regclass(%s)"""
-        async with self._extract_connection(session).cursor() as acursor:
-            await acursor.execute(sql, (self._values_table,))
-            regclass = (await acursor.fetchone())[0]  # type: ignore[index]
-        return regclass is not None
-
-    @staticmethod
-    def get_thread_id():
-        return '{0}.{1}.{2}'.format(
-            socket.gethostname(), os.getpid(), threading.get_ident()
-        )
-
-    @staticmethod
-    def _encode(obj):
-        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-            obj = dataclasses.asdict(obj)
-        dumps = functools.partial(json.dumps, cls=JSONEncoder)
-        return Jsonb(obj, dumps)
-
-    _serialize = staticmethod(serializer.serialize)
-    _deserialize = staticmethod(serializer.deserialize)
 
 
 # =============================================================================
@@ -179,7 +102,7 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
 
 class PgWeightedDistributor(BasePgDistributor[T], typing.Generic[T]):
     """
-    Distributor with weighted distribution in PostgreSQL.
+    Read distributor with weighted distribution in PostgreSQL.
 
     Limitation: when values are created dynamically, earlier values
     receive more calls since they are available longer. This yields ~85% vs 70% for the first
@@ -189,13 +112,12 @@ class PgWeightedDistributor(BasePgDistributor[T], typing.Generic[T]):
 
     def __init__(
             self,
-            delegate: IM2ODistributor[T],
+            store: PgWriteDistributor[T],
             weights: typing.Iterable[float] = tuple(),
             mean: float | None = None,
-            initialized: bool = False
     ):
         self._weights = list(weights)
-        super().__init__(delegate=delegate, mean=mean, initialized=initialized)
+        super().__init__(store=store, mean=mean)
 
     def _compute_partition(self) -> tuple[int, float, int]:
         """
@@ -276,7 +198,7 @@ class PgWeightedDistributor(BasePgDistributor[T], typing.Generic[T]):
                 t.n
             FROM target t
         """ % {
-            'values_table': self._values_table,
+            'values_table': self._store.values_table,
             'where': "WHERE %s" % visitor.sql if visitor.sql else "",
             'partition_idx': partition_idx,
             'num_partitions': num_partitions,
