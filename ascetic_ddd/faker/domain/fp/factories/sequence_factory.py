@@ -1,8 +1,6 @@
 import typing
 
 from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer
-from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
-from ascetic_ddd.faker.domain.specification.scope_specification import ScopeSpecification
 from ascetic_ddd.session.interfaces import ISession
 
 __all__ = ('SequenceFactory',)
@@ -41,12 +39,7 @@ class SequenceFactory:
         scope = None
         if criteria is not None:
             scope = criteria.get('$scope')
-        spec: ScopeSpecification[typing.Any] | EmptySpecification[typing.Any]
-        if scope is not None:
-            spec = ScopeSpecification[typing.Any](scope)
-        else:
-            spec = EmptySpecification[typing.Any]()
-        return await self._sequencer.next(session, spec)
+        return await self._sequencer.next(session, scope)
 
     async def setup(self, session: ISession) -> None:
         await self._sequencer.setup(session)

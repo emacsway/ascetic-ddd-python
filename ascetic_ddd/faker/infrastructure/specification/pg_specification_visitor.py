@@ -48,8 +48,5 @@ class PgSpecificationVisitor(ISpecificationVisitor):
         self._sql += sql
         self._params += params
 
-    def visit_scope_specification(self, scope: typing.Hashable):
-        pass
-
     def visit_empty_specification(self):
         pass

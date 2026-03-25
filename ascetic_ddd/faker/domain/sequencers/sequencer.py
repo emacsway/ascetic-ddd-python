@@ -1,9 +1,8 @@
 import typing
 from collections import defaultdict
 
-from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer
+from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer, IStringable
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 
 __all__ = ('Sequencer',)
 
@@ -11,7 +10,7 @@ T = typing.TypeVar("T")
 
 
 class Sequencer(ISequencer):
-    _sequences: dict[ISpecification, int]
+    _sequences: dict[str, int]
     _provider_name: str | None = None
 
     def __init__(self):
@@ -20,10 +19,11 @@ class Sequencer(ISequencer):
     async def next(
             self,
             session: ISession,
-            specification: ISpecification[T],
+            scope: IStringable | None = None,
     ) -> int:
-        position = self._sequences[specification]
-        self._sequences[specification] += 1
+        key = str(scope)
+        position = self._sequences[key]
+        self._sequences[key] += 1
         return position
 
     @property

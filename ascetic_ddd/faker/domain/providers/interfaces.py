@@ -22,7 +22,6 @@ __all__ = (
     'IProvidable',
     'IInputOutput',
     'IValueProvider',
-    'IRelativeValueProvider',
     'ICompositeValueProvider',
     'IEntityProvider',
     'IAggregateRepository',
@@ -147,13 +146,6 @@ class IValueProvider(
     ISetupable, typing.Generic[InputT, OutputT], metaclass=ABCMeta
 ):
     pass
-
-
-class IRelativeValueProvider(IValueProvider[InputT, OutputT], typing.Generic[InputT, OutputT], metaclass=ABCMeta):
-
-    @abstractmethod
-    def set_scope(self, scope: Hashable) -> None:
-        raise NotImplementedError
 
 
 class ICompositeValueProvider(

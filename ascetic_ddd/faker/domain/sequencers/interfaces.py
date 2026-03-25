@@ -2,14 +2,19 @@ import typing
 from abc import ABCMeta, abstractmethod
 
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 
 __all__ = (
     'ISequencer',
+    'IStringable',
 )
 
 
 T = typing.TypeVar("T")
+
+
+class IStringable(typing.Protocol):
+    def __str__(self) -> str:
+        ...
 
 
 class ISequencer(metaclass=ABCMeta):
@@ -18,7 +23,7 @@ class ISequencer(metaclass=ABCMeta):
     async def next(
             self,
             session: ISession,
-            specification: ISpecification[T],
+            scope: IStringable | None = None,
     ) -> int:
         """
         Returns next value from sequencer.

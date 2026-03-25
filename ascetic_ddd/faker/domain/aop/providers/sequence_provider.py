@@ -1,9 +1,7 @@
 import typing
 
 from ascetic_ddd.option import Option, Some, Nothing
-from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer
-from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
-from ascetic_ddd.faker.domain.specification.scope_specification import ScopeSpecification
+from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer, IStringable
 from ascetic_ddd.session.interfaces import ISession
 
 __all__ = ('SequenceProvider',)
@@ -28,21 +26,19 @@ class SequenceProvider:
     Args:
         sequencer: Sequencer that provides sequential positions.
     """
+    _sequencer: ISequencer
+    _output: Option[int]
+    _scope: IStringable | None = None
 
     def __init__(self, sequencer: ISequencer) -> None:
         self._sequencer = sequencer
-        self._output: Option[int] = Nothing()
-        self._scope: typing.Hashable | None = None
+        self._output = Nothing()
+        self._scope = None
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
             return
-        spec: ScopeSpecification[typing.Any] | EmptySpecification[typing.Any]
-        if self._scope is not None:
-            spec = ScopeSpecification[typing.Any](self._scope)
-        else:
-            spec = EmptySpecification[typing.Any]()
-        position = await self._sequencer.next(session, spec)
+        position = await self._sequencer.next(session, self._scope)
         self._output = Some(position)
 
     def output(self) -> int:

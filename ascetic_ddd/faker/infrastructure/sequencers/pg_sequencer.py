@@ -1,11 +1,10 @@
 import hashlib
 import typing
 
-from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer
+from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer, IStringable
 from ascetic_ddd.utils.pg import escape
 from ascetic_ddd.faker.infrastructure.session.pg_session import extract_internal_connection
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 
 
 __all__ = ('PgSequencer',)
@@ -29,12 +28,12 @@ class PgSequencer(ISequencer):
     async def next(
             self,
             session: ISession,
-            specification: ISpecification[T],
+            scope: IStringable | None = None,
     ) -> int:
         if not self._initialized:
             await self.setup(session)
 
-        key = str(specification)
+        key = str(scope)
 
         while True:
             async with self._extract_connection(session).cursor() as acursor:

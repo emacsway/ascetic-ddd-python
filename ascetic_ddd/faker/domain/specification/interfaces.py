@@ -25,9 +25,6 @@ class ISpecificationVisitor(typing.Protocol):
     def visit_empty_specification(self):
         ...
 
-    def visit_scope_specification(self, scope: typing.Hashable):
-        ...
-
 
 class ISpecificationVisitable(typing.Protocol):
 

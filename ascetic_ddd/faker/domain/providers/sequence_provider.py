@@ -5,13 +5,9 @@ from ascetic_ddd.faker.domain.providers.interfaces import IValueProvider
 from ascetic_ddd.faker.domain.query.operators import EqOperator
 from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
-from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer
-from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
-from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
-from ascetic_ddd.faker.domain.specification.scope_specification import ScopeSpecification
+from ascetic_ddd.faker.domain.sequencers.interfaces import ISequencer, IStringable
 from ascetic_ddd.option import Nothing
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 
 
 __all__ = ('SequenceProvider',)
@@ -26,7 +22,7 @@ class SequenceProvider(
     typing.Generic[InputT, OutputT]
 ):
     _sequencer: ISequencer
-    _scope: typing.Hashable | None = None
+    _scope: IStringable | None = None
     _input_generator: IInputGenerator[InputT] | None = None
     _output_factory: typing.Callable[[InputT | None], OutputT] = None  # type: ignore[assignment]  # OutputT of each nested Provider.
     _output_exporter: typing.Callable[[OutputT], InputT] = None  # type: ignore[assignment]
@@ -39,6 +35,7 @@ class SequenceProvider(
             output_exporter: typing.Callable[[OutputT], InputT] | None = None,
     ):
         self._sequencer = sequencer
+        self._scope = None
 
         if self._input_generator is None and input_generator is not None:
             self._input_generator = prepare_input_generator(input_generator)
@@ -75,18 +72,13 @@ class SequenceProvider(
                 self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
                 # await cursor.append(session, self._output.unwrap())
             else:
-                position = await self._sequencer.next(session, self._make_specification())
+                position = await self._sequencer.next(session, self._scope)
                 assert self._input_generator is not None
                 self._set_input(await self._input_generator(session, self._criteria, position))
                 self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
 
     def export(self, output: OutputT) -> InputT:
         return self._output_exporter(output)
-
-    def _make_specification(self) -> ISpecification[OutputT]:
-        if self._scope is not None:
-            return ScopeSpecification[OutputT](self._scope)
-        return EmptySpecification[OutputT]()
 
     @property
     def provider_name(self) -> str:
