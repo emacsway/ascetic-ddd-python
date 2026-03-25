@@ -90,7 +90,6 @@ class IM2ODistributorFactory(typing.Protocol[T]):
         skew: float | None = None,
         mean: float | None = None,
         null_weight: float = 0,
-        sequence: bool = False,
         name: str | None = None,
     ) -> IM2ODistributor[T]:
         """
@@ -101,7 +100,6 @@ class IM2ODistributorFactory(typing.Protocol[T]):
             skew: Skew parameter (1.0 = uniform, 2.0+ = skewed towards the beginning). Default = 2.0
             mean: Average number of uses for each value.
             null_weight: Probability of returning None (0-1)
-            sequence: Pass sequence number to value generator.
             name: Provider name for distributor (used for PG table naming).
         """
         ...
