@@ -18,9 +18,9 @@ from http.server import BaseHTTPRequestHandler
 
 from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factory
 from ascetic_ddd.faker.domain.distributors.m2o.dummy_distributor import DummyDistributor
-from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider, IAggregateRepository
+from ascetic_ddd.faker.domain.providers.aggregate_provider import AggregateProvider
 from ascetic_ddd.faker.domain.providers.composite_value_provider import CompositeValueProvider
-from ascetic_ddd.faker.domain.providers.interfaces import IEntityProvider
+from ascetic_ddd.faker.domain.providers.interfaces import IAggregateRepository, IAggregateProvider
 from ascetic_ddd.faker.domain.providers.reference_provider import ReferenceProvider
 from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
@@ -259,7 +259,7 @@ class SecondModelPkFaker(CompositeValueProvider[dict, SecondModelPk]):
 
     def __init__(
             self,
-            first_model_faker: IEntityProvider[dict, FirstModel, FirstModelPk, FirstModelPk],
+            first_model_faker: IAggregateProvider[dict, FirstModel, FirstModelPk, FirstModelPk],
             make_distributor
     ) -> None:
         self.first_model_id = ReferenceProvider(
@@ -323,7 +323,7 @@ class ThirdModelPkFaker(CompositeValueProvider[dict, ThirdModelPk]):
 
     def __init__(
             self,
-            first_model_faker: IEntityProvider[dict, FirstModel, FirstModelPk, FirstModelPk],
+            first_model_faker: IAggregateProvider[dict, FirstModel, FirstModelPk, FirstModelPk],
             make_distributor
     ) -> None:
         self.first_model_id = ReferenceProvider(
@@ -353,7 +353,7 @@ class SecondModelFkFaker(CompositeValueProvider[dict, SecondModelPk]):
 
     def __init__(
             self,
-            first_model_faker: IEntityProvider[dict, FirstModel, FirstModelPk, FirstModelPk],
+            first_model_faker: IAggregateProvider[dict, FirstModel, FirstModelPk, FirstModelPk],
             make_distributor,
             weights: list[float],
             null_weight: float,

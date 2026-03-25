@@ -16,6 +16,7 @@ from unittest import IsolatedAsyncioTestCase
 
 from http.server import BaseHTTPRequestHandler
 
+from ascetic_ddd.faker.domain.distributors.m2o.dummy_distributor import DummyDistributor
 from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factory
 from ascetic_ddd.faker.domain.fp.factories import (
     ValueFactory,
@@ -309,7 +310,7 @@ def make_second_model_factory(repository, make_distributor):
     )
     pk_distributed = DistributedFactory(
         pk_structure,
-        distributor=make_distributor(name='second_model.id'),
+        distributor=DummyDistributor(name='second_model.id'),
     )
     pk_modeled = ModeledFactory(pk_distributed, factory=SecondModelPk)
 
@@ -340,7 +341,7 @@ def make_third_model_factory(repository, make_distributor):
     )
     pk_distributed = DistributedFactory(
         pk_structure,
-        distributor=make_distributor(name='third_model.id'),
+        distributor=DummyDistributor(name='third_model.id'),
     )
     pk_modeled = ModeledFactory(pk_distributed, factory=ThirdModelPk)
 

@@ -18,7 +18,9 @@ class DummyDistributor(IM2ODistributor[T], typing.Generic[T]):
     _provider_name: str | None = None
     _on_appended: IAsyncSignal[ValueAppendedEvent[T]]
 
-    def __init__(self):
+    def __init__(self, name: str | None = None):
+        if name is not None:
+            self.provider_name = name
         self._on_appended = AsyncSignal[ValueAppendedEvent[T]]()
 
     @property
