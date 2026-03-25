@@ -1,18 +1,20 @@
 import random
 import typing
-from abc import abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 
 from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.option import Option, Some
+from ascetic_ddd.seedwork.domain.utils.data import hashable
 from ascetic_ddd.signals.interfaces import IAsyncSignal
 from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
+from ascetic_ddd.signals.signal import AsyncSignal
 
 __all__ = ('WriteDistributor', 'Index',)
+
 
 T = typing.TypeVar("T")
 
@@ -41,7 +43,7 @@ class Index(typing.Generic[T]):
         self._read_offset = val
 
     def __contains__(self, value: T):
-        return value in self._value_set
+        return self._to_hashable(value) in self._value_set
 
     def __len__(self):
         return len(self._values)
@@ -53,23 +55,26 @@ class Index(typing.Generic[T]):
             return self._values[offset:]
 
     def append(self, value: T, read_offset: int = 0):
-        if value not in self._value_set:
+        hashable_value = self._to_hashable(value)
+        if hashable_value not in self._value_set:
             self._values.append(value)
-            self._value_set.add(value)
+            self._value_set.add(hashable_value)
+
         if read_offset:
             self._read_offset = read_offset
 
     def remove(self, value: T) -> bool:
         """Removes an object from the index. Returns True if the object was removed."""
-        if value not in self._value_set:
+        hashable_value = self._to_hashable(value)
+        if hashable_value not in self._value_set:
             return False
-        self._value_set.discard(value)
+        self._value_set.discard(hashable_value)
         self._values.remove(value)
         return True
 
     def get_relative_position(self, value: T) -> float | None:
         """Returns the relative position of an object (0.0 - 1.0) or None if not found."""
-        if value not in self._value_set:
+        if self._to_hashable(value) not in self._value_set:
             return None
         idx = self._values.index(value)
         n = len(self._values)
@@ -77,13 +82,14 @@ class Index(typing.Generic[T]):
 
     def insert_at_relative_position(self, value: T, relative_position: float) -> None:
         """Inserts an object at the position corresponding to the relative position."""
-        if value in self._value_set:
+        hashable_value = self._to_hashable(value)
+        if hashable_value in self._value_set:
             return
         n = len(self._values)
         idx = int(relative_position * n)
         idx = max(0, min(idx, n))
         self._values.insert(idx, value)
-        self._value_set.add(value)
+        self._value_set.add(hashable_value)
 
     async def populate_from(self, session: ISession, source: 'Index') -> None:
         values_length = len(source)
@@ -109,6 +115,12 @@ class Index(typing.Generic[T]):
 
         return self._values[distribution_strategy(n)]
 
+    @staticmethod
+    def _to_hashable(value: typing.Any):
+        if not isinstance(value, Hashable):
+            return hashable(value)
+        return value
+
 
 class WriteDistributor(IM2ODistributor[T], typing.Generic[T]):
     """
@@ -126,13 +138,13 @@ class WriteDistributor(IM2ODistributor[T], typing.Generic[T]):
         self._default_spec = EmptySpecification[T]()
         self._indexes = dict()
         self._indexes[self._default_spec] = self._create_index(self._default_spec)
+        self._on_appended = AsyncSignal[ValueAppendedEvent[T]]()
         super().__init__()
 
     @property
     def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
         return self._on_appended
 
-    @abstractmethod
     def _create_index(self, specification: ISpecification[T]) -> Index[T]:
         return Index(specification)
 
