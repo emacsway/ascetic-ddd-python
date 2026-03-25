@@ -91,6 +91,7 @@ class IM2ODistributorFactory(typing.Protocol[T]):
         mean: float | None = None,
         null_weight: float = 0,
         name: str | None = None,
+        store: IM2ODistributor[T] | None = None,
     ) -> IM2ODistributor[T]:
         """
         Factory for Distributor.

@@ -177,7 +177,8 @@ class RangeDistributorFactory(IM2ODistributorFactory[T], typing.Generic[T]):
         skew: float | None = None,
         mean: float | None = None,
         null_weight: float = 0,
-        sequence: bool = False,
+        name: str | None = None,
+        store: IM2ODistributor[T] | None = None,
     ) -> IM2ODistributor[T]:
         """
         Creates an M2O distributor.
@@ -213,9 +214,12 @@ class RangeDistributorFactory(IM2ODistributorFactory[T], typing.Generic[T]):
                 self._max_val,
             )
 
-        adapter = RangeDistributorAdapter[T](range_dist)
+        adapter: IM2ODistributor[T] = RangeDistributorAdapter[T](range_dist)
 
         if null_weight > 0:
-            return NullableDistributor(adapter, null_weight=null_weight)
+            adapter = NullableDistributor(adapter, null_weight=null_weight)
+
+        if name is not None:
+            adapter.provider_name = name
 
         return adapter
