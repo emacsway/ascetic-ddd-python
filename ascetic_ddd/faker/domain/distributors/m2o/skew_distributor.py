@@ -2,11 +2,10 @@ import math
 import random
 import typing
 
-from ascetic_ddd.faker.domain.distributors.m2o import IM2ODistributor
-from ascetic_ddd.faker.domain.distributors.m2o.weighted_distributor import BaseIndex, BaseDistributor
-from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
+from ascetic_ddd.faker.domain.distributors.m2o.weighted_distributor import BaseDistributor
+from ascetic_ddd.faker.domain.distributors.m2o.write_distributor import WriteDistributor
 
-__all__ = ('SkewDistributor', 'SkewIndex', 'estimate_skew', 'weights_to_skew')
+__all__ = ('SkewDistributor', 'estimate_skew', 'weights_to_skew')
 
 
 def estimate_skew(usage_counts: dict[typing.Any, int], tail_cutoff: float = 0.9) -> tuple[float, float]:
@@ -112,40 +111,6 @@ def weights_to_skew(weights: list[float]) -> float:
 T = typing.TypeVar("T")
 
 
-# =============================================================================
-# SkewIndex
-# =============================================================================
-
-class SkewIndex(BaseIndex[T], typing.Generic[T]):
-    """
-    Index with power-law distribution.
-    A single skew parameter instead of a list of weights.
-
-    skew = 1.0 — uniform distribution
-    skew = 2.0 — moderate skew towards the beginning (earlier values are more frequent)
-    skew = 3.0+ — strong skew
-    """
-    _skew: float
-
-    def __init__(self, skew: float, specification: ISpecification[T]):
-        self._skew = skew
-        super().__init__(specification)
-
-    def _select_idx(self) -> int:
-        """Selects an index with power-law distribution. O(1)"""
-        n = len(self._values)
-        # Power-law distribution: idx = n * (1 - random)^skew
-        # At skew=1: uniform (25% in each quartile)
-        # At skew=2: skew towards the beginning (50% in the first quartile)
-        # At skew=3: strong skew (63% in the first quartile)
-        idx = int(n * (1 - random.random()) ** self._skew)
-        return min(idx, n - 1)
-
-
-# =============================================================================
-# SkewDistributor
-# =============================================================================
-
 class SkewDistributor(BaseDistributor[T], typing.Generic[T]):
     """
     Distributor with power-law distribution.
@@ -164,12 +129,18 @@ class SkewDistributor(BaseDistributor[T], typing.Generic[T]):
 
     def __init__(
             self,
-            delegate: IM2ODistributor[T],
+            store: WriteDistributor[T],
             skew: float = 2.0,
             mean: float | None = None,
     ):
         self._skew = skew
-        super().__init__(delegate=delegate, mean=mean)
+        super().__init__(store=store, mean=mean)
 
-    def _create_index(self, specification: ISpecification[T]) -> SkewIndex[T]:
-        return SkewIndex(self._skew, specification)
+    def _distribute(self, n: int) -> int:
+        """Selects an index with power-law distribution. O(1)"""
+        # Power-law distribution: idx = n * (1 - random)^skew
+        # At skew=1: uniform (25% in each quartile)
+        # At skew=2: skew towards the beginning (50% in the first quartile)
+        # At skew=3: strong skew (63% in the first quartile)
+        idx = int(n * (1 - random.random()) ** self._skew)
+        return min(idx, n - 1)
