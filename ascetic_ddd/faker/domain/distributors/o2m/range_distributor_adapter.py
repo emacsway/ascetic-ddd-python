@@ -8,9 +8,6 @@ from ascetic_ddd.faker.domain.distributors.o2m.weighted_range_distributor import
 from ascetic_ddd.option import Option, Some
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
-from ascetic_ddd.signals.interfaces import IAsyncSignal
-from ascetic_ddd.signals.signal import AsyncSignal
-from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 
 __all__ = ('RangeDistributorAdapter', 'RangeDistributorFactory')
 
@@ -46,7 +43,6 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
     _distributor: IO2MDistributor
     _values: dict[int, T]
     _provider_name: str | None
-    _on_appended: IAsyncSignal[ValueAppendedEvent[T]]
 
     def __init__(self, distributor: IO2MDistributor):
         """
@@ -56,11 +52,6 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
         self._distributor = distributor
         self._values = {}
         self._provider_name = None
-        self._on_appended = AsyncSignal[ValueAppendedEvent[T]]()
-
-    @property
-    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._on_appended
 
     async def next(
             self,
@@ -102,7 +93,6 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
             position: Slot number (key in the dictionary).
         """
         self._values[position] = value
-        await self._on_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
         await self._append(session, value, -1)

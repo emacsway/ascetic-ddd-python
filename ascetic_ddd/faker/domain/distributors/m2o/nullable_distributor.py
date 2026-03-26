@@ -2,8 +2,6 @@ import random
 import typing
 
 from ascetic_ddd.option import Option, Nothing
-from ascetic_ddd.signals.interfaces import IAsyncSignal
-from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
@@ -46,10 +44,6 @@ class NullableDistributor(IM2ODistributor[T], typing.Generic[T]):
 
     def _is_null(self) -> bool:
         return random.random() < self._null_weight
-
-    @property
-    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._delegate.on_appended
 
     async def append(self, session: ISession, value: T):
         await self._delegate.append(session, value)

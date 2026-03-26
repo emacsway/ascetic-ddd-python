@@ -2,8 +2,6 @@ import typing
 from abc import ABCMeta, abstractmethod
 
 from ascetic_ddd.option import Option
-from ascetic_ddd.signals.interfaces import IAsyncSignal
-from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 
@@ -18,11 +16,6 @@ T = typing.TypeVar("T")
 
 
 class IM2ODistributor(typing.Generic[T], metaclass=ABCMeta):
-
-    @property
-    @abstractmethod
-    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        raise NotImplementedError
 
     @abstractmethod
     async def next(

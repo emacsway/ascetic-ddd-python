@@ -12,7 +12,6 @@ from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.signals.signal import AsyncSignal
-from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 
 
@@ -78,7 +77,6 @@ class StubDistributor(IM2ODistributor):
         self._index = 0
         self._raise_cursor_at = raise_cursor_at
         self._provider_name = None
-        self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session, specification=None):
         if self._raise_cursor_at is not None and self._index >= self._raise_cursor_at:
@@ -94,11 +92,6 @@ class StubDistributor(IM2ODistributor):
 
     async def append(self, session, value):
         await self._append(session, value, -1)
-
-    # Signal properties
-    @property
-    def on_appended(self):
-        return self._on_appended
 
     @property
     def provider_name(self):

@@ -98,7 +98,7 @@ class IndexTestCase(IsolatedAsyncioTestCase):
 # =============================================================================
 
 class WriteDistributorTestCase(IsolatedAsyncioTestCase):
-    """Tests for WriteDistributor via public API (next, append, on_appended)."""
+    """Tests for WriteDistributor via public API (next, append)."""
 
     async def _make_session_pool(self):
         return await make_internal_pg_session_pool()
@@ -113,38 +113,6 @@ class WriteDistributorTestCase(IsolatedAsyncioTestCase):
         async with self.session_pool.session() as session, session.atomic() as ts_session:
             with self.assertRaises(Cursor):
                 await self.store.next(ts_session, EmptySpecification())
-
-    async def test_cursor_append_makes_value_available(self):
-        """Value appended via cursor is retrievable via on_appended signal."""
-        appended = []
-
-        async def handler(event):
-            appended.append(event.value)
-
-        self.store.on_appended.attach(handler)
-
-        async with self.session_pool.session() as session, session.atomic() as ts_session:
-            try:
-                await self.store.next(ts_session, EmptySpecification())
-            except Cursor as cursor:
-                await cursor.append(ts_session, 42)
-
-        self.assertEqual(appended, [42])
-
-    async def test_append_fires_signal(self):
-        """append() fires on_appended signal."""
-        appended = []
-
-        async def handler(event):
-            appended.append(event.value)
-
-        self.store.on_appended.attach(handler)
-
-        async with self.session_pool.session() as session, session.atomic() as ts_session:
-            await self.store.append(ts_session, 'hello')
-            await self.store.append(ts_session, 'world')
-
-        self.assertEqual(appended, ['hello', 'world'])
 
     async def test_provider_name(self):
         """provider_name is set once."""

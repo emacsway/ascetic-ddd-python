@@ -6,12 +6,9 @@ from ascetic_ddd.faker.domain.distributors.m2o.cursor import Cursor
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.option import Option, Some
 from ascetic_ddd.seedwork.domain.utils.data import hashable
-from ascetic_ddd.signals.interfaces import IAsyncSignal
-from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
-from ascetic_ddd.signals.signal import AsyncSignal
 
 __all__ = ('WriteDistributor', 'Index',)
 
@@ -130,7 +127,6 @@ class WriteDistributor(IM2ODistributor[T], typing.Generic[T]):
     _indexes: dict[ISpecification, Index[T]]
     _default_spec: ISpecification[T]
     _provider_name: str | None = None
-    _on_appended: IAsyncSignal[ValueAppendedEvent[T]]
 
     def __init__(self, mean: float | None = None):
         if mean is not None:
@@ -138,12 +134,7 @@ class WriteDistributor(IM2ODistributor[T], typing.Generic[T]):
         self._default_spec = EmptySpecification[T]()
         self._indexes = dict()
         self._indexes[self._default_spec] = self._create_index(self._default_spec)
-        self._on_appended = AsyncSignal[ValueAppendedEvent[T]]()
         super().__init__()
-
-    @property
-    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._on_appended
 
     def _create_index(self, specification: ISpecification[T]) -> Index[T]:
         return Index(specification)
@@ -215,7 +206,6 @@ class WriteDistributor(IM2ODistributor[T], typing.Generic[T]):
     async def _append(self, session: ISession, value: T, position: int):
         if value not in self._indexes[self._default_spec]:
             self._indexes[self._default_spec].append(value)
-            await self.on_appended.notify(ValueAppendedEvent(session, value, position))
 
     async def append(self, session: ISession, value: T):
         await self._append(session, value, -1)

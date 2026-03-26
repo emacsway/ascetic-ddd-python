@@ -13,7 +13,6 @@ from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.infrastructure.specification.pg_specification_visitor import PgSpecificationVisitor
-from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 from ascetic_ddd.signals.signal import AsyncSignal
 
@@ -81,7 +80,6 @@ class StubDistributor(IM2ODistributor):
         self._appended = []
         self._provider_name = None
 
-        self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session: ISession, specification: ISpecification = None):
         if self._raise_cursor or self._index >= len(self._values):
@@ -109,10 +107,6 @@ class StubDistributor(IM2ODistributor):
 
     async def cleanup(self, session: ISession):
         pass
-
-    @property
-    def on_appended(self):
-        return self._on_appended
 
     def __copy__(self):
         return self

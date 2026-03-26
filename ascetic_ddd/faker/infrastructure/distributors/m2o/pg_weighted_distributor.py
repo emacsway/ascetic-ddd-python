@@ -6,8 +6,6 @@ from abc import abstractmethod
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor
 from ascetic_ddd.faker.infrastructure.distributors.m2o.pg_write_distributor import PgWriteDistributor
 from ascetic_ddd.option import Option, Some
-from ascetic_ddd.signals.interfaces import IAsyncSignal
-from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.infrastructure.session.pg_session import extract_internal_connection
@@ -76,10 +74,6 @@ class BasePgDistributor(IM2ODistributor[T], typing.Generic[T]):
     @provider_name.setter
     def provider_name(self, value):
         self._store.provider_name = value
-
-    @property
-    def on_appended(self) -> IAsyncSignal[ValueAppendedEvent[T]]:
-        return self._store.on_appended
 
     async def setup(self, session: ISession):
         await self._store.setup(session)

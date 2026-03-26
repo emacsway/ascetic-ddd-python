@@ -12,7 +12,6 @@ from ascetic_ddd.faker.domain.providers.value_provider import ValueProvider
 from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.signals.signal import AsyncSignal
-from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.providers.events import AggregateInsertedEvent, AggregateUpdatedEvent
 
 
@@ -73,7 +72,6 @@ class StubM2ODistributor(IM2ODistributor):
     def __init__(self):
         self._provider_name = None
         self._appended = []
-        self._on_appended = AsyncSignal[ValueAppendedEvent]()
 
     async def next(self, session: ISession, specification=None):
         raise Cursor(position=len(self._appended), callback=self._append)
@@ -83,11 +81,6 @@ class StubM2ODistributor(IM2ODistributor):
 
     async def append(self, session: ISession, value):
         await self._append(session, value, -1)
-
-    # Signal properties
-    @property
-    def on_appended(self):
-        return self._on_appended
 
     @property
     def provider_name(self):
