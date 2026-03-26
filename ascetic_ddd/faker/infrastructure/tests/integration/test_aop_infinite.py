@@ -16,7 +16,6 @@ from unittest import IsolatedAsyncioTestCase
 
 from http.server import BaseHTTPRequestHandler
 
-from ascetic_ddd.faker.domain.distributors.m2o.dummy_distributor import DummyDistributor
 from ascetic_ddd.faker.domain.distributors.m2o.factory import distributor_factory
 from ascetic_ddd.faker.domain.aop.providers.value_provider import ValueProvider
 from ascetic_ddd.faker.domain.aop.providers.structure_provider import StructureProvider
@@ -300,12 +299,8 @@ def make_second_model_faker(repository, make_distributor):
         id=pk_id_prov,
         first_model_id=first_model_id_prov,
     )
-    pk_distributed = DistributedProvider(
-        pk_structure,
-        distributor=DummyDistributor(name='second_model.id'),
-    )
     pk_modeled = ModeledProvider(
-        pk_distributed,
+        pk_structure,
         factory=SecondModelPk,
         exporter=export_second_model_pk,
     )
@@ -348,12 +343,8 @@ def make_third_model_faker(repository, make_distributor):
         id=pk_id_prov,
         first_model_id=first_model_id_prov,
     )
-    pk_distributed = DistributedProvider(
-        pk_structure,
-        distributor=DummyDistributor(name='third_model.id'),
-    )
     pk_modeled = ModeledProvider(
-        pk_distributed,
+        pk_structure,
         factory=ThirdModelPk,
         exporter=export_third_model_pk,
     )
