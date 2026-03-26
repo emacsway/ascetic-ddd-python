@@ -99,8 +99,8 @@ class ValueProvider(
                 except ICursor as cursor:
                     if self._input_generator is None:
                         self._set_input(None)
-                        await self._set_output(session, self._output_factory(None))
                         self._is_transient = True
+                        await self._set_output(session, self._output_factory(None))
                     else:
                         self._set_input(await self._input_generator(session, self._criteria, cursor.position))
                         await self._set_output(session, self._output_factory(typing.cast(InputT, self._input.unwrap())))

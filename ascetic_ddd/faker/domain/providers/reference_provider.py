@@ -3,7 +3,6 @@ from collections.abc import Callable
 from abc import ABCMeta, abstractmethod
 from functools import cached_property
 
-from ascetic_ddd.faker.domain.distributors.m2o.events import ValueAppendedEvent
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import ICursor, IM2ODistributor
 from ascetic_ddd.faker.domain.providers._mixins import BaseDistributionProvider
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
@@ -20,7 +19,7 @@ from ascetic_ddd.session.interfaces import ISession
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
 from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
-from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent
+from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, OutputPopulatedEvent
 
 __all__ = ('ReferenceProvider',)
 
@@ -39,7 +38,10 @@ class IAggregateProviderAccessor(
     # TODO: Use Monad, Deferred or Future?
 
     @abstractmethod
-    def __call__(self) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
+    def __call__(
+            self,
+            reference_provider: IReferenceProvider[IdInputT, IdOutputT, AggInputT, AggOutputT]
+    ) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
         raise NotImplementedError
 
     @abstractmethod
@@ -164,7 +166,7 @@ class ReferenceProvider(
 
     @property
     def aggregate_provider(self) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
-        return self._aggregate_provider_accessor()
+        return self._aggregate_provider_accessor(self)
 
     @aggregate_provider.setter
     def aggregate_provider(
@@ -173,18 +175,14 @@ class ReferenceProvider(
                                  Callable[[], IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]])
     ) -> None:
         if callable(aggregate_provider):
-            aggregate_provider_accessor: IAggregateProviderAccessor[
-                AggInputT, AggOutputT, IdInputT, IdOutputT
-            ] = LazyAggregateProviderAccessor[
+            self._aggregate_provider_accessor = LazyAggregateProviderAccessor[
                 AggInputT, AggOutputT, IdInputT, IdOutputT
             ](aggregate_provider)
+
         else:
-            aggregate_provider_accessor = AggregateProviderAccessor[
+            self._aggregate_provider_accessor = AggregateProviderAccessor[
                 AggInputT, AggOutputT, IdInputT, IdOutputT
             ](aggregate_provider)
-        self._aggregate_provider_accessor = SubscriptionAggregateProviderAccessor(
-            self, aggregate_provider_accessor
-        )
 
     def _do_clone(self, clone: typing.Self, shunt: ICloningShunt):
         clone._aggregate_provider_accessor = self._aggregate_provider_accessor.clone(shunt)
@@ -207,65 +205,33 @@ class ReferenceProvider(
         await self._aggregate_provider_accessor.cleanup(session)
 
 
-class SubscriptionAggregateProviderAccessor(
-    IAggregateProviderAccessor[AggInputT, AggOutputT, IdInputT, IdOutputT],
-    typing.Generic[AggInputT, AggOutputT, IdInputT, IdOutputT]
-):
-    _reference_provider: IReferenceProvider[IdInputT, IdOutputT, AggInputT, AggOutputT]
-    _initialized: bool = False
-    _delegate: IAggregateProviderAccessor[AggInputT, AggOutputT, IdInputT, IdOutputT]
-
-    def __init__(
-            self,
-            reference_provider: IReferenceProvider[IdInputT, IdOutputT, AggInputT, AggOutputT],
-            delegate: IAggregateProviderAccessor[AggInputT, AggOutputT, IdInputT, IdOutputT]
-    ):
-        self._reference_provider = reference_provider
-        self._delegate = delegate
-
-    def __call__(self) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
-        aggregate_provider = self._delegate()
-        if not self._initialized:
-
-            async def _observer(event: ValueAppendedEvent[IdOutputT]):
-                await self._reference_provider.append(event.session, event.value)
-
-            aggregate_provider.id_provider._distributor.on_appended.attach(
-                _observer, self._reference_provider.provider_name
-            )
-
-            self._initialized = True
-
-        return aggregate_provider
-
-    def reset(self, visited: set | None = None):
-        self._delegate.reset(visited)
-
-    def clone(self, shunt: ICloningShunt | None = None):
-        # We do not it for recursion tree
-        # Subscription between distributors is one-time, since they are not cloned.
-        return self._delegate.clone(shunt)
-
-    async def setup(self, session: ISession):
-        await self._delegate.setup(session)
-
-    async def cleanup(self, session: ISession):
-        await self._delegate.cleanup(session)
-
-
 class AggregateProviderAccessor(
     IAggregateProviderAccessor[AggInputT, AggOutputT, IdInputT, IdOutputT],
     typing.Generic[AggInputT, AggOutputT, IdInputT, IdOutputT]
 ):
     _aggregate_provider: IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]
+    _subscribed: bool
 
     def __init__(
             self,
             aggregate_provider: IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]
     ):
         self._aggregate_provider = aggregate_provider
+        self._subscribed = False
 
-    def __call__(self) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
+    def __call__(
+            self,
+            reference_provider: IReferenceProvider[IdInputT, IdOutputT, AggInputT, AggOutputT]
+    ) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
+
+        if not self._subscribed:
+            async def _observer(event: OutputPopulatedEvent[IdOutputT]):
+                if not event.is_transient:
+                    await reference_provider.append(event.session, event.output)
+
+            self._aggregate_provider.id_provider.on_populated.attach(_observer, id(self._aggregate_provider))
+            self._subscribed = True
+
         return self._aggregate_provider
 
     def reset(self, visited: set | None = None):
@@ -296,9 +262,19 @@ class LazyAggregateProviderAccessor(
     ):
         self._aggregate_provider_factory = aggregate_provider_factory
 
-    def __call__(self) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
+    def __call__(
+            self,
+            reference_provider: IReferenceProvider[IdInputT, IdOutputT, AggInputT, AggOutputT]
+    ) -> IAggregateProvider[AggInputT, AggOutputT, IdInputT, IdOutputT]:
         if self._aggregate_provider is None:
             self._aggregate_provider = self._aggregate_provider_factory()
+
+            async def _observer(event: OutputPopulatedEvent[IdOutputT]):
+                if not event.is_transient:
+                    await reference_provider.append(event.session, event.output)
+
+            self._aggregate_provider.id_provider.on_populated.attach(_observer, id(self._aggregate_provider))
+
         return self._aggregate_provider
 
     def reset(self, visited: set | None = None):
