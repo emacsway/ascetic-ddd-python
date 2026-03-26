@@ -20,3 +20,4 @@ decision, and its consequences.
    0007-scaffold
    0008-aggregate-encapsulation
    0009-envelope-encryption
+   0010-cqrs-read-write-distributor-separation
