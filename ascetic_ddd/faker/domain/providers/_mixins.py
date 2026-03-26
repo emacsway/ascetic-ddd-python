@@ -22,8 +22,8 @@ from ascetic_ddd.faker.domain.specification.interfaces import ISpecification
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.option.option import Option, Some, Nothing
 from ascetic_ddd.session.interfaces import ISession
-from ascetic_ddd.signals.interfaces import ISyncSignal
-from ascetic_ddd.signals.signal import SyncSignal
+from ascetic_ddd.signals.interfaces import ISyncSignal, IAsyncSignal
+from ascetic_ddd.signals.signal import SyncSignal, AsyncSignal
 from ascetic_ddd.faker.domain.providers.events import CriteriaRequiredEvent, OutputPopulatedEvent
 
 __all__ = (
@@ -127,7 +127,7 @@ class BaseProvider(
     _output: Option[OutputT | None]
     _is_transient: bool = False
     _on_required: ISyncSignal[CriteriaRequiredEvent]
-    _on_populated: ISyncSignal[OutputPopulatedEvent[OutputT]]
+    _on_populated: IAsyncSignal[OutputPopulatedEvent[OutputT]]
 
     def _do_init(self):
         self._criteria = None
@@ -135,7 +135,7 @@ class BaseProvider(
         self._output = Nothing()
         self._is_transient = False
         self._on_required = SyncSignal[CriteriaRequiredEvent]()
-        self._on_populated = SyncSignal[OutputPopulatedEvent[OutputT]]()
+        self._on_populated = AsyncSignal[OutputPopulatedEvent[OutputT]]()
         super()._do_init()
 
     @property
@@ -143,7 +143,7 @@ class BaseProvider(
         return self._on_required
 
     @property
-    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent[OutputT]]:
+    def on_populated(self) -> IAsyncSignal[OutputPopulatedEvent[OutputT]]:
         return self._on_populated
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
@@ -193,9 +193,9 @@ class BaseProvider(
         if input_ is not None:
             self._is_transient = False
 
-    def _set_output(self, output: OutputT | None):
+    async def _set_output(self, output: OutputT | None):
         self._output = Some(output)
-        self._on_populated.notify(OutputPopulatedEvent(typing.cast(OutputT, output)))
+        await self._on_populated.notify(OutputPopulatedEvent(typing.cast(OutputT, output)))
 
     async def append(self, session: ISession, value: OutputT):
         pass
@@ -251,7 +251,7 @@ class BaseCompositeProvider(
     _output_exporter: typing.Callable[[CompositeOutputT], CompositeInputT] = None  # type: ignore[assignment]
     _provider_name: str | None = None
     _on_required: ISyncSignal[CriteriaRequiredEvent]
-    _on_populated: ISyncSignal[OutputPopulatedEvent]
+    _on_populated: IAsyncSignal[OutputPopulatedEvent]
 
     def __init__(
             self,
@@ -281,7 +281,7 @@ class BaseCompositeProvider(
         self._criteria = None
         self._output = Nothing()
         self._on_required = SyncSignal[CriteriaRequiredEvent]()
-        self._on_populated = SyncSignal[OutputPopulatedEvent]()
+        self._on_populated = AsyncSignal[OutputPopulatedEvent]()
         super()._do_init()
 
     @property
@@ -289,7 +289,7 @@ class BaseCompositeProvider(
         return self._on_required
 
     @property
-    def on_populated(self) -> ISyncSignal[OutputPopulatedEvent]:
+    def on_populated(self) -> IAsyncSignal[OutputPopulatedEvent]:
         return self._on_populated
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
@@ -366,9 +366,9 @@ class BaseCompositeProvider(
             data[attr] = provider.output()
         return self._output_factory(**data)
 
-    def _set_output(self, output: CompositeOutputT | None):
+    async def _set_output(self, output: CompositeOutputT | None):
         self._output = Some(output)
-        self._on_populated.notify(OutputPopulatedEvent(output))
+        await self._on_populated.notify(OutputPopulatedEvent(output))
 
     def is_complete(self) -> bool:
         return (

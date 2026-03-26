@@ -148,7 +148,7 @@ class MockReferenceProvider(IReferenceProvider):
         self._output_defined = False
         self._provider_name = None
         self._on_required = SyncSignal[CriteriaRequiredEvent]()
-        self._on_populated = SyncSignal[OutputPopulatedEvent]()
+        self._on_populated = AsyncSignal[OutputPopulatedEvent]()
 
     # Signal properties
     @property

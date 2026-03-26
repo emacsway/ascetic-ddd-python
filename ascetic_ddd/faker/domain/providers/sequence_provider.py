@@ -69,13 +69,13 @@ class SequenceProvider(
                 # Extract value from EqOperator
                 self._set_input(self._criteria.value)
             if self._input.is_some():
-                self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
+                await self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
                 # await cursor.append(session, self._output.unwrap())
             else:
                 position = await self._sequencer.next(session, self._scope)
                 assert self._input_generator is not None
                 self._set_input(await self._input_generator(session, self._criteria, position))
-                self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
+                await self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
 
     def export(self, output: OutputT) -> InputT:
         return self._output_exporter(output)
