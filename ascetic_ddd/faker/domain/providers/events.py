@@ -38,3 +38,4 @@ class DependentCriteriaRequiredEvent:
 class OutputPopulatedEvent(typing.Generic[T]):
     session: ISession
     output: T
+    is_transient: bool

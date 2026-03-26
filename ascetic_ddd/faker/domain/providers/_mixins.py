@@ -195,7 +195,7 @@ class BaseProvider(
 
     async def _set_output(self, session: ISession, output: OutputT | None):
         self._output = Some(output)
-        await self._on_populated.notify(OutputPopulatedEvent(session, typing.cast(OutputT, output)))
+        await self._on_populated.notify(OutputPopulatedEvent(session, typing.cast(OutputT, output), self.is_transient()))
 
     async def append(self, session: ISession, value: OutputT):
         pass
@@ -368,7 +368,7 @@ class BaseCompositeProvider(
 
     async def _set_output(self, session: ISession, output: CompositeOutputT | None):
         self._output = Some(output)
-        await self._on_populated.notify(OutputPopulatedEvent(session, output))
+        await self._on_populated.notify(OutputPopulatedEvent(session, output, self.is_transient()))
 
     def is_complete(self) -> bool:
         return (
