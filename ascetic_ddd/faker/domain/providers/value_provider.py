@@ -88,22 +88,22 @@ class ValueProvider(
                 # Extract value from EqOperator
                 self._set_input(self._criteria.value)
             if self._input.is_some():
-                await self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
+                await self._set_output(session, self._output_factory(typing.cast(InputT, self._input.unwrap())))
                 # await cursor.append(session, self._output.unwrap())
             else:
                 try:
                     # EqOperator would pollute the BaseDistributor index, must not pass it here.
                     output = (await self._distributor.next(session, self._make_specification())).unwrap()
                     self._set_input(self.export(output))
-                    await self._set_output(output)
+                    await self._set_output(session, output)
                 except ICursor as cursor:
                     if self._input_generator is None:
                         self._set_input(None)
-                        await self._set_output(self._output_factory(None))
+                        await self._set_output(session, self._output_factory(None))
                         self._is_transient = True
                     else:
                         self._set_input(await self._input_generator(session, self._criteria, cursor.position))
-                        await self._set_output(self._output_factory(typing.cast(InputT, self._input.unwrap())))
+                        await self._set_output(session, self._output_factory(typing.cast(InputT, self._input.unwrap())))
                         await cursor.append(session, self._output.unwrap())
 
     def export(self, output: OutputT) -> InputT:

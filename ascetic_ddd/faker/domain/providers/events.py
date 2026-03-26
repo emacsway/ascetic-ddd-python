@@ -36,4 +36,5 @@ class DependentCriteriaRequiredEvent:
 
 @dataclasses.dataclass(frozen=True)
 class OutputPopulatedEvent(typing.Generic[T]):
+    session: ISession
     output: T

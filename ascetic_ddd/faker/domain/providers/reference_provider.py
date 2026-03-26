@@ -81,12 +81,12 @@ class ReferenceProvider(
                 # self.aggregate_provider.require({self._id_attr: {'$eq': id_input}})
                 await self.aggregate_provider.populate(session)
                 self._set_input(id_input)
-                await self._set_output(id_output)
+                await self._set_output(session, id_output)
             else:
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
                 # self._criteria = None
                 self._set_input(None)
-                await self._set_output(None)
+                await self._set_output(session, None)
         except ICursor as cursor:
             if self._criteria is not None:
                 # Propagate constraints to aggregate_provider (already done in require())
@@ -96,7 +96,7 @@ class ReferenceProvider(
             await cursor.append(session, id_output)
             self._set_input(self.aggregate_provider.id_provider.state())
             # self.require() could reset self._output
-            await self._set_output(id_output)
+            await self._set_output(session, id_output)
 
     def _make_specification(self) -> ISpecification[IdOutputT]:
         # Create specification with aggregate_provider_accessor for lazy lookup and subqueries

@@ -85,7 +85,7 @@ class AggregateProvider(
                     self._set_input(input_)
                     for attr, provider in self.providers.items():
                         await provider.populate(session)
-                    await self._set_output(output)
+                    await self._set_output(session, output)
                     return
 
             await self.do_populate(session)
@@ -107,7 +107,7 @@ class AggregateProvider(
             # await self.id_provider.append(session, getattr(result, self._id_attr))
 
             # self.require() could reset self._output
-            await self._set_output(output)
+            await self._set_output(session, output)
 
             # Create dependent entities AFTER this aggregate is created (they need its ID for FK)
             if self.dependent_providers:
