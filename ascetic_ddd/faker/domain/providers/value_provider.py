@@ -95,7 +95,7 @@ class ValueProvider(
                     # EqOperator would pollute the BaseDistributor index, must not pass it here.
                     output = (await self._distributor.next(session, self._make_specification())).unwrap()
                     self._set_input(self.export(output))
-                    await self._set_output(session, output)
+                    await self._set_output(session, output, is_distributed=True)
                 except ICursor as cursor:
                     if self._input_generator is None:
                         self._set_input(None)

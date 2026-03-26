@@ -83,12 +83,12 @@ class ReferenceProvider(
                 # self.aggregate_provider.require({self._id_attr: {'$eq': id_input}})
                 await self.aggregate_provider.populate(session)
                 self._set_input(id_input)
-                await self._set_output(session, id_output)
+                await self._set_output(session, id_output, is_distributed=True)
             else:
                 # Alternative to "if isinstance(new_criteria, EqOperator) and new_criteria.value is None"
                 # self._criteria = None
                 self._set_input(None)
-                await self._set_output(session, None)
+                await self._set_output(session, None, is_distributed=True)
         except ICursor as cursor:
             if self._criteria is not None:
                 # Propagate constraints to aggregate_provider (already done in require())

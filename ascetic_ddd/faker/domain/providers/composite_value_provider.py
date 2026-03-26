@@ -68,9 +68,9 @@ class CompositeValueProvider(
                         self._set_input(input_)
                         for attr, provider in self.providers.items():
                             await provider.populate(session)
-                        await self._set_output(session, output)
+                        await self._set_output(session, output, is_distributed=True)
                     else:
-                        await self._set_output(session, None)
+                        await self._set_output(session, None, is_distributed=True)
                 except ICursor as cursor:
                     await self.do_populate(session)
                     for attr, provider in self.providers.items():

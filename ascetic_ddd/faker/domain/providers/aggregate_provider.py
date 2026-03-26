@@ -85,7 +85,7 @@ class AggregateProvider(
                     self._set_input(input_)
                     for attr, provider in self.providers.items():
                         await provider.populate(session)
-                    await self._set_output(session, output)
+                    await self._set_output(session, output, is_distributed=True)
                     return
 
             await self.do_populate(session)
