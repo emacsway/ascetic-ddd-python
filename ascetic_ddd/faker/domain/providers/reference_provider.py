@@ -229,7 +229,7 @@ class AggregateProviderAccessor(
                 if not event.is_transient:
                     await reference_provider.append(event.session, event.output)
 
-            self._aggregate_provider.id_provider.on_populated.attach(_observer, id(self._aggregate_provider))
+            self._aggregate_provider.id_provider.on_populated.attach(_observer, id(reference_provider))
             self._subscribed = True
 
         return self._aggregate_provider
@@ -273,7 +273,7 @@ class LazyAggregateProviderAccessor(
                 if not event.is_transient:
                     await reference_provider.append(event.session, event.output)
 
-            self._aggregate_provider.id_provider.on_populated.attach(_observer, id(self._aggregate_provider))
+            self._aggregate_provider.id_provider.on_populated.attach(_observer, id(reference_provider))
 
         return self._aggregate_provider
 
