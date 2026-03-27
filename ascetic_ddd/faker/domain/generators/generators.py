@@ -4,6 +4,8 @@ import math
 import os
 import typing
 import operator
+from collections.abc import Sequence
+
 from hypothesis import strategies
 
 from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator, IAnyInputGenerator
@@ -38,14 +40,14 @@ _RangeT = typing.TypeVar("_RangeT", bound=_SupportsRangeOps)
 def prepare_input_generator(input_generator: IAnyInputGenerator[T] | None) -> IInputGenerator[T] | None:
     if input_generator is not None:
         if isinstance(input_generator, strategies.SearchStrategy):
-            input_generator = HypothesisStrategyGenerator(input_generator)
+            return HypothesisStrategyGenerator(input_generator)
         elif isinstance(input_generator, typing.Iterable) and not isinstance(input_generator, (str, bytes)):
-            input_generator = IterableGenerator(input_generator)
+            return IterableGenerator(input_generator)
         elif callable(input_generator):
             # Check if already wrapped
             if not isinstance(input_generator, CallableGenerator):
-                input_generator = CallableGenerator(input_generator)
-    return input_generator
+                return CallableGenerator(input_generator)
+    return None
 
 
 class IterableGenerator(typing.Generic[T]):
@@ -60,6 +62,20 @@ class IterableGenerator(typing.Generic[T]):
         except StopIteration as e:
             self._values = iter(self._source)
             return await self.__call__(session=session, query=query, position=position)
+
+
+class ListGenerator(typing.Generic[T]):
+    """For RangeDistributorAdapter
+
+    This will not work with AOP/FP providers/factories.
+    """
+
+    def __init__(self, values: Sequence[T]):
+        self._values = values
+
+    async def __call__(self, session: ISession, query: IQueryOperator | None = None, position: int = -1) -> T:
+        assert 0 <= position < len(self._values)
+        return self._values[position]
 
 
 class HypothesisStrategyGenerator(typing.Generic[T]):
