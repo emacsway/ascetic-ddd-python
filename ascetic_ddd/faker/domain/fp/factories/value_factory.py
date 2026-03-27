@@ -1,5 +1,7 @@
 import typing
 
+from ascetic_ddd.faker.domain.generators.interfaces import IAnyInputGenerator, IInputGenerator
+from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
 from ascetic_ddd.faker.domain.query import parse_query
 from ascetic_ddd.faker.domain.query.operators import EqOperator
 from ascetic_ddd.session.interfaces import ISession
@@ -7,13 +9,6 @@ from ascetic_ddd.session.interfaces import ISession
 __all__ = ('ValueFactory',)
 
 T = typing.TypeVar('T')
-T_co = typing.TypeVar('T_co', covariant=True)
-
-
-class IInputGenerator(typing.Protocol[T_co]):
-
-    async def __call__(self, session: ISession, position: int) -> T_co:
-        ...
 
 
 class ValueFactory(typing.Generic[T]):
@@ -24,24 +19,26 @@ class ValueFactory(typing.Generic[T]):
     2. input_generator callback
     3. None (transient placeholder)
     """
+    _input_generator: IInputGenerator[T] | None = None
 
     def __init__(
             self,
-            input_generator: IInputGenerator[T] | None = None,
+            input_generator: IAnyInputGenerator[T] | None = None,
     ) -> None:
-        self._input_generator = input_generator
+        self._input_generator = prepare_input_generator(input_generator)
 
     async def create(
             self,
             session: ISession,
             criteria: dict[str, typing.Any] | None = None,
     ) -> T | None:
+        parsed = None
         if criteria is not None:
             parsed = parse_query(criteria)
             if isinstance(parsed, EqOperator):
                 return parsed.value
         if self._input_generator is not None:
-            return await self._input_generator(session, -1)
+            return await self._input_generator(session, parsed, -1)
         return None
 
     async def setup(self, session: ISession) -> None:

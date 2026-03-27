@@ -5,7 +5,7 @@ from ascetic_ddd.faker.domain.distributors.m2o.interfaces import ICursor, IM2ODi
 from ascetic_ddd.faker.domain.providers._mixins import BaseDistributionProvider
 from ascetic_ddd.faker.domain.providers.interfaces import IValueProvider
 from ascetic_ddd.faker.domain.query.operators import EqOperator
-from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator
+from ascetic_ddd.faker.domain.generators.interfaces import IAnyInputGenerator, IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
 from ascetic_ddd.faker.domain.specification.query_lookup_specification import QueryLookupSpecification
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
@@ -54,7 +54,7 @@ class ValueProvider(
     def __init__(
             self,
             distributor: IM2ODistributor | None,
-            input_generator: IInputGenerator[InputT] | None = None,
+            input_generator: IAnyInputGenerator[InputT] | None = None,
             output_factory: typing.Callable[[InputT], OutputT] | None = None,
             output_exporter: typing.Callable[[OutputT], InputT] | None = None,
     ):

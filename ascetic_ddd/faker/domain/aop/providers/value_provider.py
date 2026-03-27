@@ -5,19 +5,14 @@ from ascetic_ddd.faker.domain.query import parse_query
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, EqOperator, MergeConflict,
 )
+from ascetic_ddd.faker.domain.generators.interfaces import IAnyInputGenerator, IInputGenerator
+from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 from ascetic_ddd.session.interfaces import ISession
 
 __all__ = ('ValueProvider',)
 
 T = typing.TypeVar('T')
-T_co = typing.TypeVar('T_co', covariant=True)
-
-
-class IInputGenerator(typing.Protocol[T_co]):
-
-    async def __call__(self, session: ISession, position: int) -> T_co:
-        ...
 
 
 class ValueProvider(typing.Generic[T]):
@@ -28,12 +23,13 @@ class ValueProvider(typing.Generic[T]):
     2. input_generator callback (creates new values)
     3. None (transient placeholder)
     """
+    _input_generator: IInputGenerator[T] | None = None
 
     def __init__(
             self,
-            input_generator: IInputGenerator[T] | None = None,
+            input_generator: IAnyInputGenerator[T] | None = None,
     ) -> None:
-        self._input_generator = input_generator
+        self._input_generator = prepare_input_generator(input_generator)
         self._output: Option[T | None] = Nothing()
         self._criteria: IQueryOperator | None = None
         self._is_transient: bool = False
@@ -48,7 +44,7 @@ class ValueProvider(typing.Generic[T]):
             return
         # Generate via input_generator
         if self._input_generator is not None:
-            value = await self._input_generator(session, -1)
+            value = await self._input_generator(session, self._criteria, -1)
             self._output = Some(value)
             self._is_transient = self._criteria is None
             return

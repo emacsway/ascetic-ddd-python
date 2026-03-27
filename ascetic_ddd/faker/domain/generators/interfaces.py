@@ -25,5 +25,5 @@ class IInputGenerator(typing.Protocol[InputT_co]):
 
 
 IAnyInputGenerator: typing.TypeAlias = (
-        IInputGenerator[InputT] | typing.Iterable[InputT] | strategies.SearchStrategy[InputT] | Callable
+        IInputGenerator[InputT] | typing.Iterable[InputT] | strategies.SearchStrategy[InputT] | Callable[..., InputT]
 )

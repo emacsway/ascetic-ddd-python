@@ -6,7 +6,7 @@ import typing
 import operator
 from hypothesis import strategies
 
-from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator
+from ascetic_ddd.faker.domain.generators.interfaces import IInputGenerator, IAnyInputGenerator
 from ascetic_ddd.faker.domain.query.operators import IQueryOperator, EqOperator
 from ascetic_ddd.session.interfaces import ISession
 
@@ -36,7 +36,7 @@ class _SupportsRangeOps(typing.Protocol):
 _RangeT = typing.TypeVar("_RangeT", bound=_SupportsRangeOps)
 
 
-def prepare_input_generator(input_generator):
+def prepare_input_generator(input_generator: IAnyInputGenerator[T] | None) -> IInputGenerator[T] | None:
     if input_generator is not None:
         if isinstance(input_generator, strategies.SearchStrategy):
             input_generator = HypothesisStrategyGenerator(input_generator)
