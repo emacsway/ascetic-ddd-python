@@ -22,7 +22,7 @@ dependencies = [
     "scipy (>=1.17.0,<2.0.0)",
     "mimesis (>=19.1.0,<20.0.0)",
     "faker (>=40.1.2,<41.0.0)",
-    "cryptography (>=44.0.0,<45.0.0)",
+    "cryptography (>=46.0.0,<47.0.0)",
     "typing_extensions (>=4.4.0)"
 ]
 
