@@ -1,7 +1,7 @@
 {
   "venv": ".env",
   "venvPath": ".",
-  "pythonVersion": "3.11",
+  "pythonVersion": "3.14",
   "include": ["ascetic_ddd"],
   "exclude": [
     "**/tests",

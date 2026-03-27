@@ -8,7 +8,7 @@ import dataclasses
 import datetime
 import pstats
 
-import requests
+from http import HTTPStatus
 
 from collections import Counter
 import cProfile as profile
@@ -391,7 +391,7 @@ class MockServerRequestHandler(BaseHTTPRequestHandler):
         logging.debug(self.rfile.read(content_len))
         if re.search(self.URL_PATTERN, self.path):
             # Add response status code.
-            self.send_response(requests.codes.ok)
+            self.send_response(HTTPStatus.OK)
 
             # Add response headers.
             self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -403,7 +403,7 @@ class MockServerRequestHandler(BaseHTTPRequestHandler):
             return
         elif re.search(self.COMPOSITE_PK_URL_PATTERN, self.path):
             # Add response status code.
-            self.send_response(requests.codes.ok)
+            self.send_response(HTTPStatus.OK)
 
             # Add response headers.
             self.send_header('Content-Type', 'application/json; charset=utf-8')
