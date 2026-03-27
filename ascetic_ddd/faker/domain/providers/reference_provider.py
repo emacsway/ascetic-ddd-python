@@ -226,7 +226,7 @@ class AggregateProviderAccessor(
 
         if not self._subscribed:
             async def _observer(event: OutputPopulatedEvent[IdOutputT]):
-                if not event.is_transient:
+                if not event.is_transient and not event.is_distributed and not event.output is None:
                     await reference_provider.append(event.session, event.output)
 
             self._aggregate_provider.id_provider.on_populated.attach(_observer, id(reference_provider))
@@ -270,7 +270,7 @@ class LazyAggregateProviderAccessor(
             self._aggregate_provider = self._aggregate_provider_factory()
 
             async def _observer(event: OutputPopulatedEvent[IdOutputT]):
-                if not event.is_transient:
+                if not event.is_transient and not event.is_distributed and not event.output is None:
                     await reference_provider.append(event.session, event.output)
 
             self._aggregate_provider.id_provider.on_populated.attach(_observer, id(reference_provider))

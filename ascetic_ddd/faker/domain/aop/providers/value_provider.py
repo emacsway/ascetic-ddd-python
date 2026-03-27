@@ -3,7 +3,7 @@ import typing
 from ascetic_ddd.option import Option, Some, Nothing
 from ascetic_ddd.faker.domain.query import parse_query
 from ascetic_ddd.faker.domain.query.operators import (
-    IQueryOperator, EqOperator, MergeConflict,
+    IQueryOperator, EqOperator, MergeConflict, IsNullOperator,
 )
 from ascetic_ddd.faker.domain.generators.interfaces import IAnyInputGenerator, IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
@@ -38,8 +38,12 @@ class ValueProvider(typing.Generic[T]):
         if self.is_complete():
             return
         # If $eq criteria is set, use the value directly
-        if self._criteria is not None and isinstance(self._criteria, EqOperator):
+        if isinstance(self._criteria, EqOperator):
             self._output = Some(self._criteria.value)
+            self._is_transient = False
+            return
+        elif isinstance(self._criteria, IsNullOperator) and self._criteria.value:
+            self._output = Some(None)
             self._is_transient = False
             return
         # Generate via input_generator
