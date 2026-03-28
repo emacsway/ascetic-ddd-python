@@ -44,8 +44,8 @@ class PersistedProvider(typing.Generic[T]):
             if not self._id_provider.is_complete():
                 await self._id_provider.populate(session)
             if self._id_provider.is_complete() and not self._id_provider.is_transient():
-                id_state = self._id_provider.state()
-                existing = await self._repository.get(session, id_state)
+                id_ = self._id_provider.output()
+                existing = await self._repository.get(session, id_)
                 if existing is not None:
                     self._output = Some(existing)
                     return
