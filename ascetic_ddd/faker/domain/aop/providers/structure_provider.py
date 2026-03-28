@@ -9,7 +9,9 @@ from ascetic_ddd.faker.domain.query.operators import (
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 from ascetic_ddd.session.interfaces import ISession
 
+
 __all__ = ('StructureProvider',)
+
 
 
 class StructureProvider:
@@ -23,7 +25,6 @@ class StructureProvider:
         self._providers: dict[str, IProvider[typing.Any]] = providers
         self._output: Option[dict[str, typing.Any]] = Nothing()
         self._criteria: IQueryOperator | None = None
-        self._is_transient: bool = False
 
     async def populate(self, session: ISession) -> None:
         if self.is_complete():
@@ -36,9 +37,6 @@ class StructureProvider:
             for name, provider in self._providers.items()
         }
         self._output = Some(result)
-        self._is_transient = any(
-            p.is_transient() for p in self._providers.values()
-        )
 
     def output(self) -> dict[str, typing.Any]:
         return self._output.unwrap()
@@ -79,13 +77,15 @@ class StructureProvider:
             provider.reset(visited)
         self._output = Nothing()
         self._criteria = None
-        self._is_transient = False
 
     def is_complete(self) -> bool:
-        return self._output.is_some()
+        return (
+            self._output.is_some() or
+            all(provider.is_complete() for provider in self._providers.values())
+        )
 
     def is_transient(self) -> bool:
-        return self._is_transient
+        return any(provider.is_transient() for provider in self._providers.values())
 
     @property
     def providers(self) -> dict[str, IProvider[typing.Any]]:
