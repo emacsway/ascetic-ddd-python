@@ -1,3 +1,4 @@
+import asyncio
 import typing
 
 from ascetic_ddd.faker.domain.distributors.m2o.interfaces import IM2ODistributor, IM2ODistributorFactory
@@ -42,7 +43,9 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
     """
     _distributor: IO2MDistributor
     _values: dict[int, T]
+    _next_position: int
     _provider_name: str | None
+    _lock: asyncio.Lock
 
     def __init__(self, distributor: IO2MDistributor):
         """
@@ -51,7 +54,9 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
         """
         self._distributor = distributor
         self._values = {}
+        self._next_position = 0
         self._provider_name = None
+        self._lock = asyncio.Lock()
 
     async def next(
             self,
@@ -61,41 +66,48 @@ class RangeDistributorAdapter(IM2ODistributor[T], typing.Generic[T]):
         """
         Returns a value from the dictionary by a random number.
 
+        If the value is not found, acquires lock and raises Cursor.
+        The lock is held until cursor.append() is called, serializing
+        the creation path to guarantee value ordering.
+        Portable to Go (mutex.Lock in Next, mutex.Unlock in Append).
+
         Raises:
             Cursor(): if there is no value in the dictionary for the slot.
-            cursor.position -- the slot number.
-            cursor.append(session, value) -- add a value.
+            cursor.append(session, value) -- add a value and release lock.
         """
         num = self._distributor.distribute()
 
-        if num not in self._values:
-            raise Cursor(
-                position=num,
-                callback=self._append,
-            )
+        if num in self._values:
+            value = self._values[num]
+            # Check specification
+            if not await specification.is_satisfied_by(session, value):
+                # Value does not satisfy the specification -- try again
+                return await self.next(session, specification)
+            return Some(value)
 
-        value = self._values[num]
+        # Creation path — acquire lock, hold until _locked_append
+        await self._lock.acquire()
+        raise Cursor(
+            position=len(self._values),
+            callback=self._locked_append,
+        )
 
-        # Check specification
-        if not await specification.is_satisfied_by(session, value):
-            # Value does not satisfy the specification -- try again
-            return await self.next(session, specification)
-
-        return Some(value)
-
-    async def _append(self, session: ISession, value: T, position: int):
+    async def _locked_append(self, session: ISession, value: T, position: int):
         """
-        Adds a value to the dictionary.
+        Adds a value to the dictionary and releases the lock.
 
         Args:
             session: Session
             value: Value to add
-            position: Slot number (key in the dictionary).
+            position: Sequential position (key in the dictionary).
         """
-        self._values[position] = value
+        try:
+            self._values[position] = value
+        finally:
+            self._lock.release()
 
     async def append(self, session: ISession, value: T):
-        await self._append(session, value, -1)
+        self._values[len(self._values)] = value
 
     @property
     def provider_name(self) -> str | None:
