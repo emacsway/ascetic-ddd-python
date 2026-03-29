@@ -323,7 +323,16 @@ class BaseCompositeProvider(
             self._criteria = new_criteria
         # Only reset output if input actually changed
         if self._criteria != old_criteria:
-            self._output = Nothing()
+
+            if self._output.is_some():
+                if not self.is_transient():
+                    state = self.state()
+                    walker = EvaluateWalker()
+                    if not walker.evaluate_sync(new_criteria, state):
+                        raise DiamondUpdateConflict(state, query_to_dict(new_criteria), self.provider_name)
+                else:
+                    self._output = Nothing()
+
             self._distribute_criteria(new_criteria)
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
