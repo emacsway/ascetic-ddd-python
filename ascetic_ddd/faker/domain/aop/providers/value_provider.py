@@ -8,6 +8,8 @@ from ascetic_ddd.faker.domain.query.operators import (
 from ascetic_ddd.faker.domain.generators.interfaces import IAnyInputGenerator, IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
+from ascetic_ddd.faker.domain.query.evaluate_visitor import EvaluateWalker
+from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.session.interfaces import ISession
 
 __all__ = ('ValueProvider',)
@@ -61,6 +63,7 @@ class ValueProvider(typing.Generic[T]):
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         new_criteria = parse_query(criteria)
+        old_criteria = self._criteria
         if self._criteria is not None:
             try:
                 self._criteria = self._criteria + new_criteria
@@ -70,7 +73,16 @@ class ValueProvider(typing.Generic[T]):
                 )
         else:
             self._criteria = new_criteria
-        self._output = Nothing()
+
+        if self._criteria != old_criteria:
+            if self._output.is_some():
+                if not self.is_transient():
+                    state = self.state()
+                    walker = EvaluateWalker()
+                    if not walker.evaluate_sync(new_criteria, state):
+                        raise DiamondUpdateConflict(state, query_to_dict(new_criteria), self.provider_name)
+                else:
+                    self._output = Nothing()
 
     def state(self) -> typing.Any:
         return self._output.unwrap()
