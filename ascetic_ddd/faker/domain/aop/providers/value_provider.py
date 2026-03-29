@@ -80,7 +80,7 @@ class ValueProvider(typing.Generic[T]):
                     state = self.state()
                     walker = EvaluateWalker()
                     if not walker.evaluate_sync(new_criteria, state):
-                        raise DiamondUpdateConflict(state, query_to_dict(new_criteria), self.provider_name)
+                        raise DiamondUpdateConflict(state, query_to_dict(new_criteria), 'ValueProvider')
                 else:
                     self._output = Nothing()
 
