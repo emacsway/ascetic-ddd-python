@@ -2,14 +2,14 @@ import typing
 
 from ascetic_ddd.option import Option, Some, Nothing
 from ascetic_ddd.faker.domain.query import parse_query
+from ascetic_ddd.faker.domain.query.evaluate_visitor import EvaluateWalker
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, EqOperator, MergeConflict, IsNullOperator,
 )
+from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.faker.domain.generators.interfaces import IAnyInputGenerator, IInputGenerator
 from ascetic_ddd.faker.domain.generators.generators import prepare_input_generator
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
-from ascetic_ddd.faker.domain.query.evaluate_visitor import EvaluateWalker
-from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.session.interfaces import ISession
 
 __all__ = ('ValueProvider',)

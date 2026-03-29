@@ -3,6 +3,7 @@ import typing
 from ascetic_ddd.option import Option, Some, Nothing
 from ascetic_ddd.faker.domain.aop.providers.interfaces import IProvider
 from ascetic_ddd.faker.domain.query import parse_query, query_to_dict
+from ascetic_ddd.faker.domain.query.evaluate_visitor import EvaluateWalker
 from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, CompositeQuery, MergeConflict,
 )
@@ -43,6 +44,7 @@ class StructureProvider:
 
     def require(self, criteria: dict[str, typing.Any]) -> None:
         new_criteria = parse_query(criteria)
+        old_criteria = self._criteria
         if self._criteria is not None:
             try:
                 self._criteria = self._criteria + new_criteria
@@ -52,8 +54,18 @@ class StructureProvider:
                 )
         else:
             self._criteria = new_criteria
-        self._output = Nothing()
-        self._distribute_criteria(new_criteria)
+
+        if self._criteria != old_criteria:
+            if self._output.is_some():
+                if not self.is_transient():
+                    state = self.state()
+                    walker = EvaluateWalker()
+                    if not walker.evaluate_sync(new_criteria, state):
+                        raise DiamondUpdateConflict(state, query_to_dict(new_criteria), self.provider_name)
+                else:
+                    self._output = Nothing()
+
+            self._distribute_criteria(new_criteria)
 
     def _distribute_criteria(self, query: IQueryOperator) -> None:
         if isinstance(query, CompositeQuery):
