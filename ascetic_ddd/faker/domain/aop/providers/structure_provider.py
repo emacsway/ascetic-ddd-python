@@ -79,10 +79,7 @@ class StructureProvider:
         self._criteria = None
 
     def is_complete(self) -> bool:
-        return (
-            self._output.is_some() or
-            all(provider.is_complete() for provider in self._providers.values())
-        )
+        return self._output.is_some()
 
     def is_transient(self) -> bool:
         return any(provider.is_transient() for provider in self._providers.values())

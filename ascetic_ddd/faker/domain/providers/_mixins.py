@@ -15,6 +15,7 @@ from ascetic_ddd.faker.domain.query.operators import (
     IQueryOperator, CompositeQuery, MergeConflict
 )
 from ascetic_ddd.faker.domain.query.parser import parse_query
+from ascetic_ddd.faker.domain.query.evaluate_visitor import EvaluateWalker
 from ascetic_ddd.faker.domain.query.visitors import query_to_dict
 from ascetic_ddd.faker.domain.providers.exceptions import DiamondUpdateConflict
 from ascetic_ddd.faker.domain.specification.empty_specification import EmptySpecification
@@ -168,8 +169,15 @@ class BaseProvider(
             self._criteria = new_criteria
         # Only reset output if input actually changed
         if self._criteria != old_criteria:
-            self._input = Nothing()
-            self._output = Nothing()
+            if self._output.is_some():
+                if not self.is_transient():
+                    state = self.state()
+                    walker = EvaluateWalker()
+                    if not walker.evaluate_sync(new_criteria, state):
+                        raise DiamondUpdateConflict(state, query_to_dict(new_criteria), self.provider_name)
+                else:
+                    self._input = Nothing()
+                    self._output = Nothing()
             self._on_required.notify(CriteriaRequiredEvent(new_criteria))
 
     def output(self) -> OutputT:
@@ -373,10 +381,7 @@ class BaseCompositeProvider(
         await self._on_populated.notify(OutputPopulatedEvent(session, output, self.is_transient(), is_distributed))
 
     def is_complete(self) -> bool:
-        return (
-            self._output.is_some() or
-            all(provider.is_complete() for provider in self.providers.values())
-        )
+        return self._output.is_some()
 
     def is_transient(self) -> bool:
         return any(provider.is_transient() for provider in self.providers.values())
