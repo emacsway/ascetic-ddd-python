@@ -48,26 +48,6 @@ class AggregateProvider(
             output_exporter=output_exporter,
         )
 
-    def require(self, criteria: dict[str, typing.Any]) -> None:
-        new_criteria = parse_query(criteria)
-        if self._output.is_some():
-            # Already created — validate state instead of resetting output
-            state = self.state()
-            walker = EvaluateWalker()
-            if not walker.evaluate_sync(new_criteria, state):
-                raise DiamondUpdateConflict(state, query_to_dict(new_criteria), self.provider_name)
-            # State matches — merge criteria for bookkeeping
-            if self._criteria is not None:
-                try:
-                    self._criteria = self._criteria + new_criteria
-                except (TypeError, MergeConflict):
-                    pass  # Validation already confirmed compatibility
-            else:
-                self._criteria = new_criteria
-            # Don't distribute — nested providers already have their state
-            return
-        super().require(criteria)
-
     async def populate(self, session: ISession) -> None:
         # Prevent diamond problem (cycles in FK)
         # See also https://github.com/mikeboers/C3Linearize
