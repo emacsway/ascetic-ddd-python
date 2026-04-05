@@ -29,6 +29,9 @@ class NullableDistributor(IM2ODistributor[T], typing.Generic[T]):
             session: ISession,
             specification: ISpecification[T],
     ) -> Option[T]:
+        # The root-level {'$is_null': True} is already checked by provider.
+        # Now check a case like this:
+        # {'$or': {'$is_null': True}, {'$eq': some_value}}
         # if await specification.is_satisfied_by(session, None) and self._null_weight > 0 and self._is_null():
         if self._null_weight > 0 and self._is_null():
             return Nothing()
