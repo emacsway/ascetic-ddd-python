@@ -304,6 +304,8 @@ def make_second_model_factory(repository, make_distributor):
         modeled,
         repository=repository,
         id_field='id',
+        id_factory=pk_modeled,
+        id_exporter=export_second_model_pk,
     )
 
 
@@ -333,6 +335,8 @@ def make_third_model_factory(repository, make_distributor):
         modeled,
         repository=repository,
         id_field='id',
+        id_factory=pk_modeled,
+        id_exporter=export_third_model_pk,
     )
 
 
