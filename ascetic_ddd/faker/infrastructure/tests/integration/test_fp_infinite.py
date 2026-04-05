@@ -256,27 +256,6 @@ class Attr2ValueGenerator:
         return val
 
 
-# ################## ID extractors for PersistedFactory ##################
-
-
-def first_model_id_extractor(fm: FirstModel) -> typing.Any:
-    if fm.id is None:
-        return None
-    return fm.id
-
-
-def second_model_id_extractor(sm: SecondModel) -> typing.Any:
-    if sm.id is None or sm.id.id is None:
-        return None
-    return export_second_model_pk(sm.id)
-
-
-def third_model_id_extractor(tm: ThirdModel) -> typing.Any:
-    if tm.id is None or tm.id.id is None:
-        return None
-    return export_third_model_pk(tm.id)
-
-
 # ################## Creator Factories (stateless) #######################
 
 
@@ -297,7 +276,7 @@ def make_first_model_factory(repository, make_distributor):
     return PersistedFactory(
         modeled,
         repository=repository,
-        id_extractor=first_model_id_extractor,
+        id_field='id',
     )
 
 
@@ -324,7 +303,7 @@ def make_second_model_factory(repository, make_distributor):
     return PersistedFactory(
         modeled,
         repository=repository,
-        id_extractor=second_model_id_extractor,
+        id_field='id',
     )
 
 
@@ -353,7 +332,7 @@ def make_third_model_factory(repository, make_distributor):
     return PersistedFactory(
         modeled,
         repository=repository,
-        id_extractor=third_model_id_extractor,
+        id_field='id',
     )
 
 
